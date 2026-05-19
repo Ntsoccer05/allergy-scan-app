@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-files *)",
+      "Bash(git remote *)",
+      "Bash(node *)",
+      "Bash(node -e *)",
+      "Bash(npm view *)",
+      "Bash(npm pack *)",
+      "Bash(npm show *)",
+      "Bash(npx playwright *)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Skill(sync-rules)",
+      "Skill(sync-rules:*)",
+      "Skill(run-harness-cycle)",
+      "Skill(run-harness-cycle:*)"
+    ],
+    "defaultMode": "auto"
+  }
+}

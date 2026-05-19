@@ -1,0 +1,62 @@
+{
+  "title": "設定",
+  "allergens": {
+    "title": "アレルゲン設定",
+    "category": {
+      "mandatory": "特定原材料（9品目・表示義務あり）",
+      "recommended": "準ずるもの（20品目・表示推奨）",
+      "addiction": "依存性への配慮",
+      "skin": "肌への配慮"
+    },
+    "showMore": "もっと見る",
+    "showLess": "閉じる",
+    "partialAlert": "一部含む警告",
+    "partialAlertDescription": "「一部に〜を含む」一括表示パターンも警告する"
+  },
+  "language": {
+    "title": "言語設定",
+    "ja": "日本語",
+    "en": "English"
+  },
+  "vibration": {
+    "title": "バイブレーション",
+    "description": "スキャン結果通知時に振動する"
+  },
+  "account": {
+    "title": "アカウント",
+    "deleteData": "データをリセット",
+    "deleteDataDescription": "スキャン履歴・アレルギー設定をすべて削除します",
+    "deleteConfirmTitle": "データをリセットしますか？",
+    "deleteConfirmMessage": "スキャン履歴・アレルギー設定がすべて削除されます。この操作は取り消せません。",
+    "deleteConfirmOk": "リセットする",
+    "deleteConfirmCancel": "キャンセル"
+  },
+  "backup_code": {
+    "title": "デバイス引き継ぎ",
+    "description": "機種変更時にアレルギー設定とスキャン履歴を引き継ぐためのコードを発行できます",
+    "issueButton": "バックアップコードを発行",
+    "modal": {
+      "title": "バックアップコード",
+      "codeLabel": "引き継ぎコード",
+      "expiresLabel": "有効期限",
+      "warning": "⚠️ このコードは他人に見せないでください",
+      "reissueButton": "新しいコードを発行",
+      "closeButton": "閉じる",
+      "reissueConfirmTitle": "コードを再発行しますか？",
+      "reissueConfirmMessage": "現在のコードは無効になります。引き続き引き継ぎが必要な場合は、新しいコードをメモしてください。",
+      "reissueConfirmOk": "再発行する",
+      "reissueConfirmCancel": "キャンセル"
+    },
+    "error": {
+      "issueFailed": "コードの発行に失敗しました"
+    }
+  },
+  "loading": "読み込み中...",
+  "saving": "保存中...",
+  "error": {
+    "loadFailed": "設定の読み込みに失敗しました",
+    "saveFailed": "設定の保存に失敗しました",
+    "localeChangeFailed": "言語設定の保存に失敗しました",
+    "deleteFailed": "データのリセットに失敗しました"
+  }
+}

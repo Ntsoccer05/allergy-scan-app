@@ -1,0 +1,8 @@
+{
+  "nav": {
+    "label": "Bottom navigation",
+    "scan": "Scan",
+    "history": "History",
+    "settings": "Settings"
+  }
+}

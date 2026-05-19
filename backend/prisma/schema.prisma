@@ -1,0 +1,133 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// アレルゲンマスター（29品目）
+model Allergen {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  displayName  String   @map("display_name")
+  category     String
+  // 'mandatory'   : 特定原材料（9品目・表示義務あり）
+  // 'recommended' : 準ずるもの（20品目・表示推奨）
+  displayOrder Int      @map("display_order")
+  emoji        String?
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  components AllergenComponent[]
+
+  @@index([category, displayOrder], name: "allergens_category_idx")
+  @@map("allergens")
+}
+
+// 派生成分・除外リストマスター
+model AllergenComponent {
+  id            String   @id @default(uuid())
+  allergenName  String   @map("allergen_name")
+  canonicalName String   @map("canonical_name")
+  aliases       Json     @default("[]") @db.JsonB
+  componentType String   @map("component_type")
+  // 'direct'        : 直接表記（乳、牛乳 等）
+  // 'derivative'    : 派生成分（カゼイン、ホエイ 等）
+  // 'processed'     : 加工品（バター、チーズ 等）
+  // 'compound'      : 複合原材料（マヨネーズ（卵を含む）等）
+  // 'additive'      : 添加物（カゼインNa、グルテン 等）
+  // 'contains_label': 一括表示パターン（一部に〜を含む 等）
+  // 'exclude'       : 誤検出除外（乳化剤、乳酸菌 等）
+  detectionType String   @default("contains") @map("detection_type")
+  riskLevel     String   @default("medium") @map("risk_level")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // allergen_name は allergens.name を参照する（id ではなく name）
+  allergen Allergen @relation(fields: [allergenName], references: [name], onUpdate: Cascade)
+
+  @@index([allergenName], name: "allergen_components_name_idx")
+  @@index([allergenName, componentType], name: "allergen_components_type_idx")
+  @@map("allergen_components")
+}
+
+// 商品・アレルゲン情報
+model Product {
+  id          String    @id @default(uuid())
+  idType      String    @map("id_type")
+  idValue     String    @map("id_value")
+  productName String?   @map("product_name")
+  storeName   String?   @map("store_name")
+  // JSONB: { contains: string[], partial: string[], components: string[] }
+  allergens   Json      @default("{}")
+  rawText     String?   @map("raw_text")
+  scanCount   Int       @default(1) @map("scan_count")
+  confidence  String?
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  scanHistories ScanHistory[]
+
+  @@unique([idType, idValue])
+  @@map("products")
+}
+
+// スキャン履歴
+model ScanHistory {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  productId   String?  @map("product_id")
+  productName String?  @map("product_name")
+  judgment    String
+  // 'ng' / 'partial' / 'ok'
+  detected    Json     @default("[]")
+  // JSONB: { store_name: string, lat: number, lng: number }
+  location    Json?
+  // NOTE: scan_histories_store_idx（store_name カラム）は database.md の設計では
+  //       location JSONB 内の store_name を指す。Prisma では表現不可のため
+  //       migration SQL 手動編集で対応する。
+  //       手動SQL: CREATE INDEX scan_histories_store_idx ON scan_histories((location->>'store_name'), scanned_at DESC);
+  thumbnailUrl String? @map("thumbnail_url")
+  scannedAt   DateTime @default(now()) @map("scanned_at")
+
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([userId, scannedAt(sort: Desc)], name: "scan_histories_user_idx")
+  @@map("scan_histories")
+}
+
+// ユーザー・アレルギー設定
+model User {
+  id        String   @id
+  // JSONB: { "乳": { enabled: boolean, partialAlert: boolean }, ... }
+  allergies Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+
+  backupCodes BackupCode[]
+
+  @@map("users")
+}
+
+// デバイス引き継ぎ用バックアップコード
+model BackupCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  // ALRG-XXXX-XXXX 形式（O/0・I/1 を除く大文字英数字）
+  code      String    @unique
+  isUsed    Boolean   @default(false) @map("is_used")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code], name: "backup_codes_code_idx")
+  @@index([userId], name: "backup_codes_user_idx")
+  @@map("backup_codes")
+}

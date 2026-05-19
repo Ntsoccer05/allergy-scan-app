@@ -1,0 +1,21 @@
+ユーザーが設定しているアレルゲン：なし（設定なし）
+
+アレルゲン設定がないため、アレルゲン検出は行わずに原材料テキストのみ抽出してください。
+
+ルール：
+・原材料テキストを一字一句そのまま抽出すること
+・results は空配列を返すこと（アレルゲン設定なし）
+・テキストが途切れている場合は incomplete:true を返すこと
+・価格が表示されていれば合わせて返すこと
+
+返答はJSON形式のみ（前置き・説明文は不要）：
+{
+  "raw_text": "読み取った原材料テキスト全文",
+  "confidence": "high / medium / low",
+  "results": [],
+  "highlights": [],
+  "incomplete": false,
+  "price": null,
+  "price_with_tax": null,
+  "price_confidence": null
+}

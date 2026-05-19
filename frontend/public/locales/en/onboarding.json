@@ -1,0 +1,51 @@
+{
+  "step1": {
+    "title": "Welcome to Allergy Scan",
+    "description": "Scan food labels to instantly check if your allergens are included.",
+    "start": "Get started",
+    "restore": "Have a transfer code?"
+  },
+  "step2": {
+    "title": "Select your allergens",
+    "description": "Select at least one allergen to monitor. You can change this later in settings.",
+    "next": "Next",
+    "showMore": "Show more (20 recommended items)",
+    "showLess": "Show less",
+    "category": {
+      "mandatory": "Specified Allergens (9 items, labeling required)",
+      "recommended": "Recommended Allergens (20 items)"
+    }
+  },
+  "step3": {
+    "title": "Partial containment warnings",
+    "description": "Configure whether to warn about \"partially contains\" labeling patterns for your selected allergens.",
+    "next": "Next",
+    "partialAlertLabel": "Partial alert",
+    "partialAlertDescription": "Warn on \"partially contains\" labeling patterns"
+  },
+  "step4": {
+    "title": "Please read before using",
+    "disclaimer": "This app's judgment is for reference only. If you are at risk of allergy symptoms or anaphylaxis, always check the actual label before purchasing.",
+    "important1": "Do not rely 100% on this app's judgment",
+    "important2": "Always check the actual label before purchasing",
+    "important3": "Consult a medical professional if you have symptoms",
+    "agree": "Agree and get started"
+  },
+  "restore": {
+    "title": "Restore with backup code",
+    "description": "Enter the backup code issued on your previous device",
+    "codePlaceholder": "ALRG-XXXX-XXXX",
+    "submitButton": "Transfer",
+    "submitting": "Transferring...",
+    "error": {
+      "code_invalid": "Invalid code. It may have expired or already been used.",
+      "unknown": "Transfer failed. Please try again."
+    }
+  },
+  "back": "← Back",
+  "loading": "Loading...",
+  "error": {
+    "initFailed": "Initialization failed. Please reload the page.",
+    "saveFailed": "Failed to save settings. Please try again."
+  }
+}

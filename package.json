@@ -1,0 +1,13 @@
+{
+  "name": "allergy-scan-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend start:dev",
+    "typecheck": "pnpm -r tsc --noEmit",
+    "test": "pnpm -r test -- --passWithNoTests",
+    "lint": "pnpm -r lint"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

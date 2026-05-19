@@ -1,0 +1,537 @@
+openapi: 3.0.3
+info:
+  title: Allergy Scan API
+  version: 1.0.0
+  description: |
+    アレルギースキャンアプリのバックエンド API。
+    NestJS on AWS Lambda で実装。
+
+    > このファイルは正典（source of truth）。API 変更時は Generator が spec-docs-syncer 経由で更新する。
+
+servers:
+  - url: https://api.example.com
+    description: Production (AWS Lambda)
+  - url: http://localhost:3001
+    description: Local development
+
+tags:
+  - name: allergens
+    description: アレルゲンマスター
+  - name: scan
+    description: スキャン（バーコード・OCR）
+  - name: history
+    description: スキャン履歴
+  - name: users
+    description: ユーザー設定
+
+paths:
+  /allergens:
+    get:
+      tags: [allergens]
+      summary: アレルゲンマスター取得
+      description: 設定画面用。category・display_order 順で返す。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AllergenCategory"
+              example:
+                - category: mandatory
+                  label: "特定原材料（9品目・表示義務あり）"
+                  items:
+                    - name: えび
+                      emoji: 🦐
+                      display_order: 1
+                    - name: 卵
+                      emoji: 🥚
+                      display_order: 7
+                - category: recommended
+                  label: "準ずるもの（20品目・表示推奨）"
+                  items:
+                    - name: アーモンド
+                      emoji: 🌰
+                      display_order: 10
+
+  /scan/presigned-url:
+    get:
+      tags: [scan]
+      summary: S3 Presigned URL 発行
+      description: |
+        クライアントが直接 S3 に画像をアップロードするための URL を発行する。
+        Lambda の 6MB ペイロード制限を回避するため、画像は Lambda 経由で受け取らない。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresignedUrlResponse"
+
+  /scan/barcode:
+    post:
+      tags: [scan]
+      summary: バーコード（JAN コード）照合
+      description: |
+        照合フロー:
+        1. NestJS メモリキャッシュ確認（TTL: 60秒）
+        2. DB の expires_at 確認（有効期限内なら即返却）
+        3. Open Food Facts API 照合
+        4. ミスなら `found: false` を返却（クライアントが OCR に自動切り替え）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BarcodeScanRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BarcodeScanResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /scan/ocr:
+    post:
+      tags: [scan]
+      summary: OCR + アレルゲン判定
+      description: |
+        フロー:
+        1. S3 から画像取得
+        2. ユーザーの有効アレルゲンを取得
+        3. allergen_components から成分リストを動的生成
+        4. Gemini Flash API に送信
+        5. incomplete: true → 400 返却
+        6. confidence: low → 422 返却（再スキャン誘導）
+        7. products テーブルに UPSERT（scan_count +1、expires_at 再計算）
+        8. scan_histories に記録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OcrScanRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OcrScanResponse"
+        "400":
+          description: incomplete（ラベル全体が映っていない）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: ラベル全体が映るように離してください
+                code: INCOMPLETE_IMAGE
+        "422":
+          description: confidence が low（近づけて再スキャン）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: もう少し近づけて再スキャンしてください
+                code: LOW_CONFIDENCE
+
+  /history:
+    get:
+      tags: [history]
+      summary: スキャン履歴一覧
+      description: カーソルベースページネーション。20件ずつ返す。
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [all, ng, partial, ok]
+            default: all
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+        - name: cursor
+          in: query
+          description: 前ページの最後の scanned_at（ISO 8601）
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryListResponse"
+
+    post:
+      tags: [history]
+      summary: スキャン履歴保存
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HistorySaveRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanHistory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /users/me:
+    get:
+      tags: [users]
+      summary: ユーザー設定取得
+      description: TTL 5分でキャッシュ。スキャン開始時に呼び出し Gemini プロンプト動的生成に使用。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+
+    put:
+      tags: [users]
+      summary: アレルギー設定更新
+      description: |
+        enabled を true にした瞬間、partialAlert も自動で true になる。
+        enabled を false にした瞬間、partialAlert も自動で false になる。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AllergySettingsUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+    delete:
+      tags: [users]
+      summary: ユーザーデータ削除
+      description: |
+        要配慮個人情報（アレルギー設定・スキャン履歴）を全削除。
+        個人情報保護法上、ユーザーからの削除要求に対応するため必須。
+      responses:
+        "204":
+          description: No Content
+
+components:
+  schemas:
+    AllergenCategory:
+      type: object
+      required: [category, label, items]
+      properties:
+        category:
+          type: string
+          enum: [mandatory, recommended]
+        label:
+          type: string
+          example: "特定原材料（9品目・表示義務あり）"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenItem"
+
+    AllergenItem:
+      type: object
+      required: [name, emoji, display_order]
+      properties:
+        name:
+          type: string
+          example: 乳
+        emoji:
+          type: string
+          example: 🥛
+        display_order:
+          type: integer
+          example: 8
+
+    AllergenSetting:
+      type: object
+      required: [enabled, partialAlert]
+      properties:
+        enabled:
+          type: boolean
+        partialAlert:
+          type: boolean
+
+    PresignedUrlResponse:
+      type: object
+      required: [url, s3_key]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: S3 PUT 用 Presigned URL
+        s3_key:
+          type: string
+          description: OCR リクエスト時に渡す S3 キー
+
+    BarcodeScanRequest:
+      type: object
+      required: [jan_code]
+      properties:
+        jan_code:
+          type: string
+          pattern: '^\d{8,13}$'
+          example: "4901234567890"
+
+    BarcodeScanResponse:
+      type: object
+      required: [found]
+      properties:
+        found:
+          type: boolean
+        product_name:
+          type: string
+          nullable: true
+        allergens:
+          $ref: "#/components/schemas/ProductAllergens"
+          nullable: true
+        judgment:
+          $ref: "#/components/schemas/Judgment"
+          nullable: true
+        detected:
+          type: array
+          items:
+            type: string
+          nullable: true
+        is_high_risk:
+          type: boolean
+          nullable: true
+        from_cache:
+          type: boolean
+
+    ProductAllergens:
+      type: object
+      properties:
+        contains:
+          type: array
+          items:
+            type: string
+          description: 含むアレルゲン
+        partial:
+          type: array
+          items:
+            type: string
+          description: 一部含むアレルゲン
+        components:
+          type: array
+          items:
+            type: string
+          description: 検出された派生成分
+
+    OcrScanRequest:
+      type: object
+      required: [s3_key]
+      properties:
+        s3_key:
+          type: string
+          description: /scan/presigned-url で取得した S3 キー
+
+    OcrScanResponse:
+      type: object
+      required: [raw_text, confidence, judgment, detected, is_high_risk, reason, incomplete]
+      properties:
+        raw_text:
+          type: string
+          description: OCR で読み取った原材料テキスト全文
+        confidence:
+          $ref: "#/components/schemas/Confidence"
+        judgment:
+          $ref: "#/components/schemas/Judgment"
+        detected:
+          type: array
+          items:
+            type: string
+          description: 検出された成分名
+        is_high_risk:
+          type: boolean
+          description: アナフィラキシーリスクの高い成分が含まれるか
+        reason:
+          type: string
+          description: 判定理由
+        incomplete:
+          type: boolean
+          description: ラベル全体が映っていない場合 true
+        price:
+          type: number
+          nullable: true
+          description: 税抜価格（取得できた場合のみ）
+        price_with_tax:
+          type: number
+          nullable: true
+          description: 税込価格
+        price_confidence:
+          type: string
+          enum: [high, low]
+          nullable: true
+          description: 価格の読み取り信頼度（high のみ表示）
+
+    HistoryListResponse:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanHistory"
+        nextCursor:
+          type: string
+          format: date-time
+          nullable: true
+
+    ScanHistory:
+      type: object
+      required: [id, product_name, judgment, scanned_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+          nullable: true
+        judgment:
+          $ref: "#/components/schemas/JudgmentShort"
+        detected:
+          type: array
+          items:
+            type: string
+        location:
+          $ref: "#/components/schemas/Location"
+          nullable: true
+        thumbnail_url:
+          type: string
+          format: uri
+          nullable: true
+          description: 惣菜のみ（S3 URL）
+        price:
+          type: number
+          nullable: true
+        scanned_at:
+          type: string
+          format: date-time
+
+    HistorySaveRequest:
+      type: object
+      required: [product_id, judgment]
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_name:
+          type: string
+          nullable: true
+        judgment:
+          $ref: "#/components/schemas/JudgmentShort"
+        detected:
+          type: array
+          items:
+            type: string
+        location:
+          $ref: "#/components/schemas/Location"
+          nullable: true
+        thumbnail_url:
+          type: string
+          format: uri
+          nullable: true
+
+    UserSettings:
+      type: object
+      required: [id, allergies]
+      properties:
+        id:
+          type: string
+          description: デバイス ID
+        allergies:
+          type: object
+          description: キーは allergens.name と完全一致
+          additionalProperties:
+            $ref: "#/components/schemas/AllergenSetting"
+          example:
+            乳:
+              enabled: true
+              partialAlert: true
+            卵:
+              enabled: false
+              partialAlert: false
+
+    AllergySettingsUpdate:
+      type: object
+      required: [allergies]
+      properties:
+        allergies:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/AllergenSetting"
+
+    Location:
+      type: object
+      properties:
+        store_name:
+          type: string
+          nullable: true
+          example: セブンイレブン渋谷店
+        lat:
+          type: number
+          format: double
+          nullable: true
+        lng:
+          type: number
+          format: double
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      required: [message, code]
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+
+    Judgment:
+      type: string
+      enum: [含む, 一部含む, なし, 判定不能]
+
+    JudgmentShort:
+      type: string
+      enum: [ng, partial, ok]
+      description: ng=含む / partial=一部含む / ok=なし
+
+    Confidence:
+      type: string
+      enum: [high, medium, low]
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

@@ -1,0 +1,13 @@
+# environment variables
+.env
+.env.local
+
+# build output
+dist/
+node_modules/
+
+# coverage
+coverage/
+
+# prisma
+prisma/migrations/dev.db

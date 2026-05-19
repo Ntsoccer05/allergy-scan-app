@@ -1,0 +1,62 @@
+{
+  "title": "Settings",
+  "allergens": {
+    "title": "Allergen Settings",
+    "category": {
+      "mandatory": "Specified Allergens (9 items, labeling required)",
+      "recommended": "Recommended Allergens (20 items)",
+      "addiction": "Addiction Considerations",
+      "skin": "Skin Considerations"
+    },
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "partialAlert": "Partial alert",
+    "partialAlertDescription": "Alert on \"partially contains\" labeling patterns"
+  },
+  "language": {
+    "title": "Language",
+    "ja": "日本語",
+    "en": "English"
+  },
+  "vibration": {
+    "title": "Vibration",
+    "description": "Vibrate on scan result notification"
+  },
+  "account": {
+    "title": "Account",
+    "deleteData": "Reset Data",
+    "deleteDataDescription": "Delete all scan history and allergen settings",
+    "deleteConfirmTitle": "Reset data?",
+    "deleteConfirmMessage": "All scan history and allergen settings will be deleted. This action cannot be undone.",
+    "deleteConfirmOk": "Reset",
+    "deleteConfirmCancel": "Cancel"
+  },
+  "backup_code": {
+    "title": "Device Transfer",
+    "description": "Issue a backup code to transfer your allergen settings and scan history to a new device",
+    "issueButton": "Issue backup code",
+    "modal": {
+      "title": "Backup Code",
+      "codeLabel": "Transfer code",
+      "expiresLabel": "Expires",
+      "warning": "⚠️ Do not share this code with others",
+      "reissueButton": "Issue new code",
+      "closeButton": "Close",
+      "reissueConfirmTitle": "Issue a new code?",
+      "reissueConfirmMessage": "Your current code will be invalidated. If you still need to transfer, note down the new code.",
+      "reissueConfirmOk": "Re-issue",
+      "reissueConfirmCancel": "Cancel"
+    },
+    "error": {
+      "issueFailed": "Failed to issue code"
+    }
+  },
+  "loading": "Loading...",
+  "saving": "Saving...",
+  "error": {
+    "loadFailed": "Failed to load settings",
+    "saveFailed": "Failed to save settings",
+    "localeChangeFailed": "Failed to save language setting",
+    "deleteFailed": "Failed to reset data"
+  }
+}

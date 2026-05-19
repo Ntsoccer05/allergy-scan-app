@@ -1,0 +1,18 @@
+{
+  "title": "Scan History",
+  "tabs": {
+    "mine": "My Scans",
+    "others": "Everyone's Scans"
+  },
+  "filter": {
+    "all": "All",
+    "ng": "NG",
+    "partial": "Partial",
+    "ok": "OK"
+  },
+  "empty": "No history found",
+  "othersEmpty": "No products have been scanned yet",
+  "loadMore": "Load more",
+  "loading": "Loading...",
+  "expiredTag": "May be outdated"
+}
