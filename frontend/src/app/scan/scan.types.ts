@@ -74,7 +74,13 @@ export type OcrScanResponse = {
   price_confidence: 'high' | 'low' | null
 }
 
+/** 店舗候補の型（Places API から返される） */
+export type StoreCandidate = {
+  name: string
+  placeId: string
+}
+
 /** バーコードスキャン結果または OCR スキャン結果 */
 export type ScanResult =
   | { type: 'barcode'; data: BarcodeScanResponse }
-  | { type: 'ocr'; data: OcrScanResponse }
+  | { type: 'ocr'; data: OcrScanResponse; storeCandidates?: StoreCandidate[] }

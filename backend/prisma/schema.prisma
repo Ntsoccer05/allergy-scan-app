@@ -103,11 +103,13 @@ model ScanHistory {
 
 // ユーザー・アレルギー設定
 model User {
-  id        String   @id
+  id             String   @id
   // JSONB: { "乳": { enabled: boolean, partialAlert: boolean }, ... }
-  allergies Json     @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
-  lastUsedAt DateTime @default(now()) @map("last_used_at")
+  allergies      Json     @default("{}")
+  locale         String   @default("ja")
+  onboardingDone Boolean  @default(false) @map("onboarding_done")
+  createdAt      DateTime @default(now()) @map("created_at")
+  lastUsedAt     DateTime @default(now()) @map("last_used_at")
 
   backupCodes BackupCode[]
 

@@ -370,9 +370,10 @@ CREATE TABLE users (
   --   "小麦": { "enabled": false, "partialAlert": false }
   -- }
   -- ※キーはallergensテーブルのnameと対応
-  locale       VARCHAR(10) DEFAULT 'ja',  -- 多言語対応用（'ja' / 'en' 等）
-  created_at   TIMESTAMP DEFAULT NOW(),
-  last_used_at TIMESTAMP DEFAULT NOW()
+  locale            VARCHAR(10) DEFAULT 'ja',      -- 多言語対応用（'ja' / 'en' 等）
+  onboarding_done   BOOLEAN DEFAULT false,          -- オンボーディング完了フラグ（server-side 永続化）
+  created_at        TIMESTAMP DEFAULT NOW(),
+  last_used_at      TIMESTAMP DEFAULT NOW()
 );
 ```
 

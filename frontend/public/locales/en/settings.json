@@ -51,6 +51,19 @@
       "issueFailed": "Failed to issue code"
     }
   },
+  "reservationText": {
+    "title": "Restaurant Reservation Text",
+    "description": "Use this text to inform restaurants of your allergies. Copy and paste it when making reservations.",
+    "copyButton": "Copy",
+    "copiedButton": "Copied!",
+    "regenerateButton": "Regenerate",
+    "copyError": "Failed to copy",
+    "format": {
+      "prefix": "Food allergies: ",
+      "suffix": ". Please be careful.",
+      "separator": ", "
+    }
+  },
   "loading": "Loading...",
   "saving": "Saving...",
   "error": {

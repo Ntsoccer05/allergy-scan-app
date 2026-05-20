@@ -77,6 +77,7 @@ beforeEach(() => {
     id: 'user-1',
     allergies: {},
     locale: 'ja',
+    onboarding_done: true,
   })
 })
 
@@ -205,6 +206,22 @@ describe('useOnboarding', () => {
         allergies: expect.any(Object),
         locale: 'ja',
       }),
+    )
+  })
+
+  it('completeOnboarding 呼び出し時に updateUser が onboarding_done: true を含むボディで呼ばれる', async () => {
+    const { result } = renderHook(() => useOnboarding())
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    await act(async () => {
+      await result.current.completeOnboarding()
+    })
+
+    expect(mockUpdateUser).toHaveBeenCalledWith(
+      expect.objectContaining({ onboarding_done: true }),
     )
   })
 

@@ -17,6 +17,11 @@ import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
 import { S3Client } from '../shared/s3.client';
 import { GeminiClient } from '../shared/gemini.client';
 import { UsersRepository } from '../users/users.repository';
+import {
+  PLACES_PROVIDER_TOKEN,
+  type StoreCandidate,
+  type StoreCandidateProvider,
+} from '../shared/places.interface';
 import { buildGeminiPrompt } from './gemini-prompt.builder';
 import { buildLabelHash } from '../products/label-hash.util';
 import {
@@ -42,6 +47,11 @@ export type PresignedUrlResult = {
   s3_key: string;
 };
 
+/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates を追加。 */
+export type OcrScanResult = GeminiOcrResponse & {
+  storeCandidates?: StoreCandidate[];
+};
+
 @Injectable()
 export class ScanService {
   private readonly logger = new Logger(ScanService.name);
@@ -55,6 +65,7 @@ export class ScanService {
     private readonly s3Client: S3Client,
     private readonly geminiClient: GeminiClient,
     private readonly usersRepository: UsersRepository,
+    @Inject(PLACES_PROVIDER_TOKEN) private readonly placesClient: StoreCandidateProvider,
   ) {}
 
   /**
@@ -139,12 +150,16 @@ export class ScanService {
    * 5. incomplete: true → 400
    * 6. confidence: low → 422
    * 7. products テーブルに UPSERT（scan_count +1、expires_at 再計算）
-   * 8. scan_histories に記録
+   * 8. GPS + Places API で店舗候補取得（lat/lng が両方揃っている場合のみ）
+   * 9. 候補数に応じて location を分岐し scan_histories に記録
+   * 10. 候補 2 件以上のとき storeCandidates をレスポンスに含める
    */
   async processOcr(
     s3Key: string,
     userId: string | undefined,
-  ): Promise<GeminiOcrResponse> {
+    lat?: number,
+    lng?: number,
+  ): Promise<OcrScanResult> {
     // Step 1: S3 から画像取得
     const imageBase64 = await this.s3Client.getImageAsBase64(s3Key);
     if (!imageBase64) {
@@ -200,23 +215,42 @@ export class ScanService {
       confidence: geminiResult.confidence,
     });
 
-    // Step 8: scan_histories に記録（results[] 配列から overall judgment と検出成分を導出）
+    // Step 8: GPS + Places API で店舗候補取得（lat/lng 両方揃っている場合のみ）
+    let storeCandidates: StoreCandidate[] = [];
+    if (lat !== undefined && lng !== undefined) {
+      storeCandidates = await this.placesClient.getStoreCandidates(lat, lng);
+    }
+
+    // Step 9: 候補数に応じて location を分岐し scan_histories に記録
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
     const allDetected = geminiResult.results.flatMap((r) => r.detected);
+
+    let location: { store_name: string; lat: number; lng: number } | null = null;
+    if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
+      // 候補 1 件: 確定として location に保存
+      location = { store_name: storeCandidates[0].name, lat, lng };
+    }
+    // 候補 0 件 または 2 件以上: location: null で保存（2件以上はユーザー選択後に PATCH）
+
     await this.scanHistoryRepository.create({
       userId: userId ?? randomUUID(),
       productId: product.id,
       productName: null,
       judgment,
       detected: allDetected,
-      location: null,
+      location,
       thumbnailUrl: null,
     });
 
     this.logger.log(
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
     );
+
+    // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
+    if (storeCandidates.length >= 2) {
+      return { ...geminiResult, storeCandidates };
+    }
     return geminiResult;
   }
 

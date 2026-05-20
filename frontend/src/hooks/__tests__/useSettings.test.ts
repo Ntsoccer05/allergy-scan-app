@@ -38,6 +38,7 @@ const makeUser = (): UserProfile => ({
     アルコール: { enabled: false, partialAlert: false },
   },
   locale: 'ja',
+  onboarding_done: true,
 })
 
 beforeEach(() => {

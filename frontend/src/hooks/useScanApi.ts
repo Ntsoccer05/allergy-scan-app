@@ -4,26 +4,36 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import type {
   BarcodeScanResponse,
-  OcrScanResponse,
   PresignedUrlResponse,
 } from '@/app/scan/scan.types'
-import type { CreateHistoryBody } from '@/app/history/history.types'
+import type { CreateHistoryBody, HistoryItem } from '@/app/history/history.types'
 import {
   getPresignedUrl,
   postBarcode,
   postOcr,
   uploadToS3,
+  type OcrApiResponse,
 } from '@/lib/api/scan.api'
-import { postHistory } from '@/lib/api/history.api'
+import { postHistory, patchHistoryLocation } from '@/lib/api/history.api'
 import { getCached, setCached } from '@/lib/cache'
+
+type ScanOcrParams = {
+  s3Key: string
+  lat?: number
+  lng?: number
+}
 
 type UseScanApiReturn = {
   scanBarcode: (janCode: string) => Promise<BarcodeScanResponse>
   fetchPresignedUrl: () => Promise<PresignedUrlResponse>
   putS3: (url: string, imageBlob: Blob) => Promise<void>
-  scanOcr: (s3Key: string) => Promise<OcrScanResponse>
+  scanOcr: (params: ScanOcrParams) => Promise<OcrApiResponse>
   scanBarcodeWithCache: (janCode: string) => Promise<BarcodeScanResponse>
-  saveHistory: (body: CreateHistoryBody) => Promise<void>
+  saveHistory: (body: CreateHistoryBody) => Promise<HistoryItem | null>
+  patchLocation: (
+    historyId: string,
+    location: { store_name: string; lat: number; lng: number },
+  ) => Promise<void>
 }
 
 export const useScanApi = (): UseScanApiReturn => {
@@ -66,23 +76,40 @@ export const useScanApi = (): UseScanApiReturn => {
   )
 
   const scanOcr = useCallback(
-    async (s3Key: string): Promise<OcrScanResponse> => {
-      return postOcr(s3Key)
+    async (params: ScanOcrParams): Promise<OcrApiResponse> => {
+      return postOcr(params)
     },
     [],
   )
 
   const saveHistory = useCallback(
-    async (body: CreateHistoryBody): Promise<void> => {
+    async (body: CreateHistoryBody): Promise<HistoryItem | null> => {
       try {
-        await postHistory(body)
+        const item = await postHistory(body)
         await queryClient.invalidateQueries({ queryKey: ['history'] })
+        return item
       } catch (e) {
         console.error('履歴保存に失敗しました', e)
+        return null
       }
     },
     [queryClient],
   )
 
-  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, saveHistory }
+  const patchLocation = useCallback(
+    async (
+      historyId: string,
+      location: { store_name: string; lat: number; lng: number },
+    ): Promise<void> => {
+      try {
+        await patchHistoryLocation(historyId, location)
+        await queryClient.invalidateQueries({ queryKey: ['history'] })
+      } catch (e) {
+        console.error('店舗情報の更新に失敗しました', e)
+      }
+    },
+    [queryClient],
+  )
+
+  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, saveHistory, patchLocation }
 }

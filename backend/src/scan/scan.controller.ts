@@ -12,8 +12,7 @@ import type { Request } from 'express';
 import { ScanService } from './scan.service';
 import { BarcodeScandDto } from './dto/barcode-scan.dto';
 import { OcrScanDto } from './dto/ocr-scan.dto';
-import type { BarcodeScanResult, PresignedUrlResult } from './scan.service';
-import type { GeminiOcrResponse } from '../shared/types/gemini.types';
+import type { BarcodeScanResult, OcrScanResult, PresignedUrlResult } from './scan.service';
 import { COOKIE_NAME } from '../users/users.constants';
 import {
   THROTTLE_OCR_TTL,
@@ -49,8 +48,8 @@ export class ScanController {
   async scanOcr(
     @Body() dto: OcrScanDto,
     @Req() req: Request,
-  ): Promise<GeminiOcrResponse> {
+  ): Promise<OcrScanResult> {
     const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
-    return this.scanService.processOcr(dto.s3_key, userId);
+    return this.scanService.processOcr(dto.s3_key, userId, dto.lat, dto.lng);
   }
 }

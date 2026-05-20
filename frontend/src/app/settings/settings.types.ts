@@ -15,12 +15,14 @@ export type UserProfile = {
   id: string
   allergies: AllergySettings
   locale: 'ja' | 'en'
+  onboarding_done: boolean
 }
 
 /** ユーザー設定更新のリクエストボディ（PUT /users/me） */
 export type UpdateUserBody = {
   allergies?: AllergySettings
   locale?: 'ja' | 'en'
+  onboarding_done?: boolean
 }
 
 /** アレルゲンマスターの1品目 */

@@ -10,6 +10,8 @@ const config: Config = {
     "^next-intl$": "<rootDir>/src/__mocks__/next-intl.tsx",
   },
   testRegex: ".*\\.(spec|test)\\.tsx?$",
+  /** Playwright E2E テストファイルを Jest の対象から除外する */
+  testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
   transform: {
     "^.+\\.(t|j)sx?$": ["ts-jest", { tsconfig: { jsx: "react-jsx" } }],
   },

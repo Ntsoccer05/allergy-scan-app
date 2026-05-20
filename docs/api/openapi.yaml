@@ -25,6 +25,109 @@ tags:
     description: ユーザー設定
 
 paths:
+  /users/init:
+    post:
+      tags: [users]
+      summary: 初回 Cookie 発行・ユーザー作成
+      description: |
+        Cookie が未設定の場合は UUID を生成して users テーブルに INSERT し Cookie を発行する。
+        既存 Cookie がある場合はそのまま onboarding_done を返す。
+      responses:
+        "200":
+          description: 既存ユーザー（Cookie あり）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitResponse"
+              example:
+                created: false
+                onboarding_done: true
+        "201":
+          description: 新規ユーザー作成・Cookie 発行
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitResponse"
+              example:
+                created: true
+                onboarding_done: false
+
+  /users/backup-code:
+    post:
+      tags: [users]
+      summary: バックアップコード発行
+      description: |
+        デバイス引き継ぎ用コードを発行する。Cookie 認証必須。
+        既存の未使用コードは失効させてから新コードを発行する。
+        有効期限: 7日。フォーマット: ALRG-XXXX-XXXX（文字セットから O/0/I/1 を除外）。
+      security:
+        - cookieAuth: []
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupCodeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/restore:
+    post:
+      tags: [users]
+      summary: バックアップコードでデバイス引き継ぎ
+      description: |
+        バックアップコードを照合して scan_histories・allergies を新デバイスに移行する。
+        レートリミット: 60秒5回（ブルートフォース防止）。
+        処理はトランザクション内で実行。
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreRequest"
+      responses:
+        "200":
+          description: 引き継ぎ成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Too Many Requests（レートリミット）
+
+  /products/others:
+    get:
+      tags: [scan]
+      summary: みんなのスキャン一覧
+      description: |
+        リクエストユーザーがスキャンしていない商品一覧をカーソルページネーションで返す。
+        Cookie 認証必須。ユーザーのアレルゲン設定に基づいた judgment を付与する。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: 前ページの最後の updated_at（ISO 8601）
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OthersProductListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /allergens:
     get:
       tags: [allergens]
@@ -194,6 +297,50 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /history/{id}:
+    patch:
+      tags: [history]
+      summary: スキャン履歴の location 更新
+      description: |
+        店舗候補が 2 件以上の場合にユーザーが選択した店舗を後から設定するエンドポイント。
+        Cookie の userId と history.user_id が一致しない場合は 403 を返す。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchHistoryRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanHistory"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden（他ユーザーの履歴への操作）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /users/me:
     get:
       tags: [users]
@@ -320,9 +467,6 @@ components:
           items:
             type: string
           nullable: true
-        is_high_risk:
-          type: boolean
-          nullable: true
         from_cache:
           type: boolean
 
@@ -355,26 +499,23 @@ components:
 
     OcrScanResponse:
       type: object
-      required: [raw_text, confidence, judgment, detected, is_high_risk, reason, incomplete]
+      required: [raw_text, confidence, results, highlights, incomplete]
       properties:
         raw_text:
           type: string
           description: OCR で読み取った原材料テキスト全文
         confidence:
           $ref: "#/components/schemas/Confidence"
-        judgment:
-          $ref: "#/components/schemas/Judgment"
-        detected:
+        results:
           type: array
           items:
-            type: string
-          description: 検出された成分名
-        is_high_risk:
-          type: boolean
-          description: アナフィラキシーリスクの高い成分が含まれるか
-        reason:
-          type: string
-          description: 判定理由
+            $ref: "#/components/schemas/AllergenResult"
+          description: アレルゲンごとの判定結果（複数）
+        highlights:
+          type: array
+          items:
+            $ref: "#/components/schemas/HighlightItem"
+          description: UI ハイライト用テキスト一覧（raw_text 内の検出箇所）
         incomplete:
           type: boolean
           description: ラベル全体が映っていない場合 true
@@ -391,6 +532,47 @@ components:
           enum: [high, low]
           nullable: true
           description: 価格の読み取り信頼度（high のみ表示）
+
+    AllergenResult:
+      type: object
+      required: [allergen, judgment, detection_type, detected, risk_level, reason]
+      properties:
+        allergen:
+          type: string
+          description: アレルゲン名（allergens.name と一致）
+        judgment:
+          $ref: "#/components/schemas/Judgment"
+        detection_type:
+          type: string
+          enum: [contains, partial, may_contain]
+          description: |
+            contains: 原材料として直接含む（🔴 NG）
+            partial: 一部に含む・一括表示パターン（🟡 注意）
+            may_contain: 製造ラインのコンタミ注意喚起（🟠 注意喚起）
+        detected:
+          type: array
+          items:
+            type: string
+          description: 検出された成分名リスト
+        risk_level:
+          type: string
+          enum: [high, medium, low, ignore]
+          description: アナフィラキシーリスクレベル
+        reason:
+          type: string
+          description: 判定理由
+
+    HighlightItem:
+      type: object
+      required: [text, judgment]
+      properties:
+        text:
+          type: string
+          description: raw_text 内のハイライト対象テキスト
+        judgment:
+          type: string
+          enum: [ng, partial, may_contain]
+          description: "ng: 🔴 / partial: 🟡 / may_contain: 🟠"
 
     HistoryListResponse:
       type: object
@@ -461,9 +643,16 @@ components:
           format: uri
           nullable: true
 
+    PatchHistoryRequest:
+      type: object
+      required: [location]
+      properties:
+        location:
+          $ref: "#/components/schemas/Location"
+
     UserSettings:
       type: object
-      required: [id, allergies]
+      required: [id, allergies, locale, onboarding_done]
       properties:
         id:
           type: string
@@ -480,15 +669,27 @@ components:
             卵:
               enabled: false
               partialAlert: false
+        locale:
+          type: string
+          enum: [ja, en]
+          description: ユーザーの言語設定
+        onboarding_done:
+          type: boolean
+          description: オンボーディング完了フラグ
 
     AllergySettingsUpdate:
       type: object
-      required: [allergies]
       properties:
         allergies:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/AllergenSetting"
+        locale:
+          type: string
+          enum: [ja, en]
+        onboarding_done:
+          type: boolean
+          description: true のみ受け付ける（false への上書きはサーバー側で無視される）
 
     Location:
       type: object
@@ -515,6 +716,85 @@ components:
         code:
           type: string
 
+    InitResponse:
+      type: object
+      required: [created, onboarding_done]
+      properties:
+        created:
+          type: boolean
+          description: true = 新規ユーザー作成、false = 既存ユーザー
+        onboarding_done:
+          type: boolean
+
+    BackupCodeResponse:
+      type: object
+      required: [code, expires_at]
+      properties:
+        code:
+          type: string
+          pattern: '^ALRG-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
+          example: ALRG-4829-KXMZ
+        expires_at:
+          type: string
+          format: date-time
+          description: 有効期限（発行から7日後）
+
+    RestoreRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: '^ALRG-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
+
+    RestoreResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    OthersProductListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OthersProductItem"
+        next_cursor:
+          type: string
+          format: date-time
+          nullable: true
+
+    OthersProductItem:
+      type: object
+      required: [id, allergens, judgment, detected, updated_at, is_expired]
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+          nullable: true
+        allergens:
+          $ref: "#/components/schemas/ProductAllergens"
+        judgment:
+          $ref: "#/components/schemas/JudgmentShort"
+          description: ユーザーのアレルゲン設定に基づいた総合判定
+        detected:
+          type: array
+          items:
+            type: string
+          description: ng/partial 時に検出されたアレルゲン名
+        updated_at:
+          type: string
+          format: date-time
+        is_expired:
+          type: boolean
+          description: expires_at < NOW() の場合 true
+
     Judgment:
       type: string
       enum: [含む, 一部含む, なし, 判定不能]
@@ -528,9 +808,21 @@ components:
       type: string
       enum: [high, medium, low]
 
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: user_id
+
   responses:
     BadRequest:
       description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized（Cookie なし）
       content:
         application/json:
           schema:

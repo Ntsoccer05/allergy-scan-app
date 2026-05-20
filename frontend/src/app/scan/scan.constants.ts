@@ -18,6 +18,12 @@ export const CONSECUTIVE_FRAMES_REQUIRED = 3
 /** フレームサンプリング間隔 (ms) — 5fps */
 export const FRAME_CHECK_INTERVAL_MS = 200
 
+/** Geolocation API のタイムアウト (ms) */
+export const GEO_TIMEOUT_MS = 5000
+
+/** 共有ボタンタップ時の Android バイブレーション時間 (ms) */
+export const VIBRATE_SHARE_MS = 50
+
 /**
  * スキャン状態・エラー種別に対応するガイドメッセージ。
  * ScanGuide コンポーネントはここから取得する（コンポーネント内ハードコード禁止）。

@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { ScanError, ScanResult, ScanState } from '@/app/scan/scan.types'
+import type { ScanError, ScanResult, ScanState, StoreCandidate } from '@/app/scan/scan.types'
 import type { CreateHistoryBody } from '@/app/history/history.types'
 import {
   CONSECUTIVE_FRAMES_REQUIRED,
   FRAME_CHECK_INTERVAL_MS,
+  GEO_TIMEOUT_MS,
 } from '@/app/scan/scan.constants'
 import { useBarcode } from './useBarcode'
 import { useCamera } from './useCamera'
@@ -19,23 +20,26 @@ export type Action =
   | { type: 'RESULT'; payload: ScanResult }
   | { type: 'ERROR'; error: ScanError }
   | { type: 'RESET' }
+  | { type: 'STORE_SELECTED' }
 
 export type State = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
+  storeCandidates: StoreCandidate[]
 }
 
 export const initialState: State = {
   scanState: 'idle',
   error: null,
   result: null,
+  storeCandidates: [],
 }
 
 export const scanReducer = (state: State, action: Action): State => {
   switch (action.type) {
     case 'START_CAMERA':
-      return { ...state, scanState: 'detecting', error: null, result: null }
+      return { ...state, scanState: 'detecting', error: null, result: null, storeCandidates: [] }
 
     case 'STABLE':
       if (state.scanState !== 'detecting') return state
@@ -44,8 +48,13 @@ export const scanReducer = (state: State, action: Action): State => {
     case 'PROCESSING':
       return { ...state, scanState: 'processing' }
 
-    case 'RESULT':
-      return { ...state, scanState: 'result', result: action.payload }
+    case 'RESULT': {
+      const storeCandidates =
+        action.payload.type === 'ocr'
+          ? (action.payload.storeCandidates ?? [])
+          : []
+      return { ...state, scanState: 'result', result: action.payload, storeCandidates }
+    }
 
     case 'ERROR': {
       if (action.error === 'api_error') {
@@ -55,6 +64,9 @@ export const scanReducer = (state: State, action: Action): State => {
       // dark / blur / motion / incomplete / confidence_low → detecting 継続
       return { ...state, scanState: 'detecting', error: action.error }
     }
+
+    case 'STORE_SELECTED':
+      return { ...state, storeCandidates: [] }
 
     case 'RESET':
       return initialState
@@ -68,6 +80,7 @@ type UseScanReturn = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
+  storeCandidates: StoreCandidate[]
   videoRef: React.RefObject<HTMLVideoElement | null>
   startScan: () => Promise<void>
   stopScan: () => void
@@ -77,6 +90,7 @@ type UseScanReturn = {
   supportsHardwareZoom: boolean
   facingMode: 'environment' | 'user'
   toggleFacingMode: () => void
+  onStoreSelect: (candidate: StoreCandidate | null) => void
 }
 
 /** ScanResult から POST /history のリクエストボディを構築する。 */
@@ -124,7 +138,7 @@ export const useScan = (): UseScanReturn => {
   const { videoRef, captureFrame, startCamera, stopCamera, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useCamera()
   const { detectFromImageData } = useBarcode()
   const { isQualityOk } = useFrameCheck()
-  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, saveHistory } =
+  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, saveHistory, patchLocation } =
     useScanApi()
 
   const consecutiveOkRef = useRef(0)
@@ -132,6 +146,8 @@ export const useScan = (): UseScanReturn => {
   const intervalRef = useRef<number | null>(null)
   const isProcessingRef = useRef(false)
   const stateRef = useRef<ScanState>('idle')
+  const geolocationRef = useRef<{ lat: number; lng: number } | null>(null)
+  const scanHistoryIdRef = useRef<string | null>(null)
 
   // state.scanState を ref で同期して setInterval コールバックから参照できるようにする
   useEffect(() => {
@@ -158,7 +174,13 @@ export const useScan = (): UseScanReturn => {
 
         const { url, s3_key } = await fetchPresignedUrl()
         await putS3(url, blob)
-        const ocrResult = await scanOcr(s3_key)
+
+        const geo = geolocationRef.current
+        const ocrResult = await scanOcr({
+          s3Key: s3_key,
+          lat: geo?.lat,
+          lng: geo?.lng,
+        })
 
         // incomplete: true → detecting 継続（安全設計: 部分的な判定をしない）
         if (ocrResult.incomplete) {
@@ -166,13 +188,21 @@ export const useScan = (): UseScanReturn => {
           return
         }
 
-        const scanResult: ScanResult = { type: 'ocr', data: ocrResult }
+        const { storeCandidates, ...ocrData } = ocrResult
+        const scanResult: ScanResult = {
+          type: 'ocr',
+          data: ocrData,
+          storeCandidates,
+        }
         dispatch({ type: 'RESULT', payload: scanResult })
 
         // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
         const historyBody = buildHistoryBody(scanResult)
         if (historyBody) {
-          void saveHistory(historyBody)
+          const saved = await saveHistory(historyBody)
+          if (saved) {
+            scanHistoryIdRef.current = saved.id
+          }
         }
       } catch (err) {
         // HTTP 422（confidence: low）は再スキャン誘導（detecting 継続）
@@ -263,6 +293,24 @@ export const useScan = (): UseScanReturn => {
     consecutiveOkRef.current = 0
     prevFrameRef.current = null
     isProcessingRef.current = false
+    geolocationRef.current = null
+    scanHistoryIdRef.current = null
+
+    // GPS 座標を非同期で取得（ブロッキングなし。失敗しても lat/lng なしで OCR へ進む）
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          geolocationRef.current = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }
+        },
+        () => {
+          // GPS 取得失敗（権限拒否・タイムアウト等）は無視してスキャンを継続する（R14）
+        },
+        { timeout: GEO_TIMEOUT_MS },
+      )
+    }
 
     intervalRef.current = window.setInterval(() => {
       void tick()
@@ -283,6 +331,22 @@ export const useScan = (): UseScanReturn => {
     dispatch({ type: 'RESET' })
   }, [stopScan])
 
+  const onStoreSelect = useCallback(
+    (candidate: StoreCandidate | null): void => {
+      dispatch({ type: 'STORE_SELECTED' })
+      const historyId = scanHistoryIdRef.current
+      const geo = geolocationRef.current
+      if (candidate && historyId && geo) {
+        void patchLocation(historyId, {
+          store_name: candidate.name,
+          lat: geo.lat,
+          lng: geo.lng,
+        })
+      }
+    },
+    [patchLocation],
+  )
+
   // アンマウント時にクリーンアップ
   useEffect(() => {
     return () => {
@@ -294,6 +358,7 @@ export const useScan = (): UseScanReturn => {
     scanState: state.scanState,
     error: state.error,
     result: state.result,
+    storeCandidates: state.storeCandidates,
     videoRef,
     startScan,
     stopScan,
@@ -303,5 +368,6 @@ export const useScan = (): UseScanReturn => {
     supportsHardwareZoom,
     facingMode,
     toggleFacingMode,
+    onStoreSelect,
   }
 }

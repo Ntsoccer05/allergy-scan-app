@@ -73,6 +73,8 @@ tools: Read, Grep, Glob, Write, EnterPlanMode, ExitPlanMode
   - .claude/rules/patterns.md のパターン遵守
   - .claude/rules/implementation_rules.md の固有制約
   - .claude/rules/dry_principles.md の DRY 原則
+  - **新規 API エンドポイントが含まれる場合**: `docs/api/openapi.yaml` を `Files to modify` に追加し、Completion criteria に `grep "<HTTPメソッド + パス>" docs/api/openapi.yaml でヒット件数 1 以上` を追記する
+  - **DB スキーマ変更（テーブル追加・カラム追加・型変更）が含まれる場合**: `docs/design/database.md` を `Files to modify` に追加し、Completion criteria に `grep "<テーブル名 or カラム名>" docs/design/database.md でヒット件数 1 以上` を追記する
 ステップ9: レポート返却
 ```
 
@@ -120,7 +122,6 @@ tools: Read, Grep, Glob, Write, EnterPlanMode, ExitPlanMode
 | 過去タスクと完全重複 | 既存タスク番号を返却、新規生成しない |
 | タスクテンプレートが不明 | CLAUDE.md の構造を参考に生成。憶測で API 名・行番号を補完しない |
 | 連番枯渇（00990 以上）| 採番ルール再考を促す |
-| .ai/tasks/ に誤生成した場合 | .claude/tasks/ に移動すること（.ai/tasks/ は旧パス） |
 
 ## 7. 絶対禁止
 

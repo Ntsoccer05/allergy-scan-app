@@ -15,7 +15,7 @@ export class S3Client {
 
   constructor() {
     const region = process.env.AWS_REGION ?? 'ap-northeast-1';
-    this.bucket = process.env.S3_BUCKET_NAME ?? '';
+    this.bucket = process.env.AWS_S3_BUCKET ?? '';
     this.client = new AwsS3Client({ region });
   }
 

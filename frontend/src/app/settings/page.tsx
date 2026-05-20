@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useSettings } from '@/hooks/useSettings'
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
 import { issueBackupCode } from '@/lib/api/backup-code'
+import { ReservationTextSection } from './ReservationTextSection'
 import type { AllergenGroup, AllergenItem } from './settings.types'
 import type { IssueBackupCodeResponse } from '@/lib/api/backup-code'
 
@@ -242,7 +243,7 @@ export default function SettingsPage() {
           role="alert"
           className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200"
         >
-          {error}
+          {t(error)}
         </div>
       )}
 
@@ -267,6 +268,22 @@ export default function SettingsPage() {
           />
         ))}
       </section>
+
+      {/* お店予約用テキスト */}
+      {/* allergies または locale が変化したとき key が変わり再マウントされる（react-hooks/refs 回避）。 */}
+      <ReservationTextSection
+        key={
+          allergenGroups
+            .flatMap((g) => g.items)
+            .filter((i) => allergies[i.name]?.enabled)
+            .map((i) => i.name)
+            .join(',') + locale
+        }
+        allergies={allergies}
+        allergenGroups={allergenGroups}
+        locale={locale}
+        t={t}
+      />
 
       {/* 言語設定 */}
       <section className="mb-8">

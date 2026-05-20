@@ -1,6 +1,13 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ScanHistoryRepository } from './scan-history.repository';
 import type { ScanHistoryRecord } from './scan-history.repository';
+import type { ScanHistoryLocation } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 
@@ -59,6 +66,32 @@ export class HistoryService {
         : null;
 
     return { items, next_before };
+  }
+
+  /**
+   * 履歴の location を更新する。
+   * 所有権確認: 該当履歴が userId に属さない場合は ForbiddenException を throw する。
+   */
+  async updateLocation(
+    id: string,
+    userId: string,
+    location: ScanHistoryLocation,
+  ): Promise<void> {
+    const record = await this.scanHistoryRepository.findById(id);
+    if (!record) {
+      throw new NotFoundException({
+        message: '履歴が見つかりません',
+        code: 'HISTORY_NOT_FOUND',
+      });
+    }
+    if (record.userId !== userId) {
+      throw new ForbiddenException({
+        message: 'この履歴を更新する権限がありません',
+        code: 'FORBIDDEN',
+      });
+    }
+    await this.scanHistoryRepository.updateLocation(id, location);
+    this.logger.log(`location 更新: historyId=${id}, userId=${userId}`);
   }
 
   /** スキャン履歴を1件 INSERT する。 */

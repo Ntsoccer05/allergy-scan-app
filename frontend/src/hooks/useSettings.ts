@@ -2,12 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AllergenGroup, AllergySettings } from '@/app/settings/settings.types'
+import { DEBOUNCE_WAIT_MS } from '@/app/settings/settings.constants'
 import { getAllergens } from '@/lib/api/allergens.api'
 import { deleteUser, getUser, updateUser } from '@/lib/api/users.api'
 import { toggleAllergen, toggleCaution, togglePartial } from '@/lib/allergen.utils'
-
-/** debounce の待機時間 (ms) */
-const DEBOUNCE_WAIT_MS = 300
 
 type UseSettingsReturn = {
   allergenGroups: AllergenGroup[]
@@ -48,7 +46,7 @@ export const useSettings = (): UseSettingsReturn => {
         setLocale(user.locale)
       } catch {
         if (!isMounted) return
-        setError('設定の読み込みに失敗しました')
+        setError('error.loadFailed')
       } finally {
         if (isMounted) setIsLoading(false)
       }
@@ -76,7 +74,7 @@ export const useSettings = (): UseSettingsReturn => {
       } catch {
         // ⚠️ 安全設計: 保存失敗時は UI を元の状態に戻す（誤った設定で運用させない）
         setAllergies(prevAllergiesRef.current)
-        setError('設定の保存に失敗しました')
+        setError('error.saveFailed')
       } finally {
         setIsSaving(false)
       }
@@ -127,7 +125,7 @@ export const useSettings = (): UseSettingsReturn => {
         await updateUser({ locale: nextLocale })
       } catch {
         setLocale(prevLocale)
-        setError('言語設定の保存に失敗しました')
+        setError('error.localeChangeFailed')
       }
     },
     [locale],

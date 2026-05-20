@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { HistoryService } from './history.service';
 import { ScanHistoryRepository } from './scan-history.repository';
 import type { ScanHistoryRecord } from './scan-history.repository';
@@ -21,12 +21,19 @@ const makeRecord = (
 
 describe('HistoryService', () => {
   let service: HistoryService;
-  let repository: { findByUser: jest.Mock; create: jest.Mock };
+  let repository: {
+    findByUser: jest.Mock;
+    create: jest.Mock;
+    findById: jest.Mock;
+    updateLocation: jest.Mock;
+  };
 
   beforeEach(async () => {
     repository = {
       findByUser: jest.fn(),
       create: jest.fn(),
+      findById: jest.fn(),
+      updateLocation: jest.fn(),
     };
 
     const module = await Test.createTestingModule({
@@ -170,6 +177,38 @@ describe('HistoryService', () => {
         location: { store_name: 'セブン', lat: 35.6, lng: 139.7 },
         thumbnailUrl: 'https://example.com/thumb.jpg',
       });
+    });
+  });
+
+  describe('updateLocation', () => {
+    const location = { store_name: 'セブンイレブン渋谷店', lat: 35.6762, lng: 139.6503 };
+
+    it('正常系: findById → updateLocation を呼ぶ', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'user-1' }));
+      repository.updateLocation.mockResolvedValue(undefined);
+
+      await service.updateLocation('rec-uuid', 'user-1', location);
+
+      expect(repository.findById).toHaveBeenCalledWith('rec-uuid');
+      expect(repository.updateLocation).toHaveBeenCalledWith('rec-uuid', location);
+    });
+
+    it('履歴が存在しない場合 NotFoundException を throw する', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateLocation('nonexistent', 'user-1', location),
+      ).rejects.toThrow(NotFoundException);
+      expect(repository.updateLocation).not.toHaveBeenCalled();
+    });
+
+    it('他ユーザーの履歴は ForbiddenException を throw する', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'other-user' }));
+
+      await expect(
+        service.updateLocation('rec-uuid', 'user-1', location),
+      ).rejects.toThrow(ForbiddenException);
+      expect(repository.updateLocation).not.toHaveBeenCalled();
     });
   });
 });

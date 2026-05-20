@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
 
 /** POST /scan/ocr のリクエストボディ。openapi.yaml OcrScanRequest 準拠。 */
 export class OcrScanDto {
@@ -9,4 +9,12 @@ export class OcrScanDto {
     message: 's3_key の形式が不正です',
   })
   s3_key!: string;
+
+  @IsOptional()
+  @IsNumber()
+  lat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  lng?: number;
 }

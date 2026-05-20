@@ -1,10 +1,30 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { NextIntlClientProvider } from 'next-intl'
 import { ResultCard } from './ResultCard'
 import type { AllergenResult, HighlightItem, ScanResult } from '@/app/scan/scan.types'
 import scanJa from '../../public/locales/ja/scan.json'
 
 const onClose = jest.fn()
+
+/** navigator.share をモックするヘルパー */
+const mockNavigatorShare = (impl?: jest.Mock) => {
+  const mockShare = impl ?? jest.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'share', {
+    configurable: true,
+    writable: true,
+    value: mockShare,
+  })
+  return mockShare
+}
+
+/** navigator.share を undefined に設定するヘルパー */
+const removeNavigatorShare = () => {
+  Object.defineProperty(navigator, 'share', {
+    configurable: true,
+    writable: true,
+    value: undefined,
+  })
+}
 
 /** テスト用の NextIntlClientProvider ラッパー（日本語ロケールで翻訳文字列をそのまま使う） */
 const renderWithI18n = (ui: React.ReactElement) =>
@@ -82,8 +102,9 @@ describe('ResultCard', () => {
     })
 
     it('共有ボタンが存在しない', () => {
+      mockNavigatorShare()
       renderWithI18n(<ResultCard result={makeOcrResult('含む')} onClose={onClose} />)
-      expect(screen.queryByRole('link', { name: /シェア/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /共有する/ })).toBeNull()
     })
   })
 
@@ -94,8 +115,9 @@ describe('ResultCard', () => {
     })
 
     it('共有ボタンが存在しない', () => {
+      mockNavigatorShare()
       renderWithI18n(<ResultCard result={makeOcrResult('一部含む')} onClose={onClose} />)
-      expect(screen.queryByRole('link', { name: /シェア/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /共有する/ })).toBeNull()
     })
   })
 
@@ -107,14 +129,69 @@ describe('ResultCard', () => {
       ).toBeInTheDocument()
     })
 
-    it('共有ボタンが存在する', () => {
+    it('navigator.share が関数のとき共有ボタンが存在する', () => {
+      mockNavigatorShare()
       renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
-      expect(screen.getByRole('link', { name: /シェア/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /共有する/ })).toBeInTheDocument()
     })
 
     it('「アナフィラキシーのリスク」文言が存在しない', () => {
       renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
       expect(screen.queryByText(/アナフィラキシーのリスク/)).toBeNull()
+    })
+  })
+
+  describe('Web Share API', () => {
+    afterEach(() => {
+      removeNavigatorShare()
+    })
+
+    it('navigator.share が関数として存在 + judgment === "なし" → 共有ボタンが DOM に描画される', () => {
+      mockNavigatorShare()
+      renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
+      expect(screen.getByRole('button', { name: /共有する/ })).toBeInTheDocument()
+    })
+
+    it('navigator.share が undefined + judgment === "なし" → 共有ボタンが DOM に描画されない', () => {
+      removeNavigatorShare()
+      renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
+      expect(screen.queryByRole('button', { name: /共有する/ })).toBeNull()
+    })
+
+    it('navigator.share が関数として存在 + judgment === "含む" → 共有ボタンが DOM に描画されない', () => {
+      mockNavigatorShare()
+      renderWithI18n(<ResultCard result={makeOcrResult('含む')} onClose={onClose} />)
+      expect(screen.queryByRole('button', { name: /共有する/ })).toBeNull()
+    })
+
+    it('共有ボタンクリック時に navigator.share が title / text を含むオブジェクトで呼ばれる', async () => {
+      const mockShare = mockNavigatorShare()
+      renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
+      const shareBtn = screen.getByRole('button', { name: /共有する/ })
+      await act(async () => {
+        fireEvent.click(shareBtn)
+      })
+      expect(mockShare).toHaveBeenCalledTimes(1)
+      expect(mockShare).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.any(String),
+          text: expect.any(String),
+        }),
+      )
+    })
+
+    it('navigator.share が AbortError を投げる場合、エラーがユーザーに表示されない（UI 変化なし）', async () => {
+      const abortError = new DOMException('Share cancelled', 'AbortError')
+      const mockShare = mockNavigatorShare(jest.fn().mockRejectedValue(abortError))
+      renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
+      const shareBtn = screen.getByRole('button', { name: /共有する/ })
+      // エラーが投げられても UI が変化しないことを確認
+      await act(async () => {
+        fireEvent.click(shareBtn)
+      })
+      expect(mockShare).toHaveBeenCalledTimes(1)
+      // 共有ボタンはまだ表示されている（エラーで非表示にならない）
+      expect(screen.getByRole('button', { name: /共有する/ })).toBeInTheDocument()
     })
   })
 

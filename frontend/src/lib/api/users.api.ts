@@ -3,6 +3,7 @@ import { API_BASE_URL } from '@/lib/constants'
 
 type InitUserResponse = {
   created: boolean
+  onboarding_done: boolean
 }
 
 export const initUser = async (): Promise<InitUserResponse> => {

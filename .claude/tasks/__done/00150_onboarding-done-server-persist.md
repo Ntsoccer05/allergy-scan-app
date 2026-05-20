@@ -4,8 +4,10 @@
 
 | Field | Value |
 |---|---|
-| Status | pending |
+| Status | completed |
 | Created | 2026-05-19 |
+| completed_date | 2026-05-20 |
+| round | 2 |
 | Priority | high |
 | Sprint | Week4 |
 | Dependencies | 00120_onboarding_flow（useOnboarding / useOnboardingGuard が存在すること）、00091_user-id-cookie（Cookie 認証基盤が存在すること） |
@@ -189,3 +191,180 @@ API エラー時は安全側に倒して `/onboarding` へリダイレクトす�
 | `useOnboardingGuard` の `GET /users/me` フォールバックが `useSettings` と重複呼び出しになる | `src/lib/cache.ts` のクライアントキャッシュ（TTL 2時間）を使い同一セッション内で重複呼び出しを防ぐ。または `useSettings` が先に呼ばれている場合のみ流用する（TBD: generator が実装戦略を選択すること） |
 | `useOnboardingGuard` の判定中（`loading` 状態）に画面がフラッシュする | 判定完了前はリダイレクトも通過も行わず `null` を返すか、ローディング状態を `status` として返すことで呼び出し元ページが描画を遅延できるようにする |
 | マイグレーション適用前に既存ユーザーが `GET /users/me` を叩くと `onboarding_done` が `null` になる可能性 | `DEFAULT false` が SQL レベルで設定されているため、マイグレーション適用後は全既存レコードが `false` になる。Prisma の型は `Boolean` だが `null` に備えて `onboardingDone ?? false` のフォールバックをリポジトリ層で実装する |
+
+# Review comments
+
+## 自動評価（2026-05-20 11:45） - ラウンド 1
+
+### 総合判定
+**FAIL** （Critical: 0 / High: 0 / Medium: 1 / Low: 2）
+
+### Threshold 達成状況
+- 1. 動作性: ✅（全 Completion criteria 充足、typecheck 0件、unit test 101 backend + 138 frontend 全 PASS）
+- 2. セキュリティ: ✅（Medium 以上 0 件）
+- 3. カバレッジ: ✅（新規ロジックに対するテストケースが全要件をカバー）
+- 4. 敵対的観点: ✅（IDOR・DoS・レース条件いずれも Critical/High なし）
+- 5. 保守性: ❌（ESLint error 新規追加 3 件、誤解を招くコメント 1 件）
+
+### 不合格理由（generator への差戻しフィードバック）
+
+#### 【種別】Static / Maintainability
+**【再現手順】**
+1. タスク適用後の状態で `pnpm --filter frontend lint` を実行する
+2. `frontend/src/hooks/useOnboardingGuard.ts:33:7` に ESLint error が出力される
+
+**【観測されるエラー】**
+```
+react-hooks/set-state-in-effect
+Error: Calling setState synchronously within an effect can trigger cascading renders
+```
+ESLint は exit code 1 で終了する（CI ブロッカー）。
+
+**【原因】**
+`useOnboardingGuard.ts` の `useEffect` 内で `setStatus('allowed')` を同期的に呼び出している（L33）。
+`useState` の初期値計算に localStorage のチェックを移動することで、`useEffect` での同期 `setState` を不要にできる。
+
+**【期待される修正案】**
+`frontend/src/hooks/useOnboardingGuard.ts` を以下のように修正する:
+
+```typescript
+// 変更前（NG）
+const [status, setStatus] = useState<GuardStatus>('loading')
+
+useEffect(() => {
+  if (
+    typeof localStorage !== 'undefined' &&
+    localStorage.getItem(ONBOARDING_DONE_KEY) === 'true'
+  ) {
+    setStatus('allowed')  // ← ESLint error: 同期 setState in useEffect
+    return
+  }
+  // ...
+}, [router])
+
+// 変更後（推奨）
+// useState のレイジー初期化で localStorage を確認する（useEffect 内の同期 setState が不要になる）
+const [status, setStatus] = useState<GuardStatus>(() => {
+  if (
+    typeof localStorage !== 'undefined' &&
+    localStorage.getItem(ONBOARDING_DONE_KEY) === 'true'
+  ) {
+    return 'allowed'
+  }
+  return 'loading'
+})
+
+useEffect(() => {
+  // 高速パス: 既に 'allowed' ならば（レイジー初期化済み）何もしない
+  if (status === 'allowed') return
+  // フォールバック: サーバー側の onboarding_done を確認する
+  // ... (以降は既存のまま)
+}, [router, status])
+```
+
+参照: `coding_rules.md` — 保守性規約。ESLint error は CI ブロッカー扱い。
+
+---
+
+#### 【種別】Static / Maintainability（バックエンドテスト）
+**【再現手順】**
+1. `pnpm --filter backend lint` を実行する
+2. 以下の新規エラーが出力される（pre-existing は 19 errors だったが本タスク後 22 errors に増加）:
+
+**【観測されるエラー（新規追加分のみ）】**
+```
+backend/src/users/users.controller.spec.ts:59:77
+  @typescript-eslint/require-await
+  Async arrow function has no 'await' expression
+
+backend/src/users/users.repository.spec.ts:128:56
+  @typescript-eslint/no-unsafe-member-access
+  Unsafe member access [0] on an `any` value
+
+backend/src/users/users.repository.spec.ts:147:56
+  @typescript-eslint/no-unsafe-member-access
+  Unsafe member access [0] on an `any` value
+```
+
+**【期待される修正案】**
+
+`backend/src/users/users.controller.spec.ts:57-61`:
+```typescript
+// 変更前
+update: jest
+  .fn()
+  .mockImplementation(async (_id: string, input: Partial<UserRecord>) =>
+    makeUserRecord({ ...input }),
+  ),
+
+// 変更後（async 不要）
+update: jest
+  .fn()
+  .mockImplementation((_id: string, input: Partial<UserRecord>) =>
+    Promise.resolve(makeUserRecord({ ...input })),
+  ),
+```
+
+`backend/src/users/users.repository.spec.ts:128` および `:147`:
+```typescript
+// 変更前（any 型アクセス）
+const callArg = prisma.user.update.mock.calls[0][0] as {
+  data: Record<string, unknown>;
+};
+
+// 変更後（型付き変数で先に受けてからアクセス）
+const calls = prisma.user.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>;
+const callArg = calls[0][1];
+```
+
+---
+
+#### 【種別】Maintainability（コメント不正確）
+**【対象】** `frontend/src/hooks/useOnboardingGuard.ts:10`
+
+**【現状】**
+```typescript
+/** GET /users/me のクライアントキャッシュキー（useSettings と共有） */
+const USER_ME_CACHE_KEY = 'user:me'
+```
+
+**【問題】** `useSettings` は `src/lib/cache.ts` を使わず `getUser()` を直接呼んでおり、このキャッシュは共有されていない。コメントが誤解を招く。
+
+**【期待される修正案】**
+```typescript
+/** GET /users/me のクライアントキャッシュキー（useOnboardingGuard 内の重複呼び出し防止） */
+const USER_ME_CACHE_KEY = 'user:me'
+```
+
+参照: `coding_rules.md` — コメント規約「WHY が非自明な場合のみ書く。型・関数名の翻訳コメント禁止」
+
+### 改善提案（次タスク繰越し可）
+- [保守性] `useSettings` も `src/lib/cache.ts` の `USER_ME_CACHE_KEY` を使うように統一すると、画面間での重複 API 呼び出しをより効果的に削減できる（現状は `useOnboardingGuard` のキャッシュが `useSettings` では使われない）
+- [アーキテクチャ] `UsersController` が `UsersRepository` を直接 inject している（pre-existing）。将来的に `UsersService` を導入してビジネスロジックを Service 層に集約することを検討する（`architecture.md` の依存方向ルール）
+
+---
+
+## 自動評価（2026-05-20 12:05） - ラウンド 2
+
+### 総合判定
+**PASS** （Critical: 0 / High: 0 / Medium: 0 / Low: 0）
+
+### Threshold 達成状況
+- 1. 動作性: ✅（Completion criteria 全 22 項目充足、typecheck 0件 backend/frontend 両方、unit test backend 101 PASS / frontend 138 PASS）
+- 2. セキュリティ: ✅（Medium 以上 0 件）
+- 3. カバレッジ: ✅（新規ロジック全ブランチに対してテストケースが網羅）
+- 4. 敵対的観点: ✅（IDOR なし: userId は Cookie 専用・ボディ入力不可 / false 上書き禁止ガード実装済み / 競合状態なし）
+- 5. 保守性: ✅（ESLint error 新規追加 0 件 / アーキテクチャ層違反なし / マジックナンバーなし / ラウンド1 指摘 3 件すべて修正済み）
+
+### ラウンド1 指摘の修正確認
+
+1. **ESLint `react-hooks/set-state-in-effect`**: `useState` のレイジー初期化パターンに変更済み（`useOnboardingGuard.ts:27`）。`useEffect` 内の同期 `setStatus('allowed')` が除去され、エラー解消を確認。
+2. **バックエンドテスト ESLint**: `users.controller.spec.ts:59` の `async` 不要・`users.repository.spec.ts:128/147` の `any` メンバーアクセスがいずれも型付きキャストで修正済み。新規 ESLint error 増加なし（変更ファイルのみ対象スキャンで 0 errors）。
+3. **誤解を招くコメント**: `useOnboardingGuard.ts:10` のコメントが「useSettings と共有」から「useOnboardingGuard 内の重複呼び出し防止」に修正済み。
+
+### 推奨アクション
+PASS（ラウンド2）: `__done/` へ移動可
+
+### 改善提案（PASS 時 / 次タスク繰越し可）
+- [保守性] `useSettings` も `src/lib/cache.ts` の `USER_ME_CACHE_KEY` を使うように統一すると、画面間での重複 API 呼び出しをより効果的に削減できる（引き続き次タスク繰越し）
+- [アーキテクチャ] `UsersController` が `UsersRepository` を直接 inject している（pre-existing）。`UsersService` 導入を将来検討（引き続き次タスク繰越し）

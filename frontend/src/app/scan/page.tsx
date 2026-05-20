@@ -10,7 +10,7 @@ import { ResultCard } from '@/components/ResultCard'
 
 export default function ScanPage() {
   useOnboardingGuard()
-  const { scanState, error, result, videoRef, startScan, reset, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useScan()
+  const { scanState, error, result, storeCandidates, onStoreSelect, videoRef, startScan, reset, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useScan()
 
   useEffect(() => {
     void startScan()
@@ -31,7 +31,7 @@ export default function ScanPage() {
         <ScanGuide state={scanState} error={error ?? undefined} />
       </div>
       {scanState === 'result' && result !== null && (
-        <ResultCard result={result} onClose={reset} />
+        <ResultCard result={result} onClose={reset} storeCandidates={storeCandidates} onStoreSelect={onStoreSelect} />
       )}
     </div>
   )

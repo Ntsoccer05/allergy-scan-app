@@ -2,17 +2,20 @@
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
-import type { AllergenResult, HighlightItem, Judgment, ScanResult } from '@/app/scan/scan.types'
+import type { AllergenResult, HighlightItem, Judgment, ScanResult, StoreCandidate } from '@/app/scan/scan.types'
 import {
   deriveOcrJudgment,
   DETECTION_DISPLAY,
   HIGHLIGHT_CLASS,
   splitByHighlights,
 } from '@/lib/allergen.utils'
+import { VIBRATE_SHARE_MS } from '@/app/scan/scan.constants'
 
 type ResultCardProps = {
   result: ScanResult
   onClose: () => void
+  storeCandidates?: StoreCandidate[]
+  onStoreSelect?: (candidate: StoreCandidate | null) => void
 }
 
 /** Android 判定（navigator.userAgent チェック）。iOS では navigator.vibrate を呼ばない */
@@ -48,15 +51,24 @@ const deriveJudgment = (result: ScanResult): Judgment | null => {
 const isNgJudgment = (judgment: Judgment | null): boolean =>
   judgment === '含む' || judgment === '一部含む'
 
-const buildShareText = (result: ScanResult): string => {
+/**
+ * Web Share API に渡す共有コンテンツを構築する。
+ * ⚠️ navigator.share は HTTPS 環境でのみ動作する（localhost 開発時は非対応の場合がある）
+ */
+const buildShareContent = (result: ScanResult, title: string): { title: string; text: string } => {
   const name =
     result.type === 'barcode'
       ? (result.data.product_name ?? '商品')
       : '商品'
-  return encodeURIComponent(
-    `【アレルギーチェック済み✅】\n${name}\nアレルギーチェックアプリで確認しました`,
-  )
+  return {
+    title,
+    text: `${name} はアレルゲンなし（${title}調べ）`,
+  }
 }
+
+/** Web Share API のサポート有無を判定する */
+const supportsWebShare = (): boolean =>
+  typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
 /** highlights[] を使って raw_text をハイライト表示するコンポーネント（XSS 防止: React コンポーネント配列で安全に実装） */
 const HighlightedText = ({
@@ -114,7 +126,12 @@ const AllergenRow = ({ item }: { item: AllergenResult }) => {
   )
 }
 
-export const ResultCard = ({ result, onClose }: ResultCardProps) => {
+export const ResultCard = ({
+  result,
+  onClose,
+  storeCandidates = [],
+  onStoreSelect,
+}: ResultCardProps) => {
   const [rawTextOpen, setRawTextOpen] = useState(false)
   const t = useTranslations('result')
 
@@ -129,6 +146,7 @@ export const ResultCard = ({ result, onClose }: ResultCardProps) => {
   const judgment = deriveJudgment(result)
   const isNg = isNgJudgment(judgment)
   const canShare = judgment === 'なし'
+  const supportsShare = supportsWebShare()
 
   const raw_text =
     result.type === 'ocr' ? result.data.raw_text : undefined
@@ -142,7 +160,19 @@ export const ResultCard = ({ result, onClose }: ResultCardProps) => {
   const productName =
     result.type === 'barcode' ? result.data.product_name : undefined
 
-  const shareUrl = `https://twitter.com/intent/tweet?text=${buildShareText(result)}`
+  const handleShare = async (): Promise<void> => {
+    if (typeof navigator.share !== 'function') return
+    vibrateIfAndroid(VIBRATE_SHARE_MS)
+    const shareContent = buildShareContent(result, t('appTitle'))
+    try {
+      await navigator.share(shareContent)
+    } catch (err) {
+      // ユーザーによるキャンセル（AbortError）は無視する
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Web Share API error:', err)
+      }
+    }
+  }
 
   return (
     <div
@@ -246,18 +276,41 @@ export const ResultCard = ({ result, onClose }: ResultCardProps) => {
           </div>
         )}
 
-        {/* SNS 共有ボタン（OK 判定のみ表示 — anti_patterns.md #4 遵守） */}
-        {canShare && (
-          <a
-            href={shareUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+        {/* SNS 共有ボタン（OK 判定 + Web Share API 対応環境のみ表示 — anti_patterns.md #4 遵守） */}
+        {canShare && supportsShare && (
+          <button
+            type="button"
+            onClick={handleShare}
             className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
               bg-black text-white text-sm font-medium"
-            onClick={() => vibrateIfAndroid(50)}
           >
-            {t('shareOnX')}
-          </a>
+            {t('share')}
+          </button>
+        )}
+
+        {/* 店舗選択 UI（storeCandidates が 2 件以上のときのみ表示） */}
+        {storeCandidates.length >= 2 && onStoreSelect && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-700">{t('selectStore')}</p>
+            {storeCandidates.map((candidate) => (
+              <button
+                key={candidate.placeId}
+                type="button"
+                onClick={() => onStoreSelect(candidate)}
+                className="w-full py-2 px-3 rounded-lg border border-blue-200 bg-blue-50
+                  text-sm text-blue-800 text-left"
+              >
+                {candidate.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => onStoreSelect(null)}
+              className="w-full py-2 rounded-lg border border-gray-200 text-sm text-gray-500"
+            >
+              {t('storeUnknown')}
+            </button>
+          </div>
         )}
 
         {/* 閉じるボタン */}

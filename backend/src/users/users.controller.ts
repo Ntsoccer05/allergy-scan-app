@@ -1,17 +1,55 @@
-import { Controller, Logger, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  NotFoundException,
+  Post,
+  Put,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
+import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
 import { UsersRepository } from './users.repository';
-import { COOKIE_MAX_AGE, COOKIE_NAME } from './users.constants';
+import { COOKIE_NAME, COOKIE_MAX_AGE } from './users.constants';
 import {
   THROTTLE_USERS_INIT_TTL,
   THROTTLE_USERS_INIT_LIMIT,
 } from '../shared/throttler.constants';
+import type { UserAllergies } from '../shared/types/db.types';
 
 type InitResponse = {
   created: boolean;
+  onboarding_done: boolean;
 };
+
+type UserMeResponse = {
+  id: string;
+  allergies: UserAllergies;
+  locale: string;
+  onboarding_done: boolean;
+};
+
+class UpdateUserDto {
+  @IsOptional()
+  @IsObject()
+  allergies?: UserAllergies;
+
+  @IsOptional()
+  @IsString()
+  locale?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  onboarding_done?: boolean;
+}
 
 @Controller('users')
 export class UsersController {
@@ -28,7 +66,12 @@ export class UsersController {
     const existingUserId = req.cookies?.[COOKIE_NAME] as string | undefined;
 
     if (existingUserId) {
-      res.json({ created: false } satisfies InitResponse);
+      const user = await this.usersRepository.findById(existingUserId);
+      const onboardingDone = user?.onboardingDone ?? false;
+      res.json({
+        created: false,
+        onboarding_done: onboardingDone,
+      } satisfies InitResponse);
       return;
     }
 
@@ -46,6 +89,67 @@ export class UsersController {
     });
 
     this.logger.log('新規ユーザー Cookie を発行しました');
-    res.status(201).json({ created: true } satisfies InitResponse);
+    res.status(201).json({
+      created: true,
+      onboarding_done: false,
+    } satisfies InitResponse);
+  }
+
+  /** GET /users/me: Cookie からユーザー情報を取得する */
+  @Get('me')
+  async getMe(@Req() req: Request): Promise<UserMeResponse> {
+    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    if (!userId) {
+      throw new UnauthorizedException();
+    }
+    const user = await this.usersRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('ユーザーが見つかりません');
+    }
+    return {
+      id: user.id,
+      allergies: user.allergies,
+      locale: user.locale,
+      onboarding_done: user.onboardingDone,
+    };
+  }
+
+  /** PUT /users/me: アレルギー設定・ロケール・オンボーディング完了フラグを更新する */
+  @Put('me')
+  async updateMe(
+    @Req() req: Request,
+    @Body() dto: UpdateUserDto,
+  ): Promise<UserMeResponse> {
+    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    if (!userId) {
+      throw new UnauthorizedException();
+    }
+    const updated = await this.usersRepository.update(userId, {
+      allergies: dto.allergies,
+      locale: dto.locale,
+      // onboarding_done は true のみ受け付ける（false への上書き禁止）
+      onboardingDone: dto.onboarding_done === true ? true : undefined,
+    });
+    return {
+      id: updated.id,
+      allergies: updated.allergies,
+      locale: updated.locale,
+      onboarding_done: updated.onboardingDone,
+    };
+  }
+
+  /** DELETE /users/me: ユーザーデータを削除する（要配慮個人情報の削除権） */
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteMe(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    if (!userId) {
+      throw new UnauthorizedException();
+    }
+    // Cookie を即時削除する
+    res.clearCookie(COOKIE_NAME, { path: '/' });
+    // ユーザーデータの物理削除（要配慮個人情報削除権に対応）
+    await this.usersRepository.deleteById(userId);
+    res.status(HttpStatus.NO_CONTENT).end();
   }
 }

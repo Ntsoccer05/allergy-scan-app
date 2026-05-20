@@ -12,6 +12,7 @@ import { ScanHistoryRepository } from '../history/scan-history.repository';
 import { S3Client } from '../shared/s3.client';
 import { GeminiClient } from '../shared/gemini.client';
 import { UsersRepository } from '../users/users.repository';
+import { PLACES_PROVIDER_TOKEN } from '../shared/places.interface';
 import type { ProductAllergens } from '../shared/types/db.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
 
@@ -66,6 +67,7 @@ describe('ScanService.scanBarcode', () => {
   };
   let geminiClient: { analyzeImage: jest.Mock };
   let usersRepository: { findById: jest.Mock };
+  let placesClient: { getStoreCandidates: jest.Mock };
 
   beforeEach(async () => {
     cacheManager = { get: jest.fn(), set: jest.fn() };
@@ -83,6 +85,7 @@ describe('ScanService.scanBarcode', () => {
     };
     geminiClient = { analyzeImage: jest.fn() };
     usersRepository = { findById: jest.fn() };
+    placesClient = { getStoreCandidates: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -98,6 +101,7 @@ describe('ScanService.scanBarcode', () => {
         { provide: S3Client, useValue: s3Client },
         { provide: GeminiClient, useValue: geminiClient },
         { provide: UsersRepository, useValue: usersRepository },
+        { provide: PLACES_PROVIDER_TOKEN, useValue: placesClient },
       ],
     }).compile();
 
@@ -193,6 +197,7 @@ describe('ScanService.processOcr', () => {
   };
   let geminiClient: { analyzeImage: jest.Mock };
   let usersRepository: { findById: jest.Mock };
+  let placesClient: { getStoreCandidates: jest.Mock };
 
   beforeEach(async () => {
     cacheManager = { get: jest.fn(), set: jest.fn() };
@@ -216,6 +221,7 @@ describe('ScanService.processOcr', () => {
       analyzeImage: jest.fn().mockResolvedValue(validGeminiResponse),
     };
     usersRepository = { findById: jest.fn().mockResolvedValue(null) };
+    placesClient = { getStoreCandidates: jest.fn().mockResolvedValue([]) };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -231,6 +237,7 @@ describe('ScanService.processOcr', () => {
         { provide: S3Client, useValue: s3Client },
         { provide: GeminiClient, useValue: geminiClient },
         { provide: UsersRepository, useValue: usersRepository },
+        { provide: PLACES_PROVIDER_TOKEN, useValue: placesClient },
       ],
     }).compile();
 
@@ -319,6 +326,60 @@ describe('ScanService.processOcr', () => {
       await service.processOcr(S3_KEY, undefined);
 
       expect(usersRepository.findById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PlacesClient 連携（店舗候補）', () => {
+    const LAT = 35.6762;
+    const LNG = 139.6503;
+
+    it('lat/lng なし → getStoreCandidates が呼ばれない', async () => {
+      await service.processOcr(S3_KEY, 'user-1');
+
+      expect(placesClient.getStoreCandidates).not.toHaveBeenCalled();
+      expect(scanHistoryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ location: null }),
+      );
+    });
+
+    it('候補 0 件 → history.create の location が null になる', async () => {
+      placesClient.getStoreCandidates.mockResolvedValue([]);
+
+      await service.processOcr(S3_KEY, 'user-1', LAT, LNG);
+
+      expect(placesClient.getStoreCandidates).toHaveBeenCalledWith(LAT, LNG);
+      expect(scanHistoryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ location: null }),
+      );
+    });
+
+    it('候補 1 件 → history.create の location.store_name が候補名になる', async () => {
+      placesClient.getStoreCandidates.mockResolvedValue([
+        { name: 'セブンイレブン渋谷店', placeId: 'place-1' },
+      ]);
+
+      await service.processOcr(S3_KEY, 'user-1', LAT, LNG);
+
+      expect(scanHistoryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          location: { store_name: 'セブンイレブン渋谷店', lat: LAT, lng: LNG },
+        }),
+      );
+    });
+
+    it('候補 2 件以上 → history.create の location が null、レスポンスに storeCandidates が含まれる', async () => {
+      placesClient.getStoreCandidates.mockResolvedValue([
+        { name: 'セブンイレブン渋谷店', placeId: 'place-1' },
+        { name: 'ローソン渋谷店', placeId: 'place-2' },
+      ]);
+
+      const result = await service.processOcr(S3_KEY, 'user-1', LAT, LNG);
+
+      expect(scanHistoryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ location: null }),
+      );
+      expect(result.storeCandidates).toHaveLength(2);
+      expect(result.storeCandidates?.[0]?.name).toBe('セブンイレブン渋谷店');
     });
   });
 });

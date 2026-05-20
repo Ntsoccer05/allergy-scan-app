@@ -1,11 +1,12 @@
 {
   "result": {
+    "appTitle": "Allergy Scan App",
     "confidenceMedium": "⚠️ Some parts were difficult to read. Please also check the label.",
     "rawTextExpand": "Check ingredients ▼",
     "rawTextCollapse": "Check ingredients ▲",
     "caution": "⚠️ Always check the actual label before purchasing.",
     "ngDisclaimer": "This app's judgment is for reference only. If you are at risk of anaphylaxis, please always verify the actual label.",
-    "shareOnX": "Share on X (formerly Twitter)",
+    "share": "Share",
     "scanAgain": "Scan again",
     "noAllergenSetting": "No allergen settings",
     "allergenListLabel": "Allergen judgment results",
@@ -22,7 +23,9 @@
       "partial": "Partially contains",
       "none": "None",
       "unknown": "Unknown"
-    }
+    },
+    "selectStore": "Where are you purchasing?",
+    "storeUnknown": "Location unknown"
   },
   "camera": {
     "switchCamera": "Switch Camera",

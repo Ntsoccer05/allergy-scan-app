@@ -23,6 +23,7 @@ export type CreateHistoryBody = {
   judgment: 'ng' | 'partial' | 'ok'
   detected: string[]
   thumbnail_url?: string
+  location?: { store_name: string; lat: number; lng: number }
 }
 
 /** 履歴フィルター型。 */

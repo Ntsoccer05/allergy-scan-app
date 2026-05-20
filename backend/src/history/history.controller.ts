@@ -5,12 +5,17 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
+import { IsNumber, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { HistoryService } from './history.service';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
@@ -21,6 +26,25 @@ import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
 } from '../shared/throttler.constants';
+
+/** PATCH /history/:id のリクエストボディ内 location DTO */
+class PatchLocationDto {
+  @IsString()
+  store_name!: string;
+
+  @IsNumber()
+  lat!: number;
+
+  @IsNumber()
+  lng!: number;
+}
+
+/** PATCH /history/:id のリクエストボディ DTO */
+class PatchHistoryDto {
+  @ValidateNested()
+  @Type(() => PatchLocationDto)
+  location!: PatchLocationDto;
+}
 
 @Controller('history')
 export class HistoryController {
@@ -60,5 +84,23 @@ export class HistoryController {
       });
     }
     return this.historyService.createHistory(userId, body);
+  }
+
+  /** PATCH /history/:id: 履歴の location を更新する。Cookie 認証必須。 */
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  async updateLocation(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: PatchHistoryDto,
+  ): Promise<void> {
+    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    if (!userId) {
+      throw new UnauthorizedException({
+        message: '認証が必要です',
+        code: 'UNAUTHORIZED',
+      });
+    }
+    await this.historyService.updateLocation(id, userId, body.location);
   }
 }

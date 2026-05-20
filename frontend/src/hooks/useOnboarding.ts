@@ -110,7 +110,11 @@ export const useOnboarding = (): UseOnboardingReturn => {
   const completeOnboarding = useCallback(async () => {
     setError(null)
     try {
-      await updateUser({ allergies: selectedAllergies, locale: 'ja' })
+      await updateUser({
+        allergies: selectedAllergies,
+        locale: 'ja',
+        onboarding_done: true,
+      })
       localStorage.setItem(ONBOARDING_DONE_KEY, 'true')
       router.replace('/scan')
     } catch {

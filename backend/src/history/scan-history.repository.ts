@@ -82,6 +82,50 @@ export class ScanHistoryRepository {
     }));
   }
 
+  /** scan_histories テーブルから ID でレコードを取得する。存在しない場合は null を返す。 */
+  async findById(id: string): Promise<ScanHistoryRecord | null> {
+    const record = await this.prisma.scanHistory.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        productId: true,
+        productName: true,
+        judgment: true,
+        detected: true,
+        location: true,
+        thumbnailUrl: true,
+        scannedAt: true,
+      },
+    });
+    if (!record) return null;
+    return {
+      id: record.id,
+      userId: record.userId,
+      productId: record.productId,
+      productName: record.productName,
+      judgment: record.judgment,
+      detected: (record.detected as unknown as string[]) ?? [],
+      location: (record.location as unknown as ScanHistoryLocation) ?? null,
+      thumbnailUrl: record.thumbnailUrl,
+      scannedAt: record.scannedAt,
+    };
+  }
+
+  /**
+   * scan_histories テーブルの location フィールドを更新する。
+   * 所有権チェックは Service 層で行う。
+   */
+  async updateLocation(
+    id: string,
+    location: ScanHistoryLocation,
+  ): Promise<void> {
+    await this.prisma.scanHistory.update({
+      where: { id },
+      data: { location },
+    });
+  }
+
   /** scan_histories テーブルに新規レコードを INSERT する。 */
   async create(data: CreateScanHistoryData): Promise<ScanHistoryRecord> {
     const record = await this.prisma.scanHistory.create({

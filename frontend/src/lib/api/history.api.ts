@@ -44,3 +44,18 @@ export const postHistory = async (
   }
   return res.json() as Promise<HistoryItem>
 }
+
+export const patchHistoryLocation = async (
+  historyId: string,
+  location: { store_name: string; lat: number; lng: number },
+): Promise<void> => {
+  const res = await fetch(`${API_BASE_URL}/history/${historyId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ location }),
+  })
+  if (!res.ok) {
+    throw new Error(`PATCH /history/${historyId} failed: ${res.status}`)
+  }
+}
