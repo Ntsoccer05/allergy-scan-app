@@ -58,7 +58,13 @@ export const useCamera = (): UseCameraReturn => {
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        try {
+          await videoRef.current.play()
+        } catch (err) {
+          // AbortError: 新しい srcObject セットや unmount により play() がキャンセルされた正常な挙動
+          if (err instanceof Error && err.name === 'AbortError') return
+          throw err
+        }
       }
     },
     [],
@@ -88,6 +94,15 @@ export const useCamera = (): UseCameraReturn => {
 
   const startCamera = useCallback(async (mode: FacingMode = 'environment'): Promise<void> => {
     if (typeof window === 'undefined') return
+
+    // 既存ストリームを先に停止しないと srcObject の上書きで進行中の play() が AbortError になる
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
 
     // フォーカスエリアを中央に強制指定（ピントずれ対策）。非対応ブラウザはフォールバック。
     const baseVideo: MediaTrackConstraints = { facingMode: mode }

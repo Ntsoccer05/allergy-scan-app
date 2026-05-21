@@ -10,6 +10,43 @@ import {
   GEMINI_MODEL_NAME,
 } from '../scan/scan.constants';
 
+export type GeminiStreamChunk =
+  | { type: 'raw_text'; text: string }
+  | { type: 'result'; data: GeminiOcrResponse };
+
+/** JSON文字列値を部分的に抽出する（ストリーム中の raw_text 取り出し用）。 */
+const extractJsonStringPartial = (json: string, valueStartIdx: number): string => {
+  let result = '';
+  let i = valueStartIdx;
+  while (i < json.length) {
+    const c = json[i];
+    if (c === '\\' && i + 1 < json.length) {
+      const next = json[i + 1]!;
+      if (next === '"') result += '"';
+      else if (next === '\\') result += '\\';
+      else if (next === 'n') result += '\n';
+      else if (next === 't') result += '\t';
+      else result += next;
+      i += 2;
+    } else if (c === '"') {
+      break;
+    } else {
+      result += c;
+      i++;
+    }
+  }
+  return result;
+};
+
+// gemini-2.5-flash の thinking モードはデフォルト ON のため明示的に無効化する型を追加
+// responseMimeType は v0.24.1 の型定義に含まれないため合わせて拡張する
+declare module '@google/generative-ai' {
+  interface GenerationConfig {
+    thinkingConfig?: { thinkingBudget: number };
+    responseMimeType?: string;
+  }
+}
+
 /**
  * Gemini API 呼び出し失敗時や JSON パース失敗時に返すフォールバックレスポンス。
  * ⚠️ 安全設計: 判定不能は必ず安全側に倒す（anti_patterns.md #1）。
@@ -44,7 +81,18 @@ export class GeminiClient {
     prompt: string,
   ): Promise<GeminiOcrResponse> {
     try {
-      const model = this.genAI.getGenerativeModel({ model: GEMINI_MODEL_NAME });
+      const model = this.genAI.getGenerativeModel({
+        model: GEMINI_MODEL_NAME,
+        generationConfig: {
+          // gemini-2.5-flash はデフォルトで thinking モードが ON（+12〜15s）
+          thinkingConfig: { thinkingBudget: 0 },
+          // JSON mode: コードブロックなしで純粋な JSON を返す（regex抽出不要・確実なパース）
+          responseMimeType: 'application/json',
+        },
+      });
+      const imageSizeKB = Math.round((imageBase64.length * 3) / 4 / 1024);
+      this.logger.log(`[TIMING] Gemini 呼び出し開始: imageSize=${imageSizeKB}KB, model=${GEMINI_MODEL_NAME}, thinkingBudget=0, jsonMode=ON`);
+      const t = Date.now();
       const result = await model.generateContent([
         {
           inlineData: {
@@ -54,6 +102,7 @@ export class GeminiClient {
         },
         prompt,
       ]);
+      this.logger.log(`[TIMING] Gemini generateContent: ${Date.now() - t}ms`);
       const text = result.response.text();
       return this.parseGeminiResponse(text);
     } catch (error) {
@@ -65,19 +114,74 @@ export class GeminiClient {
     }
   }
 
+  /**
+   * Gemini Flash API にストリーミングで画像を送信し、raw_text を逐次返す。
+   * raw_text の部分文字列が確定するたびに GeminiStreamChunk を yield する。
+   * 最後に { type: 'result', data } を yield して完了する。
+   */
+  async *analyzeImageStream(
+    imageBase64: string,
+    prompt: string,
+  ): AsyncGenerator<GeminiStreamChunk> {
+    try {
+      const model = this.genAI.getGenerativeModel({
+        model: GEMINI_MODEL_NAME,
+        generationConfig: {
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: 'application/json',
+        },
+      });
+      const imageSizeKB = Math.round((imageBase64.length * 3) / 4 / 1024);
+      this.logger.log(`[STREAM] Gemini stream 開始: imageSize=${imageSizeKB}KB`);
+      const t = Date.now();
+
+      const streamResult = await model.generateContentStream([
+        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+        prompt,
+      ]);
+
+      let accumulated = '';
+      let rawTextValueStart = -1;
+      let lastSentLength = 0;
+      const RAW_TEXT_MARKER = '"raw_text":"';
+
+      for await (const chunk of streamResult.stream) {
+        const chunkText = chunk.text();
+        accumulated += chunkText;
+
+        if (rawTextValueStart === -1) {
+          const markerIdx = accumulated.indexOf(RAW_TEXT_MARKER);
+          if (markerIdx !== -1) {
+            rawTextValueStart = markerIdx + RAW_TEXT_MARKER.length;
+          }
+        }
+
+        if (rawTextValueStart !== -1) {
+          const partial = extractJsonStringPartial(accumulated, rawTextValueStart);
+          if (partial.length > lastSentLength) {
+            lastSentLength = partial.length;
+            yield { type: 'raw_text', text: partial };
+          }
+        }
+      }
+
+      this.logger.log(`[STREAM] Gemini stream 完了: ${Date.now() - t}ms`);
+      const result = this.parseGeminiResponse(accumulated);
+      yield { type: 'result', data: result };
+    } catch (error) {
+      this.logger.error(
+        'Gemini stream エラー',
+        error instanceof Error ? error.message : String(error),
+      );
+      yield { type: 'result', data: { ...FALLBACK_RESPONSE } };
+    }
+  }
+
   /** Gemini のテキスト応答を GeminiOcrResponse 型にパースする。失敗時はフォールバックを返す。 */
   private parseGeminiResponse(text: string): GeminiOcrResponse {
     try {
-      // Gemini がコードブロックで返す場合に備えて JSON 部分を抽出する
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        this.logger.error(
-          'Gemini レスポンスに JSON が見つかりません',
-          text.slice(0, GEMINI_ERROR_LOG_MAX_LENGTH),
-        );
-        return { ...FALLBACK_RESPONSE };
-      }
-      const parsed: unknown = JSON.parse(jsonMatch[0]);
+      // JSON mode (responseMimeType: 'application/json') により純粋な JSON が返るため直接パース
+      const parsed: unknown = JSON.parse(text);
       return this.validateGeminiResponse(parsed);
     } catch (error) {
       this.logger.error(

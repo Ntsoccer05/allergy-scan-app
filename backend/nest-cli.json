@@ -6,7 +6,7 @@
     "deleteOutDir": true,
     "assets": [
       {
-        "include": "scan/prompts/**/*.txt",
+        "include": "scan/prompts/**/*.md",
         "watchAssets": true
       }
     ]

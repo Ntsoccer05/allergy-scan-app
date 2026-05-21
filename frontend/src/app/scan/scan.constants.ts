@@ -24,9 +24,9 @@ export const THRESHOLDS_BY_DEVICE: Record<
   DeviceType,
   { brightness: number; blur: number; motion: number; stable: number }
 > = {
-  pc:     { brightness: 50, blur: 15, motion: 30, stable: 3 },
-  tablet: { brightness: 60, blur: 35, motion: 22, stable: 3 },
-  sp:     { brightness: 70, blur: 60, motion: 15, stable: 3 },
+  pc:     { brightness: 50, blur: 15, motion: 45, stable: 3 },
+  tablet: { brightness: 60, blur: 35, motion: 25, stable: 3 },
+  sp:     { brightness: 70, blur: 60, motion: 22, stable: 3 },
 } as const
 
 /** 後方互換用。デバイス判定前のデフォルト（SP 相当）。 */
@@ -43,6 +43,12 @@ export const GEO_TIMEOUT_MS = 5000
 
 /** 共有ボタンタップ時の Android バイブレーション時間 (ms) */
 export const VIBRATE_SHARE_MS = 50
+
+/** OCR 送信前リサイズの長辺上限 (px)。食品ラベル OCR に 4K は不要。Gemini 処理時間短縮のため。 */
+export const OCR_MAX_DIMENSION = 1024
+
+/** OCR 送信用 JPEG 品質 (0〜1)。テキスト認識にロスレス品質は不要。ファイルサイズ削減のため。 */
+export const OCR_JPEG_QUALITY = 0.85
 
 /**
  * スキャン状態・エラー種別に対応するガイドメッセージ。

@@ -10,6 +10,7 @@ import {
   splitByHighlights,
 } from '@/lib/allergen.utils'
 import { VIBRATE_SHARE_MS } from '@/app/scan/scan.constants'
+import { VIBRATION_STORAGE_KEY } from '@/app/settings/page'
 
 type ResultCardProps = {
   result: ScanResult
@@ -23,9 +24,11 @@ const isAndroid = (): boolean =>
   typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)
 
 const vibrateIfAndroid = (pattern: number | number[]): void => {
-  if (isAndroid() && typeof navigator.vibrate === 'function') {
-    navigator.vibrate(pattern)
-  }
+  if (!isAndroid() || typeof navigator.vibrate !== 'function') return
+  const enabled = typeof localStorage !== 'undefined'
+    ? localStorage.getItem(VIBRATION_STORAGE_KEY) !== 'false'
+    : true
+  if (enabled) navigator.vibrate(pattern)
 }
 
 const JUDGMENT_EMOJI: Record<Judgment, string> = {
@@ -143,6 +146,72 @@ export const ResultCard = ({
     '判定不能': t('judgment.unknown'),
   }
 
+  // low_confidence は専用 UI を返す
+  if (result.type === 'low_confidence') {
+    return (
+      <div
+        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
+        role="region"
+        aria-label="スキャン結果"
+      >
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+        <div className="px-4 pb-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          <p className="text-base font-bold text-amber-700">{t('lowConfidenceTitle')}</p>
+          <p className="text-sm text-gray-600">{t('lowConfidenceMessage')}</p>
+          {result.raw_text ? (
+            <p className="text-xs text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap">
+              {result.raw_text}
+            </p>
+          ) : null}
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+          >
+            {t('scanAgain')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // confidence: low かつ raw_text が空 = テキスト読み取り完全失敗。✅なし表示は誤解を招くため専用 UI を返す
+  const isUnreadable =
+    result.type === 'ocr' && result.data.confidence === 'low' && !result.data.raw_text
+
+  if (isUnreadable) {
+    return (
+      <div
+        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
+        role="region"
+        aria-label="スキャン結果"
+      >
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+        <div className="px-4 pb-6 space-y-4">
+          <p className="text-base font-bold text-red-700">{t('unreadableTitle')}</p>
+          <p className="text-sm text-gray-600">{t('unreadableMessage')}</p>
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+          >
+            {t('scanAgain')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const judgment = deriveJudgment(result)
   const isNg = isNgJudgment(judgment)
   const canShare = judgment === 'なし'
@@ -200,27 +269,54 @@ export const ResultCard = ({
           </div>
         )}
 
-        {/* OCR: 全アレルギー判定結果（results[] 全件表示） */}
+        {/* OCR: 全アレルギー判定結果（NG・注意 / 注意喚起 をセクション分割） */}
         {result.type === 'ocr' && (
           <>
             {result.data.results.length === 0 ? (
               <p className="text-sm text-gray-500">{t('noAllergenSetting')}</p>
-            ) : (
-              <div
-                className="space-y-2"
-                aria-label={t('allergenListLabel')}
-              >
-                {/* 全アレルギーが「なし」の場合は問題なし表示 */}
-                {judgment === 'なし' && (
-                  <p className="text-sm font-medium text-green-700">{t('overallOk')}</p>
-                )}
-                {result.data.results.map((item) => (
-                  <AllergenRow key={item.allergen} item={item} />
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              // judgment === 'なし' はノイズになるため非表示。含む/一部含む/判定不能のみ表示する
+              const ngItems = result.data.results.filter(
+                r => r.judgment !== 'なし' && r.detection_type !== 'may_contain'
+              )
+              const mayContainItems = result.data.results.filter(
+                r => r.judgment !== 'なし' && r.detection_type === 'may_contain'
+              )
+              return (
+                <div className="space-y-4" aria-label={t('allergenListLabel')}>
+                  {judgment === 'なし' && (
+                    <p className="text-sm font-medium text-green-700">{t('overallOk')}</p>
+                  )}
+                  {ngItems.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-red-700 border-b border-red-100 pb-1">
+                        {t('sectionNg')}
+                      </p>
+                      {ngItems.map((item) => (
+                        <AllergenRow key={item.allergen} item={item} />
+                      ))}
+                    </div>
+                  )}
+                  {mayContainItems.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-orange-600 border-b border-orange-100 pb-1">
+                        {t('sectionMayContain')}
+                      </p>
+                      {mayContainItems.map((item) => (
+                        <AllergenRow key={item.allergen} item={item} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
-            {/* 信頼度 medium 警告 */}
+            {/* 信頼度警告 */}
+            {result.data.confidence === 'low' && (
+              <p className="text-xs text-red-700 bg-red-50 rounded p-2 font-medium">
+                {t('confidenceLow')}
+              </p>
+            )}
             {result.data.confidence === 'medium' && (
               <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
                 {t('confidenceMedium')}

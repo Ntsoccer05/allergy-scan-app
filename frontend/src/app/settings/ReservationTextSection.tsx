@@ -61,10 +61,6 @@ export const ReservationTextSection = ({
     }
   }
 
-  const handleRegenerate = () => {
-    setText(generatedText)
-  }
-
   return (
     <section className="mb-8">
       <h2 className="text-base font-bold text-gray-800 mb-1">
@@ -74,40 +70,58 @@ export const ReservationTextSection = ({
         {t('reservationText.description')}
       </p>
       <div className="bg-white rounded-xl shadow-sm p-4">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4}
-          className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg p-3
-            resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        {copyError && (
-          <p className="text-xs text-red-600 mt-1">{copyError}</p>
-        )}
-        <div className="flex gap-2 mt-3">
-          <button
-            type="button"
-            onClick={handleRegenerate}
-            className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium
-              hover:bg-gray-200 transition-colors
-              focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
-          >
-            {t('reservationText.regenerateButton')}
-          </button>
+        <div className="relative">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={4}
+            className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg p-3 pr-10
+              resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
           <button
             type="button"
             onClick={() => void handleCopy()}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              ${
-                isCopied
-                  ? 'bg-green-600 text-white'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+            aria-label={isCopied ? t('reservationText.copiedButton') : t('reservationText.copyButton')}
+            className={`absolute top-2 right-2 p-1.5 rounded-md transition-colors
+              focus:outline-none focus:ring-2 focus:ring-blue-500
+              ${isCopied
+                ? 'text-green-600'
+                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
               }`}
           >
-            {isCopied ? t('reservationText.copiedButton') : t('reservationText.copyButton')}
+            {isCopied ? (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-4 h-4"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-4 h-4"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
           </button>
         </div>
+        {copyError && (
+          <p className="text-xs text-red-600 mt-1">{copyError}</p>
+        )}
       </div>
     </section>
   )

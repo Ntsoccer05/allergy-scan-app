@@ -7,7 +7,11 @@ import {
   CONSECUTIVE_FRAMES_REQUIRED,
   FRAME_CHECK_INTERVAL_MS,
   GEO_TIMEOUT_MS,
+  OCR_MAX_DIMENSION,
+  OCR_JPEG_QUALITY,
 } from '@/app/scan/scan.constants'
+import type { OcrApiResponse, OcrStreamEvent } from '@/lib/api/scan.api'
+import { preprocessFrame } from '@/lib/image-preprocess'
 import { useBarcode } from './useBarcode'
 import { useCamera } from './useCamera'
 import { useFrameCheck } from './useFrameCheck'
@@ -17,6 +21,7 @@ export type Action =
   | { type: 'START_CAMERA' }
   | { type: 'STABLE' }
   | { type: 'PROCESSING' }
+  | { type: 'PARTIAL_TEXT'; text: string }
   | { type: 'RESULT'; payload: ScanResult }
   | { type: 'ERROR'; error: ScanError }
   | { type: 'RESET' }
@@ -27,6 +32,7 @@ export type State = {
   error: ScanError | null
   result: ScanResult | null
   storeCandidates: StoreCandidate[]
+  partialRawText: string | null
 }
 
 export const initialState: State = {
@@ -34,6 +40,7 @@ export const initialState: State = {
   error: null,
   result: null,
   storeCandidates: [],
+  partialRawText: null,
 }
 
 export const scanReducer = (state: State, action: Action): State => {
@@ -46,7 +53,10 @@ export const scanReducer = (state: State, action: Action): State => {
       return { ...state, scanState: 'stable' }
 
     case 'PROCESSING':
-      return { ...state, scanState: 'processing' }
+      return { ...state, scanState: 'processing', partialRawText: null }
+
+    case 'PARTIAL_TEXT':
+      return { ...state, partialRawText: action.text }
 
     case 'RESULT': {
       const storeCandidates =
@@ -76,11 +86,16 @@ export const scanReducer = (state: State, action: Action): State => {
   }
 }
 
+/** pointer: coarse = タッチスクリーン（モバイル）、それ以外 = PC */
+const isPC = (): boolean =>
+  typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches
+
 type UseScanReturn = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
   storeCandidates: StoreCandidate[]
+  partialRawText: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
   startScan: () => Promise<void>
   stopScan: () => void
@@ -105,6 +120,8 @@ const buildHistoryBody = (result: ScanResult): CreateHistoryBody | null => {
       detected: data.detected ?? [],
     }
   }
+
+  if (result.type === 'low_confidence') return null
 
   if (result.type === 'ocr') {
     const { data } = result
@@ -139,7 +156,7 @@ export const useScan = (): UseScanReturn => {
   const { videoRef, captureFrame, startCamera, stopCamera, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useCamera()
   const { detectFromImageData } = useBarcode()
   const { isQualityOk } = useFrameCheck()
-  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, saveHistory, patchLocation } =
+  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation } =
     useScanApi()
 
   const consecutiveOkRef = useRef(0)
@@ -159,33 +176,73 @@ export const useScan = (): UseScanReturn => {
     async (imageData: ImageData): Promise<void> => {
       dispatch({ type: 'PROCESSING' })
       try {
+        // 元フレームを一旦フルサイズで Canvas に描画
+        const srcCanvas = document.createElement('canvas')
+        srcCanvas.width = imageData.width
+        srcCanvas.height = imageData.height
+        const srcCtx = srcCanvas.getContext('2d')
+        if (!srcCtx) throw new Error('canvas context unavailable')
+        srcCtx.putImageData(imageData, 0, 0)
+
+        // OCR_MAX_DIMENSION を超える場合はリサイズ（Gemini 処理時間・S3 転送サイズ削減のため）
+        const longEdge = Math.max(imageData.width, imageData.height)
+        const scale = Math.min(1, OCR_MAX_DIMENSION / longEdge)
+        const targetW = Math.round(imageData.width * scale)
+        const targetH = Math.round(imageData.height * scale)
         const canvas = document.createElement('canvas')
-        canvas.width = imageData.width
-        canvas.height = imageData.height
+        canvas.width = targetW
+        canvas.height = targetH
         const ctx = canvas.getContext('2d')
         if (!ctx) throw new Error('canvas context unavailable')
-        ctx.putImageData(imageData, 0, 0)
+        ctx.drawImage(srcCanvas, 0, 0, targetW, targetH)
+
+        // グレースケール・コントラスト強調・シャープニングを適用（反射・ぼけ対策）
+        preprocessFrame(ctx, targetW, targetH)
 
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob((b) => {
             if (b) resolve(b)
             else reject(new Error('toBlob failed'))
-          }, 'image/jpeg')
+          }, 'image/jpeg', OCR_JPEG_QUALITY)
         })
 
         const { url, s3_key } = await fetchPresignedUrl()
         await putS3(url, blob)
 
         const geo = geolocationRef.current
-        const ocrResult = await scanOcr({
+        const stream = scanOcrStream({
           s3Key: s3_key,
           lat: geo?.lat,
           lng: geo?.lng,
+          allowLowConfidence: isPC(),
         })
 
-        // incomplete: true → detecting 継続（安全設計: 部分的な判定をしない）
-        if (ocrResult.incomplete) {
-          dispatch({ type: 'ERROR', error: 'incomplete' })
+        let ocrResult: OcrApiResponse | null = null
+        let lowConfidenceRawText: string | null = null
+
+        for await (const event of stream as AsyncGenerator<OcrStreamEvent>) {
+          if (event.type === 'raw_text') {
+            dispatch({ type: 'PARTIAL_TEXT', text: event.text })
+          } else if (event.type === 'confidence_low') {
+            lowConfidenceRawText = event.raw_text
+          } else if (event.type === 'error') {
+            if (event.code === 'INCOMPLETE_IMAGE') {
+              dispatch({ type: 'ERROR', error: 'incomplete' })
+              return
+            }
+            throw new Error(event.message)
+          } else if (event.type === 'result') {
+            ocrResult = event.data
+          }
+        }
+
+        if (lowConfidenceRawText !== null) {
+          dispatch({ type: 'RESULT', payload: { type: 'low_confidence', raw_text: lowConfidenceRawText } })
+          return
+        }
+
+        if (!ocrResult) {
+          dispatch({ type: 'ERROR', error: 'api_error' })
           return
         }
 
@@ -205,16 +262,11 @@ export const useScan = (): UseScanReturn => {
             scanHistoryIdRef.current = saved.id
           }
         }
-      } catch (err) {
-        // HTTP 422（confidence: low）は再スキャン誘導（detecting 継続）
-        if (err instanceof Error && err.message.includes('422')) {
-          dispatch({ type: 'ERROR', error: 'confidence_low' })
-        } else {
-          dispatch({ type: 'ERROR', error: 'api_error' })
-        }
+      } catch {
+        dispatch({ type: 'ERROR', error: 'api_error' })
       }
     },
-    [fetchPresignedUrl, putS3, scanOcr, saveHistory],
+    [fetchPresignedUrl, putS3, scanOcrStream, saveHistory],
   )
 
   const tick = useCallback(async (): Promise<void> => {
@@ -372,6 +424,7 @@ export const useScan = (): UseScanReturn => {
     error: state.error,
     result: state.result,
     storeCandidates: state.storeCandidates,
+    partialRawText: state.partialRawText,
     videoRef,
     startScan,
     stopScan,

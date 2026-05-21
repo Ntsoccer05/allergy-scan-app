@@ -16,7 +16,14 @@ export class S3Client {
   constructor() {
     const region = process.env.AWS_REGION ?? 'ap-northeast-1';
     this.bucket = process.env.AWS_S3_BUCKET ?? '';
-    this.client = new AwsS3Client({ region });
+    // AWS SDK v3 はデフォルトで CRC32 チェックサムを Presigned URL に埋め込む。
+    // ブラウザの fetch PUT はそのヘッダーを送らないため 403 になる。
+    // WHEN_REQUIRED に設定することでチェックサム自動付与を無効化する。
+    this.client = new AwsS3Client({
+      region,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
+    });
   }
 
   /**

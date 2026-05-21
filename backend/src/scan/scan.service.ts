@@ -52,6 +52,14 @@ export type OcrScanResult = GeminiOcrResponse & {
   storeCandidates?: StoreCandidate[];
 };
 
+/** POST /scan/ocr-stream の SSE イベント型。 */
+export type OcrStreamEvent =
+  | { type: 'started' }
+  | { type: 'raw_text'; text: string }
+  | { type: 'confidence_low'; raw_text: string }
+  | { type: 'error'; code: string; message: string }
+  | { type: 'result'; data: OcrScanResult };
+
 @Injectable()
 export class ScanService {
   private readonly logger = new Logger(ScanService.name);
@@ -159,9 +167,21 @@ export class ScanService {
     userId: string | undefined,
     lat?: number,
     lng?: number,
+    allowLowConfidence?: boolean,
   ): Promise<OcrScanResult> {
-    // Step 1: S3 から画像取得
-    const imageBase64 = await this.s3Client.getImageAsBase64(s3Key);
+    const t0 = Date.now();
+
+    // Step 1〜3 を最大並列化:
+    //   - S3ダウンロードとアレルギー取得は完全並列
+    //   - アレルギー取得完了後すぐプロンプト構築を開始し、S3完了を待つ
+    const allergenPromise = this.fetchEnabledAllergens(userId).then(
+      (allergens) => buildGeminiPrompt(allergens, this.allergenComponentRepository),
+    );
+    const [imageBase64, prompt] = await Promise.all([
+      this.s3Client.getImageAsBase64(s3Key),
+      allergenPromise,
+    ]);
+    this.logger.log(`[TIMING] S3+prompt parallel: ${Date.now() - t0}ms`);
     if (!imageBase64) {
       throw new BadRequestException({
         message: '画像の取得に失敗しました。再度お試しください。',
@@ -169,21 +189,13 @@ export class ScanService {
       });
     }
 
-    // Step 2: ユーザーの有効アレルギー取得（未送信または未登録は空配列）
-    const enabledAllergens = await this.fetchEnabledAllergens(userId);
-
-    // Step 3: プロンプト動的生成（exclude 型除外は buildGeminiPrompt 内で行う）
-    const prompt = await buildGeminiPrompt(
-      enabledAllergens,
-      this.allergenComponentRepository,
-    );
-
     // Step 4: Gemini Flash API に送信
     this.logger.log(`OCR 処理開始: s3Key=${s3Key}`);
     const geminiResult = await this.geminiClient.analyzeImage(
       imageBase64,
       prompt,
     );
+    this.logger.log(`[TIMING] Gemini API: ${Date.now() - t0}ms`);
 
     // Step 5: incomplete: true → 400（anti_patterns.md #2）
     if (geminiResult.incomplete) {
@@ -193,11 +205,12 @@ export class ScanService {
       });
     }
 
-    // Step 6: confidence: low → 422（再スキャン誘導）
-    if (geminiResult.confidence === 'low') {
+    // Step 6: confidence: low → PC（allowLowConfidence=true）以外は 422
+    if (geminiResult.confidence === 'low' && !allowLowConfidence) {
       throw new UnprocessableEntityException({
         message: 'もう少し近づけて再スキャンしてください',
         code: 'LOW_CONFIDENCE',
+        raw_text: geminiResult.raw_text,
       });
     }
 
@@ -252,6 +265,105 @@ export class ScanService {
       return { ...geminiResult, storeCandidates };
     }
     return geminiResult;
+  }
+
+  /**
+   * OCR ストリーミングフロー（POST /scan/ocr-stream 用）。
+   * processOcr と同じロジックだが Gemini レスポンスを SSE で逐次 yield する。
+   */
+  async *processOcrStream(
+    s3Key: string,
+    userId: string | undefined,
+    lat?: number,
+    lng?: number,
+    allowLowConfidence?: boolean,
+  ): AsyncGenerator<OcrStreamEvent> {
+    yield { type: 'started' };
+
+    const allergenPromise = this.fetchEnabledAllergens(userId).then(
+      (allergens) => buildGeminiPrompt(allergens, this.allergenComponentRepository),
+    );
+    const [imageBase64, prompt] = await Promise.all([
+      this.s3Client.getImageAsBase64(s3Key),
+      allergenPromise,
+    ]);
+
+    if (!imageBase64) {
+      yield { type: 'error', code: 'S3_FETCH_FAILED', message: '画像の取得に失敗しました。再度お試しください。' };
+      return;
+    }
+
+    this.logger.log(`OCR stream 開始: s3Key=${s3Key}`);
+    const geminiStream = this.geminiClient.analyzeImageStream(imageBase64, prompt);
+
+    let geminiResult: GeminiOcrResponse | null = null;
+    for await (const chunk of geminiStream) {
+      if (chunk.type === 'raw_text') {
+        yield { type: 'raw_text', text: chunk.text };
+      } else {
+        geminiResult = chunk.data;
+      }
+    }
+
+    if (!geminiResult) {
+      yield { type: 'error', code: 'GEMINI_FAILED', message: 'OCR処理に失敗しました' };
+      return;
+    }
+
+    if (geminiResult.incomplete) {
+      yield { type: 'error', code: 'INCOMPLETE_IMAGE', message: 'ラベル全体が映るように離してください' };
+      return;
+    }
+
+    if (geminiResult.confidence === 'low' && !allowLowConfidence) {
+      yield { type: 'confidence_low', raw_text: geminiResult.raw_text };
+      return;
+    }
+
+    const labelHash = buildLabelHash(
+      geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
+      '',
+      geminiResult.raw_text,
+    );
+    const allergens = this.buildAllergensFromGemini(geminiResult);
+    const product = await this.productRepository.upsertByHash(labelHash, {
+      productName: null,
+      allergens,
+      rawText: geminiResult.raw_text,
+      confidence: geminiResult.confidence,
+    });
+
+    let storeCandidates: StoreCandidate[] = [];
+    if (lat !== undefined && lng !== undefined) {
+      storeCandidates = await this.placesClient.getStoreCandidates(lat, lng);
+    }
+
+    const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
+    const judgment = this.toJudgmentShort(overallJudgment);
+    const allDetected = geminiResult.results.flatMap((r) => r.detected);
+
+    let location: { store_name: string; lat: number; lng: number } | null = null;
+    if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
+      location = { store_name: storeCandidates[0].name, lat, lng };
+    }
+
+    await this.scanHistoryRepository.create({
+      userId: userId ?? randomUUID(),
+      productId: product.id,
+      productName: null,
+      judgment,
+      detected: allDetected,
+      location,
+      thumbnailUrl: null,
+    });
+
+    this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
+
+    if (storeCandidates.length >= 2) {
+      yield { type: 'result', data: { ...geminiResult, storeCandidates } };
+    } else {
+      yield { type: 'result', data: geminiResult };
+    }
   }
 
   /**

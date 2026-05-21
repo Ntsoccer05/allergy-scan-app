@@ -11,8 +11,10 @@ import {
   getPresignedUrl,
   postBarcode,
   postOcr,
+  postOcrStream,
   uploadToS3,
   type OcrApiResponse,
+  type OcrStreamEvent,
 } from '@/lib/api/scan.api'
 import { postHistory, patchHistoryLocation } from '@/lib/api/history.api'
 import { getCached, setCached } from '@/lib/cache'
@@ -21,6 +23,7 @@ type ScanOcrParams = {
   s3Key: string
   lat?: number
   lng?: number
+  allowLowConfidence?: boolean
 }
 
 type UseScanApiReturn = {
@@ -28,6 +31,7 @@ type UseScanApiReturn = {
   fetchPresignedUrl: () => Promise<PresignedUrlResponse>
   putS3: (url: string, imageBlob: Blob) => Promise<void>
   scanOcr: (params: ScanOcrParams) => Promise<OcrApiResponse>
+  scanOcrStream: (params: ScanOcrParams) => AsyncGenerator<OcrStreamEvent>
   scanBarcodeWithCache: (janCode: string) => Promise<BarcodeScanResponse>
   saveHistory: (body: CreateHistoryBody) => Promise<HistoryItem | null>
   patchLocation: (
@@ -77,7 +81,14 @@ export const useScanApi = (): UseScanApiReturn => {
 
   const scanOcr = useCallback(
     async (params: ScanOcrParams): Promise<OcrApiResponse> => {
-      return postOcr(params)
+      return postOcr({ ...params, allowLowConfidence: params.allowLowConfidence })
+    },
+    [],
+  )
+
+  const scanOcrStream = useCallback(
+    (params: ScanOcrParams): AsyncGenerator<OcrStreamEvent> => {
+      return postOcrStream({ ...params })
     },
     [],
   )
@@ -111,5 +122,5 @@ export const useScanApi = (): UseScanApiReturn => {
     [queryClient],
   )
 
-  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, saveHistory, patchLocation }
+  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, scanOcrStream, saveHistory, patchLocation }
 }

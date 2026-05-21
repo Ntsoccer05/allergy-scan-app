@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
 
 /** POST /scan/ocr のリクエストボディ。openapi.yaml OcrScanRequest 準拠。 */
 export class OcrScanDto {
@@ -17,4 +17,9 @@ export class OcrScanDto {
   @IsOptional()
   @IsNumber()
   lng?: number;
+
+  /** PC（pointer: coarse 非対応）からのリクエスト時に true。confidence: low でも判定結果を返す。 */
+  @IsOptional()
+  @IsBoolean()
+  allow_low_confidence?: boolean;
 }

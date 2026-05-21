@@ -84,3 +84,4 @@ export type StoreCandidate = {
 export type ScanResult =
   | { type: 'barcode'; data: BarcodeScanResponse }
   | { type: 'ocr'; data: OcrScanResponse; storeCandidates?: StoreCandidate[] }
+  | { type: 'low_confidence'; raw_text: string }

@@ -1,6 +1,7 @@
 {
   "result": {
     "appTitle": "Allergy Scan App",
+    "confidenceLow": "⚠️ Image quality is low — judgment accuracy may be reduced. Always verify with the actual label.",
     "confidenceMedium": "⚠️ Some parts were difficult to read. Please also check the label.",
     "rawTextExpand": "Check ingredients ▼",
     "rawTextCollapse": "Check ingredients ▲",
@@ -13,6 +14,8 @@
     "detectedComponents": "Detected components:",
     "reason": "Reason:",
     "overallOk": "✅ No allergens detected",
+    "sectionNg": "NG / Caution (present as ingredient)",
+    "sectionMayContain": "Advisory (shared manufacturing line)",
     "detectionType": {
       "contains": "🔴 NG",
       "partial": "🟡 Caution",
@@ -25,11 +28,17 @@
       "unknown": "Unknown"
     },
     "selectStore": "Where are you purchasing?",
-    "storeUnknown": "Location unknown"
+    "storeUnknown": "Location unknown",
+    "unreadableTitle": "📷 Could not read any text",
+    "unreadableMessage": "Please move closer to the label, face it directly, and try again in better lighting.",
+    "lowConfidenceTitle": "⚠️ Image quality too low for AI judgment",
+    "lowConfidenceMessage": "The extracted ingredient text is shown below. Please check for your allergens manually."
   },
   "camera": {
     "switchCamera": "Switch Camera",
     "videoLabel": "Camera view",
-    "zoomLabel": "Zoom level"
+    "zoomLabel": "Zoom level",
+    "processingTitle": "Photo captured",
+    "processingSubtitle": "Analyzing... You can move the product away."
   }
 }

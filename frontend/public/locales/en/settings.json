@@ -15,12 +15,14 @@
   },
   "language": {
     "title": "Language",
-    "ja": "日本語",
+    "ja": "Japanese",
     "en": "English"
   },
   "vibration": {
     "title": "Vibration",
-    "description": "Vibrate on scan result notification"
+    "description": "Vibrate on scan result notification",
+    "enabled": "ON",
+    "disabled": "OFF"
   },
   "account": {
     "title": "Account",
@@ -56,7 +58,6 @@
     "description": "Use this text to inform restaurants of your allergies. Copy and paste it when making reservations.",
     "copyButton": "Copy",
     "copiedButton": "Copied!",
-    "regenerateButton": "Regenerate",
     "copyError": "Failed to copy",
     "format": {
       "prefix": "Food allergies: ",

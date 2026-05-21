@@ -14,6 +14,8 @@ import type { IssueBackupCodeResponse } from '@/lib/api/backup-code'
 const isAndroid = (): boolean =>
   typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
 
+export const VIBRATION_STORAGE_KEY = 'vibration_enabled'
+
 type TranslateFn = (key: string) => string
 
 type AllergenToggleRowProps = {
@@ -62,6 +64,9 @@ type AllergenSectionProps = {
   t: TranslateFn
 }
 
+/** localStorage に保存するアコーディオン状態のキー（recommended カテゴリのみ） */
+const ACCORDION_STORAGE_KEY = 'allergen_accordion_recommended'
+
 const AllergenSection = ({
   group,
   allergies,
@@ -70,32 +75,62 @@ const AllergenSection = ({
   t,
 }: AllergenSectionProps) => {
   const isRecommended = group.category === 'recommended'
-  const [isExpanded, setIsExpanded] = useState(!isRecommended)
+
+  // recommended はデフォルト展開。localStorage で状態を永続化する。
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (!isRecommended) return true
+    if (typeof window === 'undefined') return true
+    const stored = localStorage.getItem(ACCORDION_STORAGE_KEY)
+    return stored === null ? true : stored === 'true'
+  })
+
+  const handleToggle = () => {
+    setIsExpanded((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ACCORDION_STORAGE_KEY, String(next))
+      }
+      return next
+    })
+  }
 
   return (
     <section className="mb-4">
-      <button
-        type="button"
-        onClick={isRecommended ? () => setIsExpanded((prev) => !prev) : undefined}
-        className={`w-full flex items-center justify-between mb-2 ${
-          isRecommended ? 'cursor-pointer group' : 'cursor-default'
-        }`}
-        aria-expanded={isRecommended ? isExpanded : undefined}
-      >
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          {t(`allergens.category.${group.category}`)}
-        </h2>
-        {isRecommended && (
-          <span
-            className={`text-gray-400 transition-transform duration-200 ${
+      {isRecommended ? (
+        <button
+          type="button"
+          onClick={handleToggle}
+          aria-expanded={isExpanded}
+          className="w-full flex items-center justify-between mb-2
+            bg-gray-100 border border-gray-200 rounded-lg px-3 py-2
+            cursor-pointer hover:bg-gray-200 transition-colors
+            focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <h2 className="text-sm font-semibold text-gray-600">
+            {t(`allergens.category.${group.category}`)}
+          </h2>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
               isExpanded ? 'rotate-180' : ''
             }`}
             aria-hidden="true"
           >
-            ▼
-          </span>
-        )}
-      </button>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      ) : (
+        <div className="mb-2 px-0.5">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            {t(`allergens.category.${group.category}`)}
+          </h2>
+        </div>
+      )}
 
       {isExpanded && (
         <ul className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 overflow-hidden">
@@ -132,6 +167,22 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const [vibrationEnabled, setVibrationEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const stored = localStorage.getItem(VIBRATION_STORAGE_KEY)
+    return stored === null ? true : stored === 'true'
+  })
+
+  const handleVibrationToggle = () => {
+    setVibrationEnabled((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(VIBRATION_STORAGE_KEY, String(next))
+      }
+      return next
+    })
+  }
 
   const [issuedCode, setIssuedCode] = useState<IssueBackupCodeResponse | null>(null)
   const [isIssuing, setIsIssuing] = useState(false)
@@ -280,7 +331,24 @@ export default function SettingsPage() {
               {t('vibration.title')}
             </h2>
             <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-sm text-gray-600">{t('vibration.description')}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600">{t('vibration.description')}</p>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={vibrationEnabled}
+                  aria-label={t('vibration.title')}
+                  onClick={handleVibrationToggle}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                    ${vibrationEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5
+                      ${vibrationEnabled ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
             </div>
           </section>
         )}

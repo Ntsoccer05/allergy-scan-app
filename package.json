@@ -3,11 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "dev": "pnpm db:up && concurrently --kill-others --names api,web --prefix-colors green,cyan \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend start:dev",
-    "typecheck": "pnpm -r tsc --noEmit",
+    "db:up": "docker compose up db -d --wait",
+    "db:down": "docker compose stop db",
+    "stop": "docker compose stop db",
+    "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test -- --passWithNoTests",
     "lint": "pnpm -r lint"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }

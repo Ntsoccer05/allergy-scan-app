@@ -34,7 +34,7 @@ jest.mock('./useFrameCheck', () => ({
   }),
 }))
 
-const mockScanOcr = jest.fn()
+const mockScanOcrStream = jest.fn()
 const mockSaveHistory = jest.fn().mockResolvedValue({ id: 'hist-1' })
 const mockPatchLocation = jest.fn().mockResolvedValue(undefined)
 const mockFetchPresignedUrl = jest.fn().mockResolvedValue({ url: 'https://s3.example.com/upload', s3_key: 'key-1' })
@@ -43,7 +43,7 @@ const mockScanBarcodeWithCache = jest.fn()
 
 jest.mock('./useScanApi', () => ({
   useScanApi: () => ({
-    scanOcr: mockScanOcr,
+    scanOcrStream: mockScanOcrStream,
     saveHistory: mockSaveHistory,
     patchLocation: mockPatchLocation,
     fetchPresignedUrl: mockFetchPresignedUrl,
@@ -186,6 +186,7 @@ describe('scanReducer', () => {
         data: { found: true, from_cache: false },
       },
       storeCandidates: [],
+      partialRawText: null,
     }
     const state = scanReducer(resultState, { type: 'RESET' })
     expect(state).toEqual(initialState)
@@ -197,6 +198,7 @@ describe('scanReducer', () => {
       error: null,
       result: null,
       storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
+      partialRawText: null,
     }
     const state = scanReducer(stateWithCandidates, { type: 'STORE_SELECTED' })
     expect(state.storeCandidates).toHaveLength(0)
@@ -247,6 +249,7 @@ describe('scanReducer', () => {
       error: null,
       result: null,
       storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
+      partialRawText: null,
     }
     const state = scanReducer(stateWithCandidates, { type: 'START_CAMERA' })
     expect(state.storeCandidates).toHaveLength(0)
@@ -321,8 +324,10 @@ describe('useScan - geolocation 連携', () => {
   let capturedIntervalCallback: (() => void) | null = null
 
   beforeEach(() => {
-    mockScanOcr.mockReset()
-    mockScanOcr.mockResolvedValue(makeOcrResponse())
+    mockScanOcrStream.mockReset()
+    mockScanOcrStream.mockImplementation(() => (async function* () {
+      yield { type: 'result' as const, data: makeOcrResponse() }
+    })())
     mockSaveHistory.mockResolvedValue({ id: 'hist-1' })
     mockFetchPresignedUrl.mockResolvedValue({ url: 'https://s3.example.com/upload', s3_key: 'key-1' })
     mockPutS3.mockResolvedValue(undefined)
@@ -338,10 +343,31 @@ describe('useScan - geolocation 連携', () => {
         }
         jest.spyOn(canvas, 'getContext').mockReturnValue({
           putImageData: jest.fn(),
+          drawImage: jest.fn(),
+          getImageData: jest.fn().mockReturnValue({
+            data: new Uint8ClampedArray(4),
+            width: 1,
+            height: 1,
+          }),
         } as unknown as CanvasRenderingContext2D)
         return canvas
       }
       return originalCreateElement(tagName)
+    })
+
+    // jsdom では window.matchMedia が未実装のためモックする（isPC() が内部で使用）
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      })),
     })
 
     // setInterval をモックして tick コールバックをキャプチャする
@@ -362,26 +388,6 @@ describe('useScan - geolocation 連携', () => {
       configurable: true,
     })
   })
-
-  /** tick コールバックを CONSECUTIVE_FRAMES_REQUIRED (3) 回実行して OCR フローを起動する */
-  const runTicksToTriggerOcr = async (): Promise<void> => {
-    if (!capturedIntervalCallback) throw new Error('setInterval コールバックが未キャプチャ')
-    // 3回実行（バーコード未検出 → 品質 OK → consecutive 3 → runOcrFlow）
-    for (let i = 0; i < 3; i++) {
-      await act(async () => {
-        capturedIntervalCallback!()
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-    }
-    // OCR 非同期処理（fetchPresignedUrl → putS3 → scanOcr）の完了を待つ
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-  }
 
   it('geolocation 成功時: postOcr（scanOcr）に lat/lng が渡される', async () => {
     // GPS 取得成功のモック（即時コールバック）
@@ -404,10 +410,13 @@ describe('useScan - geolocation 連携', () => {
       await result.current.startScan()
     })
 
-    await runTicksToTriggerOcr()
+    // manualCapture で runOcrFlow を直接トリガー（tick の非同期チェーンより確実）
+    await act(async () => {
+      await result.current.manualCapture()
+    })
 
-    expect(mockScanOcr).toHaveBeenCalled()
-    const callArg = mockScanOcr.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
+    expect(mockScanOcrStream).toHaveBeenCalled()
+    const callArg = mockScanOcrStream.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
     expect(callArg.lat).toBeCloseTo(35.681236)
     expect(callArg.lng).toBeCloseTo(139.767125)
 
@@ -441,17 +450,19 @@ describe('useScan - geolocation 連携', () => {
       await result.current.startScan()
     })
 
-    await runTicksToTriggerOcr()
+    await act(async () => {
+      await result.current.manualCapture()
+    })
 
-    expect(mockScanOcr).toHaveBeenCalled()
-    const callArg = mockScanOcr.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
+    expect(mockScanOcrStream).toHaveBeenCalled()
+    const callArg = mockScanOcrStream.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
     expect(callArg.lat).toBeUndefined()
     expect(callArg.lng).toBeUndefined()
 
     unmount()
   })
 
-  it('geolocation 非対応（navigator.geolocation が undefined）時: lat/lng なしで scanOcr が呼ばれる', async () => {
+  it('geolocation 非対応（navigator.geolocation が undefined）時: lat/lng なしで scanOcrStream が呼ばれる', async () => {
     Object.defineProperty(global.navigator, 'geolocation', {
       value: undefined,
       writable: true,
@@ -464,10 +475,12 @@ describe('useScan - geolocation 連携', () => {
       await result.current.startScan()
     })
 
-    await runTicksToTriggerOcr()
+    await act(async () => {
+      await result.current.manualCapture()
+    })
 
-    expect(mockScanOcr).toHaveBeenCalled()
-    const callArg = mockScanOcr.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
+    expect(mockScanOcrStream).toHaveBeenCalled()
+    const callArg = mockScanOcrStream.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
     expect(callArg.lat).toBeUndefined()
     expect(callArg.lng).toBeUndefined()
 

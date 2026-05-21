@@ -2,25 +2,37 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { AllergenComponentRepository } from '../allergens/allergen-component.repository';
 
-/**
- * プロンプトテンプレートをモジュールロード時に1回だけ読み込む。
- * Lambda 再起動時もコンテナ起動時に読み込まれるため、リクエストごとの fs アクセスは発生しない。
- * ファイル不在の場合は起動時に throw してデプロイ不備を即時検出できる設計。
- */
 const PROMPTS_DIR = path.resolve(__dirname, 'prompts');
-const ALLERGEN_DETECTION_TEMPLATE = fs.readFileSync(
-  path.join(PROMPTS_DIR, 'allergen-detection.txt'),
-  'utf-8',
-);
-const NO_ALLERGEN_TEMPLATE = fs.readFileSync(
-  path.join(PROMPTS_DIR, 'no-allergen.txt'),
-  'utf-8',
-);
+
+// 本番: モジュールロード時に1回だけ読む（Lambda cold start コスト最適化）
+// 開発: 毎リクエストで読み直す（プロンプト調整を即反映するため）
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+let _allergenTemplate: string | null = null;
+let _noAllergenTemplate: string | null = null;
+
+const readTemplate = (filename: string): string =>
+  fs.readFileSync(path.join(PROMPTS_DIR, filename), 'utf-8');
+
+const getAllergenTemplate = (): string => {
+  if (!IS_DEV && _allergenTemplate !== null) return _allergenTemplate;
+  _allergenTemplate = readTemplate('allergen-detection.md');
+  return _allergenTemplate;
+};
+
+const getNoAllergenTemplate = (): string => {
+  if (!IS_DEV && _noAllergenTemplate !== null) return _noAllergenTemplate;
+  _noAllergenTemplate = readTemplate('no-allergen.md');
+  return _noAllergenTemplate;
+};
 
 /** プレースホルダー名の定数。テンプレートファイルとの不一致を防ぐ。 */
 const PLACEHOLDER_ALLERGEN_LABEL = '{{ALLERGEN_LABEL}}';
 const PLACEHOLDER_DETECTION_LIST = '{{DETECTION_LIST}}';
 const PLACEHOLDER_EXCLUDE_LIST = '{{EXCLUDE_LIST}}';
+
+// アレルゲン成分リストは master data で更新頻度が低い。キャッシュキーはアレルゲン名ソート済みリスト。
+const _promptCache = new Map<string, string>();
 
 /**
  * Gemini プロンプトを動的生成する（dry_principles.md の集約点）。
@@ -31,8 +43,12 @@ export const buildGeminiPrompt = async (
   db: AllergenComponentRepository,
 ): Promise<string> => {
   if (enabledAllergens.length === 0) {
-    return NO_ALLERGEN_TEMPLATE;
+    return getNoAllergenTemplate();
   }
+
+  const cacheKey = [...enabledAllergens].sort().join(',');
+  const cached = _promptCache.get(cacheKey);
+  if (cached !== undefined) return cached;
 
   const components = await db.findByAllergens(enabledAllergens);
 
@@ -53,7 +69,7 @@ export const buildGeminiPrompt = async (
 
   const allergenLabel = enabledAllergens.join('、');
 
-  return ALLERGEN_DETECTION_TEMPLATE.replace(
+  const result = getAllergenTemplate().replace(
     new RegExp(escapeRegExp(PLACEHOLDER_ALLERGEN_LABEL), 'g'),
     allergenLabel,
   )
@@ -65,6 +81,8 @@ export const buildGeminiPrompt = async (
       new RegExp(escapeRegExp(PLACEHOLDER_EXCLUDE_LIST), 'g'),
       excludeList || '（なし）',
     );
+  _promptCache.set(cacheKey, result);
+  return result;
 };
 
 /** 正規表現のメタ文字をエスケープする。プレースホルダー置換で使用。 */

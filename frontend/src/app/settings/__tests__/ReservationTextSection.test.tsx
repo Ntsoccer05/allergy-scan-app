@@ -10,7 +10,6 @@ const t = (key: string): string => {
     'reservationText.description': '予約時にご利用ください',
     'reservationText.copyButton': 'コピーする',
     'reservationText.copiedButton': 'コピーしました',
-    'reservationText.regenerateButton': '再生成',
     'reservationText.copyError': 'コピーに失敗しました',
     'reservationText.format.prefix': '私は',
     'reservationText.format.suffix': 'アレルギーがあります。食事の際はご配慮をお願いいたします。',
@@ -88,49 +87,6 @@ describe('ReservationTextSection', () => {
     )
   })
 
-  it('enabled: true の品目が存在するとき、再生成ボタンが存在する', () => {
-    const allergenGroups = makeAllergenGroups([
-      { name: '卵', display_name: '卵' },
-    ])
-    const allergies = makeAllergies(['卵'], ['卵'])
-
-    render(
-      <ReservationTextSection
-        allergies={allergies}
-        allergenGroups={allergenGroups}
-        locale="ja"
-        t={t}
-      />,
-    )
-
-    expect(screen.getByText('再生成')).toBeInTheDocument()
-  })
-
-  it('textarea を編集後に再生成ボタンを押すと textarea の値が自動生成テキストに戻る', () => {
-    const allergenGroups = makeAllergenGroups([
-      { name: '卵', display_name: '卵' },
-    ])
-    const allergies = makeAllergies(['卵'], ['卵'])
-
-    render(
-      <ReservationTextSection
-        allergies={allergies}
-        allergenGroups={allergenGroups}
-        locale="ja"
-        t={t}
-      />,
-    )
-
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.change(textarea, { target: { value: '編集後のテキスト' } })
-    expect(textarea.value).toBe('編集後のテキスト')
-
-    fireEvent.click(screen.getByText('再生成'))
-    expect(textarea.value).toBe(
-      '私は卵アレルギーがあります。食事の際はご配慮をお願いいたします。',
-    )
-  })
-
   it('コピーボタンを押すと navigator.clipboard.writeText が呼ばれる', async () => {
     const writeText = jest.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
@@ -154,7 +110,7 @@ describe('ReservationTextSection', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByText('コピーする'))
+      fireEvent.click(screen.getByRole('button', { name: 'コピーする' }))
     })
 
     expect(writeText).toHaveBeenCalledWith(
@@ -187,11 +143,11 @@ describe('ReservationTextSection', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByText('コピーする'))
+      fireEvent.click(screen.getByRole('button', { name: 'コピーする' }))
     })
 
     await waitFor(() => {
-      expect(screen.getByText('コピーしました')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'コピーしました' })).toBeInTheDocument()
     })
 
     act(() => {
@@ -199,7 +155,7 @@ describe('ReservationTextSection', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('コピーする')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'コピーする' })).toBeInTheDocument()
     })
 
     jest.useRealTimers()
@@ -228,7 +184,7 @@ describe('ReservationTextSection', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByText('コピーする'))
+      fireEvent.click(screen.getByRole('button', { name: 'コピーする' }))
     })
 
     await waitFor(() => {

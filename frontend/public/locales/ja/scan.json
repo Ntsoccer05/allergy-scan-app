@@ -1,6 +1,7 @@
 {
   "result": {
     "appTitle": "アレルギースキャンアプリ",
+    "confidenceLow": "⚠️ 画質が低いため判定精度が低い可能性があります。必ずラベルの実物でご確認ください",
     "confidenceMedium": "⚠️ 一部読み取りにくい箇所があります。ラベルも確認してください",
     "rawTextExpand": "原材料を確認する ▼",
     "rawTextCollapse": "原材料を確認する ▲",
@@ -13,6 +14,8 @@
     "detectedComponents": "検出成分:",
     "reason": "判定理由:",
     "overallOk": "✅ 問題なし",
+    "sectionNg": "NG・注意（成分として含む）",
+    "sectionMayContain": "注意喚起（製造ライン共有）",
     "detectionType": {
       "contains": "🔴 NG",
       "partial": "🟡 注意",
@@ -25,11 +28,17 @@
       "unknown": "判定不能"
     },
     "selectStore": "どこで購入しますか？",
-    "storeUnknown": "場所不明"
+    "storeUnknown": "場所不明",
+    "unreadableTitle": "📷 テキストを読み取れませんでした",
+    "unreadableMessage": "ラベルに正面から近づけ、明るい場所で再試行してください。",
+    "lowConfidenceTitle": "⚠️ 画質が低いためAI判定はできませんでした",
+    "lowConfidenceMessage": "読み取れた原材料テキストを以下に表示します。ご自身でアレルゲンをご確認ください。"
   },
   "camera": {
     "switchCamera": "カメラ切り替え",
     "videoLabel": "カメラ映像",
-    "zoomLabel": "ズームレベル"
+    "zoomLabel": "ズームレベル",
+    "processingTitle": "撮影完了",
+    "processingSubtitle": "解析中です。商品をカメラから離して大丈夫です。"
   }
 }

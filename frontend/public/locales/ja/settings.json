@@ -16,11 +16,13 @@
   "language": {
     "title": "言語設定",
     "ja": "日本語",
-    "en": "English"
+    "en": "英語"
   },
   "vibration": {
     "title": "バイブレーション",
-    "description": "スキャン結果通知時に振動する"
+    "description": "スキャン結果通知時に振動する",
+    "enabled": "ON",
+    "disabled": "OFF"
   },
   "account": {
     "title": "アカウント",
@@ -56,7 +58,6 @@
     "description": "アレルギーをお店に伝えるためのテキストです。コピーして予約サイトや電話予約でご利用ください。",
     "copyButton": "コピーする",
     "copiedButton": "コピーしました",
-    "regenerateButton": "再生成",
     "copyError": "コピーに失敗しました",
     "format": {
       "prefix": "",
