@@ -116,7 +116,7 @@ describe('useSettings', () => {
     expect(result.current.allergies['アルコール'].partialAlert).toBe(before)
   })
 
-  it('アレルゲントグル後に debounce 経過で updateUser が呼ばれる', async () => {
+  it('アレルギートグル後に debounce 経過で updateUser が呼ばれる', async () => {
     const { result } = renderHook(() => useSettings())
 
     await waitFor(() => {

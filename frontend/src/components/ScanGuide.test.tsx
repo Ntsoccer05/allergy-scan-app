@@ -19,15 +19,15 @@ describe('ScanGuide', () => {
     expect(screen.getByText('読み取り中...')).toBeInTheDocument()
   })
 
-  it('state: error, error: dark → 「明るい場所に移動してください」を表示する', () => {
+  it('state: error, error: dark → 「⚠️ 明るい場所に移動してください」を表示する', () => {
     render(<ScanGuide state="error" error="dark" />)
-    expect(screen.getByText('明るい場所に移動してください')).toBeInTheDocument()
+    expect(screen.getByText('⚠️ 明るい場所に移動してください')).toBeInTheDocument()
   })
 
-  it('state: error, error: incomplete → 「ラベル全体が映るように離してください」を表示する', () => {
+  it('state: error, error: incomplete → 「⚠️ ラベル全体が映るように離してください」を表示する', () => {
     render(<ScanGuide state="error" error="incomplete" />)
     expect(
-      screen.getByText('ラベル全体が映るように離してください'),
+      screen.getByText('⚠️ ラベル全体が映るように離してください'),
     ).toBeInTheDocument()
   })
 

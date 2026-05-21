@@ -8,6 +8,7 @@ import { ScanModule } from './scan/scan.module';
 import { HistoryModule } from './history/history.module';
 import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
+import { AllergensModule } from './allergens/allergens.module';
 import { ThrottlerExceptionFilter } from './shared/throttler-exception.filter';
 import {
   THROTTLE_DEFAULT_TTL_MS,
@@ -27,6 +28,7 @@ import {
     HistoryModule,
     UsersModule,
     ProductsModule,
+    AllergensModule,
   ],
   controllers: [AppController],
   providers: [

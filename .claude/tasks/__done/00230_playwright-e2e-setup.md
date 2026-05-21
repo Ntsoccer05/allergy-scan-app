@@ -15,7 +15,7 @@
 
 主要画面の実装状況:
 - スキャン画面: `frontend/src/app/scan/page.tsx` — `useScan` Hook で状態管理、`ResultCard` で結果表示
-- 設定画面: `frontend/src/app/settings/page.tsx` — アレルゲントグル、予約用テキストセクション
+- 設定画面: `frontend/src/app/settings/page.tsx` — アレルギートグル、予約用テキストセクション
 - `manifest.json`: `frontend/public/manifest.json` — `theme_color: "#4CAF50"` 定義済み
 - `ScanResult` 型: `frontend/src/app/scan/scan.types.ts` — `BarcodeScanResponse`, `OcrScanResponse` 定義済み
 
@@ -98,8 +98,8 @@ E2E テストは `pnpm --filter frontend test:e2e` コマンドで独立して�
 
 以下を検証するテストを実装する:
 
-1. `GET /api/users/me` と `GET /api/allergens` をモックしてアレルゲンマスターを返す。設定画面 (`/settings`) が表示される
-2. アレルゲン設定のトグルボタン（最初の mandatory 品目）をクリックすると `PUT /api/users/me` が呼ばれる（`page.route()` でインターセプトして確認）
+1. `GET /api/users/me` と `GET /api/allergens` をモックしてアレルギーマスターを返す。設定画面 (`/settings`) が表示される
+2. アレルギー設定のトグルボタン（最初の mandatory 品目）をクリックすると `PUT /api/users/me` が呼ばれる（`page.route()` でインターセプトして確認）
 3. `enabled: true` の品目が 1 件以上あるとき、「お店予約用テキスト」セクション（`reservationText.title` i18n キー相当のテキスト）が表示される
 4. コピーボタン（`reservationText.copyButton` i18n キー相当）が DOM に存在する
 
@@ -146,7 +146,7 @@ E2E テストは `pnpm --filter frontend test:e2e` コマンドで独立して�
 
 - `frontend/e2e/settings.spec.ts`:
   - 設定画面が表示される
-  - アレルゲントグルのクリックで `PUT /api/users/me` が呼ばれる
+  - アレルギートグルのクリックで `PUT /api/users/me` が呼ばれる
   - `enabled: true` 品目が 1 件以上あるとき予約用テキストセクションが表示される
   - コピーボタンが存在する
 

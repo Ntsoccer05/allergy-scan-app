@@ -20,13 +20,13 @@ MVP 検証フェーズではプロンプトを頻繁に調整する必要があ�
 設計の根拠となる正典:
 - `.claude/rules/dry_principles.md` — Gemini プロンプト生成の集約点は `src/scan/gemini-prompt.builder.ts`
 - `.claude/rules/anti_patterns.md` — #3（exclude 型を Gemini プロンプトに含める禁止）、除外リストを別途渡す構造は維持
-- `.claude/rules/implementation_rules.md` — Gemini API 呼び出し制約（ユーザーが有効にしたアレルゲンのみをプロンプトに含める）
+- `.claude/rules/implementation_rules.md` — Gemini API 呼び出し制約（ユーザーが有効にしたアレルギーのみをプロンプトに含める）
 
 ---
 
 ## Requirements
 
-- R1: `backend/src/scan/prompts/` ディレクトリに `allergen-detection.txt`（通常判定用）と `no-allergen.txt`（アレルゲン設定なし用）の2ファイルを作成する。プロンプトのルール文・JSON フォーマット例を各ファイルに移動する
+- R1: `backend/src/scan/prompts/` ディレクトリに `allergen-detection.txt`（通常判定用）と `no-allergen.txt`（アレルギー設定なし用）の2ファイルを作成する。プロンプトのルール文・JSON フォーマット例を各ファイルに移動する
 - R2: `allergen-detection.txt` には動的部分を `{{ALLERGEN_LABEL}}`・`{{DETECTION_LIST}}`・`{{EXCLUDE_LIST}}` の3つのプレースホルダーで表現する
 - R3: `gemini-prompt.builder.ts` はテキストファイルを `fs.readFileSync` で読み込み、プレースホルダーを `String.prototype.replace` で置換して最終プロンプトを組み立てる
 - R4: テキストファイルのロードは `buildGeminiPrompt` / `buildNoAllergenPrompt` の初回呼び出しまたはモジュールロード時に行う。1回のリクエストにつき何度も fs アクセスしない（起動時キャッシュ or モジュールスコープ定数での読み込み）
@@ -67,7 +67,7 @@ MVP 検証フェーズではプロンプトを頻繁に調整する必要があ�
 | File | Action |
 |------|--------|
 | `backend/src/scan/prompts/allergen-detection.txt`（新規） | 通常判定用プロンプトテンプレート |
-| `backend/src/scan/prompts/no-allergen.txt`（新規） | アレルゲン設定なし用プロンプトテンプレート |
+| `backend/src/scan/prompts/no-allergen.txt`（新規） | アレルギー設定なし用プロンプトテンプレート |
 | `backend/src/scan/gemini-prompt.builder.ts`（編集） | テキストファイルロード・プレースホルダー置換ロジックに変更 |
 | `backend/src/scan/gemini-prompt.builder.spec.ts`（新規または編集） | プレースホルダー置換・no-allergen 分岐のテスト |
 
@@ -81,7 +81,7 @@ MVP 検証フェーズではプロンプトを頻繁に調整する必要があ�
 |----------|----------|
 | `buildGeminiPrompt` に enabledAllergens と AllergenComponentRepository モックを渡す | 返却文字列に `{{ALLERGEN_LABEL}}`・`{{DETECTION_LIST}}`・`{{EXCLUDE_LIST}}` が含まれない |
 | 上記の返却文字列に `enabledAllergens` の値（例: `'乳'`）が含まれる | PASS |
-| `buildGeminiPrompt` に `enabledAllergens: []` を渡す | `no-allergen.txt` ベースのプロンプト（「アレルゲン設定がないため」を含む文字列）が返る |
+| `buildGeminiPrompt` に `enabledAllergens: []` を渡す | `no-allergen.txt` ベースのプロンプト（「アレルギー設定がないため」を含む文字列）が返る |
 | exclude 型の成分が `detectionList` に含まれない | PASS（`component_type: 'exclude'` の成分は `{{DETECTION_LIST}}` に展開されない） |
 
 ---
@@ -116,7 +116,7 @@ MVP 検証フェーズではプロンプトを頻繁に調整する必要があ�
 ### Phase 1: プロンプトテキストファイルの作成
 
 - `backend/src/scan/prompts/allergen-detection.txt`（新規）: 通常判定用プロンプトテンプレート。動的部分を `{{ALLERGEN_LABEL}}`・`{{DETECTION_LIST}}`・`{{EXCLUDE_LIST}}` のプレースホルダーに置換。元の L31–L61 の静的テキストを全て移動。
-- `backend/src/scan/prompts/no-allergen.txt`（新規）: アレルゲン設定なし用プロンプトテンプレート。動的部分なし。元の L66–L88 の静的テキストを全て移動。
+- `backend/src/scan/prompts/no-allergen.txt`（新規）: アレルギー設定なし用プロンプトテンプレート。動的部分なし。元の L66–L88 の静的テキストを全て移動。
 
 ### Phase 2: ビルダーの修正
 
@@ -132,7 +132,7 @@ MVP 検証フェーズではプロンプトを頻繁に調整する必要があ�
 
 - `backend/src/scan/gemini-prompt.builder.spec.ts`（編集）: 既存テスト6件を維持した上で以下3件を追加。
   - 「返却文字列にプレースホルダーが残らない」: `{{ALLERGEN_LABEL}}`・`{{DETECTION_LIST}}`・`{{EXCLUDE_LIST}}` が最終プロンプトに含まれないことを検証。
-  - 「enabledAllergens の値がプロンプトに含まれる」: アレルゲン名「乳」が最終プロンプトに含まれることを検証。
+  - 「enabledAllergens の値がプロンプトに含まれる」: アレルギー名「乳」が最終プロンプトに含まれることを検証。
   - 「exclude 型成分が detectionList に含まれない」: `component_type: 'exclude'` の成分が `{{DETECTION_LIST}}` 展開後に含まれないことを再検証。
 
 ### ビルド設定

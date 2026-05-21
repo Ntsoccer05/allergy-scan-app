@@ -45,13 +45,13 @@ describe('HistoryCard', () => {
   })
 
   describe('detected 表示', () => {
-    it('detected に要素がある場合に検出アレルゲン名が表示される', () => {
+    it('detected に要素がある場合に検出アレルギー名が表示される', () => {
       render(<HistoryCard item={makeItem({ detected: ['卵', '乳'] })} />)
       expect(screen.getByText('卵')).toBeInTheDocument()
       expect(screen.getByText('乳')).toBeInTheDocument()
     })
 
-    it('detected が空配列の場合はアレルゲン名が表示されない', () => {
+    it('detected が空配列の場合はアレルギー名が表示されない', () => {
       render(<HistoryCard item={makeItem({ detected: [] })} />)
       expect(screen.queryByText('卵')).toBeNull()
     })

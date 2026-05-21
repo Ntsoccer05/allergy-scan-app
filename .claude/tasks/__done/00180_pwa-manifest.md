@@ -28,7 +28,7 @@ Next.js App Router の `metadata` API（`next/head` の代替）と `<link rel="
 - R2: `frontend/public/icons/icon-512.png` に 512x512 PNG の placeholder 画像を配置する（内容は問わない。完全な黒塗り・グレー塗りつぶし等でも可）
 - R3: `frontend/src/app/layout.tsx` の `<head>` 相当の箇所に `<link rel="manifest" href="/manifest.json">` を追加する。Next.js App Router の実装方式に従うこと（TBD: generator が `node_modules/next/dist/docs/` を参照して適切な方法を選択すること）
 - R4: `frontend/src/app/layout.tsx` に `<meta name="theme-color" content="<manifest.json と同じ値>">` を追加する。Next.js App Router の実装方式に従うこと
-- R5: `frontend/src/app/layout.tsx` の `metadata.title` を `"アレルギースキャン"` に、`metadata.description` を `"アレルゲンをスキャンして安心・安全な商品選びをサポート"` に変更する
+- R5: `frontend/src/app/layout.tsx` の `metadata.title` を `"アレルギースキャン"` に、`metadata.description` を `"アレルギーをスキャンして安心・安全な商品選びをサポート"` に変更する
 - R6: `as any` / `@ts-ignore` を新規追加しない
 - R7: `pnpm --filter frontend typecheck` がエラー 0 件で終了する
 

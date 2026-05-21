@@ -227,7 +227,7 @@ this.logger.log(`履歴取得: userId=${userId}, judgment=${judgment}`);
 ```
 
 `userId` はユーザー識別情報であり、ログ収集基盤への平文出力はプライバシーリスクになりうる。
-`implementation_rules.md` 「ログにアレルゲン設定の具体値を出力しない（マスク処理が必要）」に準拠し、
+`implementation_rules.md` 「ログにアレルギー設定の具体値を出力しない（マスク処理が必要）」に準拠し、
 userId のマスク（例: `userId=${userId.slice(0, 8)}...`）を検討すること。
 
 #### [Info] `history.controller.ts` が `ScanHistoryRecord` 型を `scan-history.repository` から直接 import

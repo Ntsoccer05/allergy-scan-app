@@ -18,7 +18,7 @@ export class AllergenComponentRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * 指定アレルゲン名リストに対応する allergen_components を取得する。
+   * 指定アレルギー名リストに対応する allergen_components を取得する。
    * exclude 型を含む全 component_type を返す（buildGeminiPrompt でフィルタリングする）。
    */
   async findByAllergens(

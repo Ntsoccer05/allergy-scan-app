@@ -10,7 +10,13 @@
       "Skill(sync-rules:*)",
       "Skill(run-harness-cycle)",
       "Skill(run-harness-cycle:*)",
-      "WebSearch"
+      "WebSearch",
+      "Read(//tmp/**)",
+      "Read(//c/tmp/**)"
+    ],
+    "additionalDirectories": [
+      "\\tmp",
+      "c:\\tmp"
     ]
   }
 }

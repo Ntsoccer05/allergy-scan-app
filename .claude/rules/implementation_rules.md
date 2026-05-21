@@ -88,7 +88,7 @@ incomplete → detecting 継続（ガイド表示して継続）
 
 ### Gemini API の呼び出し制約
 
-- ユーザーが有効にしたアレルゲンのみをプロンプトに含める（全 29 品目を常に渡さない）
+- ユーザーが有効にしたアレルギーのみをプロンプトに含める（全 29 品目を常に渡さない）
 - `exclude` 型の成分は検出対象に含めず、誤検出防止リストとして別途渡す
 - Gemini のレスポンスは必ず JSON 形式を指定し、`OcrResponse` 型で受け取る
 
@@ -120,7 +120,7 @@ incomplete → detecting 継続（ガイド表示して継続）
 
 - RDS は暗号化設定必須（`storage_encrypted = true`）
 - `users.allergies` データは外部 API に渡さない（Gemini には成分リストのみを渡す）
-- ログにアレルゲン設定の具体値を出力しない（マスク処理が必要）
+- ログにアレルギー設定の具体値を出力しない（マスク処理が必要）
 - ユーザーのデータ削除要求に応じるため、`user_id` 単位でデータを削除できる仕組みを持つ
 
 ---
@@ -144,7 +144,7 @@ CREATE INDEX allergen_components_name_idx ON allergen_components(allergen_name);
 CREATE INDEX allergen_components_type_idx ON allergen_components(allergen_name, component_type);
 ```
 
-> `products.allergens` への GIN インデックスは OCR/バーコードスキャンのたびに UPDATE が走るため書き込みコストが高い。現行クエリパターンでも使われないため省略。「アレルゲンで商品横断検索」機能を追加する際に `CREATE INDEX CONCURRENTLY` で無停止追加する。
+> `products.allergens` への GIN インデックスは OCR/バーコードスキャンのたびに UPDATE が走るため書き込みコストが高い。現行クエリパターンでも使われないため省略。「アレルギーで商品横断検索」機能を追加する際に `CREATE INDEX CONCURRENTLY` で無停止追加する。
 
 ---
 

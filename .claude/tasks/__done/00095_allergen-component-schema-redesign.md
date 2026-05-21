@@ -213,7 +213,7 @@ R11: `pnpm --filter backend test` がすべて PASS する（`gemini-prompt.buil
 
 - `frontend/src/hooks/useScan.spec.ts` は `Files to modify` に含まれていなかったが、`BarcodeScanResponse.is_high_risk` の削除により型エラーが生じたため修正（L43 の `is_high_risk: false` を `risk_level: null` に変更）。最小変更で型エラーを根本解決した（R9 に準拠）。
 - `GeminiOcrResponse.is_high_risk` および `backend/src/shared/gemini.client.ts`・`backend/src/scan/scan.controller.spec.ts`・`frontend/src/components/ResultCard.test.tsx` の `OcrScanResponse.is_high_risk` 参照は本タスクスコープ外（R8 の「GeminiOcrResponse 型の変更は本タスクスコープ外」に従い変更なし）。これらは型エラーを引き起こしていないため問題なし。
-- seed.ts は `docs/design/database.md` の SQL データを基に書き直したが、一部のアレルゲン（えび・かに・落花生・そば・牛肉・ごま等）の `allergen_components` は設計書に初期データが記載されていないため seed に含めなかった。これは設計書の範囲内での判断であり Plan deviation には該当しない。
+- seed.ts は `docs/design/database.md` の SQL データを基に書き直したが、一部のアレルギー（えび・かに・落花生・そば・牛肉・ごま等）の `allergen_components` は設計書に初期データが記載されていないため seed に含めなかった。これは設計書の範囲内での判断であり Plan deviation には該当しない。
 
 ---
 

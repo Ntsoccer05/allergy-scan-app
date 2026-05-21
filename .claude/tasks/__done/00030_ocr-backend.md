@@ -16,7 +16,7 @@
 本タスクでは未実装の以下2エンドポイントを追加する。
 
 1. `GET /scan/presigned-url` — S3 Presigned PUT URL の発行
-2. `POST /scan/ocr` — `{ s3_key }` を受け取り OCR + アレルゲン判定 → UPSERT → scan_histories 記録
+2. `POST /scan/ocr` — `{ s3_key }` を受け取り OCR + アレルギー判定 → UPSERT → scan_histories 記録
 
 実装の根拠となる正典:
 - `docs/api/openapi.yaml` の `PresignedUrlResponse` / `OcrScanRequest` / `OcrScanResponse` スキーマ
@@ -43,7 +43,7 @@ S3・Gemini の設定値は `backend/.env` の環境変数から取得する（`
 - R2: `POST /scan/ocr` が `{ s3_key: string }` を受け取り、`OcrScanResponse` 型のレスポンスを返す
 - R3: `s3_key` が空文字・未指定の場合、400 と `{ message, code: "INVALID_S3_KEY" }` を返す
 - R4: OCR フロー Step 1 として S3 から `s3_key` 指定の画像を取得する。取得失敗（KeyNotFound / ネットワークエラー）は 400 を返す
-- R5: OCR フロー Step 2・3 として、`POST /scan/ocr` リクエストヘッダーの `x-user-id` を使いユーザーの有効アレルゲンを `users` テーブルから取得し、`allergen_components` テーブルから exclude 型を除いた成分リストと exclude 型成分を別々に取得してプロンプトを動的生成する（`dry_principles.md` の `buildGeminiPrompt` 集約点に従い `gemini-prompt.builder.ts` に実装）
+- R5: OCR フロー Step 2・3 として、`POST /scan/ocr` リクエストヘッダーの `x-user-id` を使いユーザーの有効アレルギーを `users` テーブルから取得し、`allergen_components` テーブルから exclude 型を除いた成分リストと exclude 型成分を別々に取得してプロンプトを動的生成する（`dry_principles.md` の `buildGeminiPrompt` 集約点に従い `gemini-prompt.builder.ts` に実装）
 - R6: OCR フロー Step 4 として Gemini Flash API（`gemini-1.5-flash`）に画像と動的プロンプトを送信し、`OcrScanResponse` 型に準拠した JSON レスポンスを取得する。Gemini クライアントは `backend/src/shared/gemini.client.ts` に分離する
 - R7: `incomplete: true` が Gemini から返却された場合、即 400 と `{ message: "ラベル全体が映るように離してください", code: "INCOMPLETE_IMAGE" }` を返す（部分的なラベルで判定しない）
 - R8: `confidence: "low"` が Gemini から返却された場合、422 と `{ message: "もう少し近づけて再スキャンしてください", code: "LOW_CONFIDENCE" }` を返す
@@ -81,7 +81,7 @@ S3・Gemini の設定値は `backend/.env` の環境変数から取得する（`
 
 ### Phase 4: AllergenComponentRepository + HistoryModule
 
-- `backend/src/allergens/allergen-component.repository.ts`: `findByAllergens(allergenNames)` を実装（`allergen_components` テーブルから指定アレルゲンの成分を取得）
+- `backend/src/allergens/allergen-component.repository.ts`: `findByAllergens(allergenNames)` を実装（`allergen_components` テーブルから指定アレルギーの成分を取得）
 - `backend/src/allergens/allergens.module.ts`: `AllergenComponentRepository` を export する Module
 - `backend/src/history/scan-history.repository.ts`: `create(data)` を実装（`scan_histories` テーブルへの INSERT）
 - `backend/src/history/history.module.ts`: `ScanHistoryRepository` を export する Module
@@ -116,7 +116,7 @@ S3・Gemini の設定値は `backend/.env` の環境変数から取得する（`
 | `backend/src/shared/s3.client.ts`（新規） | S3 Presigned URL 発行・画像取得クライアント |
 | `backend/src/shared/gemini.client.ts`（新規） | Gemini Flash API クライアント |
 | `backend/src/scan/gemini-prompt.builder.ts`（新規） | 動的プロンプトビルダー |
-| `backend/src/allergens/allergen-component.repository.ts`（新規） | アレルゲン成分取得 Repository |
+| `backend/src/allergens/allergen-component.repository.ts`（新規） | アレルギー成分取得 Repository |
 | `backend/src/allergens/allergens.module.ts`（新規） | AllergensModule |
 | `backend/src/history/scan-history.repository.ts`（新規） | scan_histories INSERT Repository |
 | `backend/src/history/history.module.ts`（新規） | HistoryModule |
@@ -158,7 +158,7 @@ S3・Gemini の設定値は `backend/.env` の環境変数から取得する（`
 |----------|----------|
 | exclude 型成分 | 検出対象リストに含まれない |
 | exclude 型成分 | 誤検出防止リストに含まれる |
-| 有効アレルゲンのみ | プロンプトに含まれる |
+| 有効アレルギーのみ | プロンプトに含まれる |
 
 ---
 
@@ -188,7 +188,7 @@ S3・Gemini の設定値は `backend/.env` の環境変数から取得する（`
 | Gemini API の JSON パース失敗 | `GeminiClient.analyzeImage` 内で JSON.parse を try/catch し、パース失敗時は `judgment: '判定不能'` として返す（安全側に倒す） |
 | S3 Presigned URL の有効期限設定 | Presigned URL の有効期限は 300秒（5分）固定。定数 `PRESIGNED_URL_EXPIRES_SEC` として `scan.constants.ts` に追加する |
 | label_hash の衝突 | SHA-256 は衝突確率が無視できるほど低い。設計上許容する（`database.md` 設計方針に従う） |
-| `x-user-id` ヘッダー未送信時の挙動 | `x-user-id` が未送信の場合 `users` テーブルにレコードがなく有効アレルゲンは空になる。空の場合は全アレルゲン除外でプロンプト生成し、Gemini には「設定アレルゲンなし」として送信する（判定不能ではなく「なし」で返す）。Evaluator はこの挙動を確認すること（TBD: generator がヘッダーバリデーション方針を決定） |
+| `x-user-id` ヘッダー未送信時の挙動 | `x-user-id` が未送信の場合 `users` テーブルにレコードがなく有効アレルギーは空になる。空の場合は全アレルギー除外でプロンプト生成し、Gemini には「設定アレルギーなし」として送信する（判定不能ではなく「なし」で返す）。Evaluator はこの挙動を確認すること（TBD: generator がヘッダーバリデーション方針を決定） |
 | `@google/generative-ai` の NestJS 対応 | NestJS の DI で動作するよう `GeminiClient` を `@Injectable()` クラスとして実装する |
 
 ---

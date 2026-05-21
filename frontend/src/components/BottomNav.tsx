@@ -29,8 +29,8 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-gray-200
-        flex items-center justify-around max-w-[480px] mx-auto w-full"
+      className="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-gray-200
+        flex items-center justify-around max-w-120 mx-auto w-full"
       aria-label={t('nav.label')}
     >
       {NAV_ITEMS.map(({ href, labelKey, icon }) => {

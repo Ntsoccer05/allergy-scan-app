@@ -60,7 +60,7 @@ const mockComponents: AllergenComponentRecord[] = [
     componentType: 'derivative',
     detectionType: 'contains',
     riskLevel: 'high',
-    note: '加熱しても残るアレルゲン',
+    note: '加熱しても残るアレルギー',
   },
   {
     id: '7',
@@ -132,7 +132,7 @@ describe('buildGeminiPrompt', () => {
     expect(excludeSection).toContain('乳酸菌');
   });
 
-  it('有効アレルゲンの検出対象成分がプロンプトに含まれる', async () => {
+  it('有効アレルギーの検出対象成分がプロンプトに含まれる', async () => {
     const prompt = await buildGeminiPrompt(['乳', '卵'], db);
     expect(prompt).toContain('乳');
     expect(prompt).toContain('カゼイン');
@@ -140,9 +140,9 @@ describe('buildGeminiPrompt', () => {
     expect(prompt).toContain('オボムコイド');
   });
 
-  it('有効アレルゲンが空の場合はアレルゲン設定なしのプロンプトを返す', async () => {
+  it('有効アレルギーが空の場合はアレルギー設定なしのプロンプトを返す', async () => {
     const prompt = await buildGeminiPrompt([], db);
-    expect(prompt).toContain('アレルゲン設定がない');
+    expect(prompt).toContain('アレルギー設定がない');
     expect(mockDb.findByAllergens).not.toHaveBeenCalled();
   });
 
@@ -215,7 +215,7 @@ describe('buildGeminiPrompt', () => {
     expect(prompt).toContain('乳を含む製品を製造');
   });
 
-  it('findByAllergens に指定アレルゲン名が渡される', async () => {
+  it('findByAllergens に指定アレルギー名が渡される', async () => {
     await buildGeminiPrompt(['乳', '卵'], db);
     expect(mockDb.findByAllergens).toHaveBeenCalledWith(['乳', '卵']);
   });
@@ -234,7 +234,7 @@ describe('buildGeminiPrompt', () => {
 
   it('enabledAllergens: [] のとき no-allergen ベースのプロンプトが返る', async () => {
     const prompt = await buildGeminiPrompt([], db);
-    expect(prompt).toContain('アレルゲン設定がない');
+    expect(prompt).toContain('アレルギー設定がない');
   });
 
   it('exclude 型成分が detectionList 展開後に含まれない', async () => {

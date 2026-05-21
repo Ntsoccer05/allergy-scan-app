@@ -29,7 +29,7 @@ describe('toggleAllergen', () => {
     expect(result['卵'].partialAlert).toBe(false)
   })
 
-  it('他のアレルゲンの設定は変更されない', () => {
+  it('他のアレルギーの設定は変更されない', () => {
     const allergies = makeAllergies()
     const result = toggleAllergen(allergies, '乳')
     expect(result['卵']).toEqual({ enabled: true, partialAlert: true })
@@ -70,7 +70,7 @@ describe('toggleCaution', () => {
     expect(result['アルコール'].partialAlert).toBe(false)
   })
 
-  it('他のアレルゲンの設定は変更されない', () => {
+  it('他のアレルギーの設定は変更されない', () => {
     const allergies = makeAllergies()
     const result = toggleCaution(allergies, 'アルコール')
     expect(result['乳']).toEqual({ enabled: false, partialAlert: false })

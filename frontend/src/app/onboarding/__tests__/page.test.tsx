@@ -39,7 +39,7 @@ const onboardingJa = {
     restore: '引き継ぎコードをお持ちの方',
   },
   step2: {
-    title: 'アレルゲンを選択してください',
+    title: 'アレルギーを選択してください',
     description: '説明',
     next: '次へ',
     showMore: 'もっと見る',
@@ -189,7 +189,7 @@ describe('OnboardingPage', () => {
     })
   })
 
-  describe('画面2: アレルゲン選択', () => {
+  describe('画面2: アレルギー選択', () => {
     it('0品目選択時は[次へ]が disabled である', () => {
       mockUseOnboarding.mockReturnValue(makeDefaultHook({ step: 2, canProceedStep2: false }))
 
@@ -206,7 +206,7 @@ describe('OnboardingPage', () => {
       expect(nextButton).not.toBeDisabled()
     })
 
-    it('アレルゲントグルボタンをクリックすると handleToggleAllergen が呼ばれる', () => {
+    it('アレルギートグルボタンをクリックすると handleToggleAllergen が呼ばれる', () => {
       const handleToggleAllergen = jest.fn()
       mockUseOnboarding.mockReturnValue(makeDefaultHook({ step: 2, handleToggleAllergen }))
 

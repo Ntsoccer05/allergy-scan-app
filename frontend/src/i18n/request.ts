@@ -1,4 +1,6 @@
 import { getRequestConfig } from 'next-intl/server'
+import fs from 'fs'
+import path from 'path'
 
 const SUPPORTED_LOCALES = ['ja', 'en'] as const
 type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
@@ -7,6 +9,13 @@ const DEFAULT_LOCALE: SupportedLocale = 'ja'
 
 const isSupportedLocale = (locale: string): locale is SupportedLocale =>
   (SUPPORTED_LOCALES as readonly string[]).includes(locale)
+
+// import() はturbopackがモジュールキャッシュするためJSONの変更がHMRに反映されない。
+// fs.readFileSync はディスクを毎回読むため、dev中のホットリロードが機能する。
+const readLocaleFile = (locale: string, namespace: string): Record<string, unknown> => {
+  const filePath = path.join(process.cwd(), 'public', 'locales', locale, `${namespace}.json`)
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>
+}
 
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale
@@ -21,15 +30,9 @@ export default getRequestConfig(async ({ requestLocale }) => {
     settingsMessages,
     onboardingMessages,
     historyMessages,
-  ] = await Promise.all([
-    import(`../../public/locales/${locale}/scan.json`).then((m) => m.default),
-    import(`../../public/locales/${locale}/common.json`).then((m) => m.default),
-    import(`../../public/locales/${locale}/settings.json`).then((m) => m.default),
-    import(`../../public/locales/${locale}/onboarding.json`).then(
-      (m) => m.default,
-    ),
-    import(`../../public/locales/${locale}/history.json`).then((m) => m.default),
-  ])
+  ] = ['scan', 'common', 'settings', 'onboarding', 'history'].map((ns) =>
+    readLocaleFile(locale, ns),
+  )
 
   return {
     locale,

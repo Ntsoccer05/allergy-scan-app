@@ -10,9 +10,9 @@
 
 | テーブル | 役割 |
 |---|---|
-| allergens | アレルゲン・配慮成分マスター（29品目＋拡張） |
+| allergens | アレルギー・配慮成分マスター（29品目＋拡張） |
 | allergen_components | 派生成分・除外リストマスター |
-| products | 商品・アレルゲン情報 |
+| products | 商品・アレルギー情報 |
 | scan_histories | スキャン履歴 |
 | users | ユーザー・アレルギー設定 |
 
@@ -131,7 +131,7 @@ CREATE INDEX allergen_components_type_idx
   ON allergen_components(allergen_name, component_type);
 ```
 
-### 初期データ（全アレルゲン・拡張版）
+### 初期データ（全アレルギー・拡張版）
 
 ```sql
 -- =====================
@@ -194,7 +194,7 @@ INSERT INTO allergen_components
   (gen_random_uuid(), '卵', '卵',           '["玉子","たまご","エッグ","egg"]', 'direct',     'contains', 'high',   NULL),
   (gen_random_uuid(), '卵', '卵黄',         '["egg yolk"]',                    'derivative', 'contains', 'high',   NULL),
   (gen_random_uuid(), '卵', '卵白',         '["egg white","albumin"]',         'derivative', 'contains', 'high',   NULL),
-  (gen_random_uuid(), '卵', 'オボムコイド', '[]',                              'derivative', 'contains', 'high',   '加熱しても残るアレルゲン・要注意'),
+  (gen_random_uuid(), '卵', 'オボムコイド', '[]',                              'derivative', 'contains', 'high',   '加熱しても残るアレルギー・要注意'),
   (gen_random_uuid(), '卵', 'マヨネーズ',   '[]',                              'compound',   'contains', 'medium', '複合原材料・卵を含む'),
   (gen_random_uuid(), '卵', 'リゾチーム',   '[]',                              'additive',   'contains', 'high',   '卵白由来添加物'),
   (gen_random_uuid(), '卵', 'レシチン（卵由来）', '[]',                        'additive',   'contains', 'high',   '大豆由来は卵ではない'),
@@ -307,7 +307,7 @@ CREATE TABLE products (
 
 -- GIN インデックス（products.allergens）は省略
 -- スキャンのたびに allergens カラムが UPDATE されるため書き込みコストが高い
--- 「アレルゲンで商品横断検索」を追加する際に CREATE INDEX CONCURRENTLY で無停止追加する
+-- 「アレルギーで商品横断検索」を追加する際に CREATE INDEX CONCURRENTLY で無停止追加する
 ```
 
 ### 商品IDの2階層管理

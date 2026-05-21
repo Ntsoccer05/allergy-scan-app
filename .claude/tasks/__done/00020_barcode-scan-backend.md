@@ -190,7 +190,7 @@
 **Phase 4: ScanService（scan.service.ts:L1-118）**
 - `backend/src/scan/scan.service.ts`: `@Inject(CACHE_MANAGER) Cache` を DI。スキャンフロー4ステップを実装
 - キャッシュキー: `jan:${janCode}`、TTL: `CACHE_TTL_MEMORY_SEC * 1000` ms
-- Open Food Facts のアレルゲンタグ（`en:milk` 形式）を `ProductAllergens` に変換
+- Open Food Facts のアレルギータグ（`en:milk` 形式）を `ProductAllergens` に変換
 
 **Phase 5: Controller / DTO / Module（scan.controller.ts, dto/, scan.module.ts）**
 - `backend/src/scan/dto/barcode-scan.dto.ts`: `@Matches(/^\d{8,13}$/)` で 400 バリデーション

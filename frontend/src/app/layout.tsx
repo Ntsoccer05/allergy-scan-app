@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
+import { SideNav } from "@/components/SideNav";
+import { AppShell } from "@/components/AppShell";
 import { Providers } from "./providers";
 import { UserInitializer } from "@/components/UserInitializer";
 import { NextIntlClientProvider } from "next-intl";
@@ -22,7 +24,7 @@ const THEME_COLOR = "#4CAF50";
 
 export const metadata: Metadata = {
   title: "アレルギースキャン",
-  description: "アレルゲンをスキャンして安心・安全な商品選びをサポート",
+  description: "アレルギーをスキャンして安心・安全な商品選びをサポート",
   manifest: "/manifest.json",
 };
 
@@ -47,8 +49,14 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <Providers>
             <UserInitializer />
-            {children}
-            <BottomNav />
+            {/* PC/タブレット(lg+): 左サイドナビ。SP: 非表示 */}
+            <SideNav />
+            {/* コンテンツ領域: PC ではサイドバー分(w-56)右にシフト */}
+            <AppShell>
+              {children}
+              {/* SP/タブレット: ボトムナビ。PC(lg+): 非表示 */}
+              <BottomNav />
+            </AppShell>
           </Providers>
         </NextIntlClientProvider>
       </body>

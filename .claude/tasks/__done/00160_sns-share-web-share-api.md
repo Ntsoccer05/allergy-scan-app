@@ -33,7 +33,7 @@
 
 - R1: `ResultCard` コンポーネントの共有ボタンを `navigator.share()` を使った Web Share API 実装に変更する
 - R2: `typeof navigator !== 'undefined' && typeof navigator.share === 'function'` が `false` の環境では共有ボタン自体を DOM から除外する（フォールバック UI 不要）
-- R3: Web Share API の共有コンテンツは `title`（アプリ名）と `text`（`${productName} はアレルゲンなし（アレルギースキャンアプリ調べ）` 相当）のみとする。URL フィールドは任意（TBD: generator が適切な値を判断すること）
+- R3: Web Share API の共有コンテンツは `title`（アプリ名）と `text`（`${productName} はアレルギーなし（アレルギースキャンアプリ調べ）` 相当）のみとする。URL フィールドは任意（TBD: generator が適切な値を判断すること）
 - R4: 共有ボタンは `judgment === 'なし'`（OK 判定）かつ Web Share API 対応環境のときのみ表示する。`含む` / `一部含む` 判定では表示しない（`anti_patterns.md` #4 遵守）
 - R5: `navigator.share()` の呼び出しをユーザー操作（`onClick`）イベントハンドラ内で行う（非ユーザー操作での呼び出しはブラウザにより拒否されるため）
 - R6: `navigator.share()` が例外を投げた場合（ユーザーキャンセル含む）はエラーを握りつぶさず、キャンセル（`AbortError`）は無視し、それ以外は `console.error` 等で記録する（ユーザー向けエラー表示は不要）

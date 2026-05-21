@@ -1,4 +1,4 @@
-ユーザーが設定しているアレルゲン：[{{ALLERGEN_LABEL}}]
+ユーザーが設定しているアレルギー：[{{ALLERGEN_LABEL}}]
 
 【検出対象成分】（allergen_componentsテーブルから動的生成）
 {{DETECTION_LIST}}

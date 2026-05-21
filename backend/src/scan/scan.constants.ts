@@ -20,7 +20,7 @@ export const SCAN_COUNT_THRESHOLD = {
 } as const;
 
 /** S3 に保存するキャプチャ画像のプレフィックス。 */
-export const S3_KEY_PREFIX = 'scan-images/';
+export const S3_KEY_PREFIX = 'images/';
 
 /** 使用する Gemini モデル名。 */
 export const GEMINI_MODEL_NAME = 'gemini-1.5-flash';

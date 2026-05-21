@@ -11,7 +11,7 @@ export type OthersProductItem = {
   allergens: ProductAllergens;
   /** ユーザーの allergen 設定に基づいた総合判定（R5）。 */
   judgment: 'ng' | 'partial' | 'ok';
-  /** detected: judgment が ng / partial のとき検出されたアレルゲン名リスト。 */
+  /** detected: judgment が ng / partial のとき検出されたアレルギー名リスト。 */
   detected: string[];
   updated_at: string;
   /** expires_at < NOW() の場合 true（R6）。 */
@@ -93,10 +93,10 @@ export class ProductsService {
 
   /**
    * products.allergens と users.allergies を照合して総合判定を返す（R5）。
-   * products.allergens.contains に enabled なアレルゲンが含まれる → ng
-   * products.allergens.partial に enabled かつ partialAlert なアレルゲンが含まれる → partial
+   * products.allergens.contains に enabled なアレルギーが含まれる → ng
+   * products.allergens.partial に enabled かつ partialAlert なアレルギーが含まれる → partial
    * それ以外 → ok
-   * ⚠️ 安全設計: enabled アレルゲンが設定なしの場合も ok として扱う（アレルゲン設定なし状態）
+   * ⚠️ 安全設計: enabled アレルギーが設定なしの場合も ok として扱う（アレルギー設定なし状態）
    */
   private deriveJudgment(
     allergens: ProductAllergens,

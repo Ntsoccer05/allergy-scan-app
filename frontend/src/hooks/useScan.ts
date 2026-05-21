@@ -85,6 +85,7 @@ type UseScanReturn = {
   startScan: () => Promise<void>
   stopScan: () => void
   reset: () => void
+  manualCapture: () => Promise<void>
   zoomLevel: number
   setZoom: (level: number) => void
   supportsHardwareZoom: boolean
@@ -108,7 +109,7 @@ const buildHistoryBody = (result: ScanResult): CreateHistoryBody | null => {
   if (result.type === 'ocr') {
     const { data } = result
     // results[] から overall judgment を導出する（優先順位: 含む > 一部含む > 判定不能 > なし）
-    // results[] が空の場合は「アレルゲン設定なし」と解釈して「なし」を返す
+    // results[] が空の場合は「アレルギー設定なし」と解釈して「なし」を返す
     const overallJudgment = (() => {
       const results = data.results
       if (results.length === 0) return 'なし' as const
@@ -331,6 +332,18 @@ export const useScan = (): UseScanReturn => {
     dispatch({ type: 'RESET' })
   }, [stopScan])
 
+  /** 品質チェックをスキップして現在フレームを即時OCR送信する（PC・手動操作用） */
+  const manualCapture = useCallback(async (): Promise<void> => {
+    if (isProcessingRef.current) return
+    if (stateRef.current !== 'detecting' && stateRef.current !== 'idle') return
+    const frame = captureFrame()
+    if (!frame) return
+    isProcessingRef.current = true
+    await runOcrFlow(frame).finally(() => {
+      isProcessingRef.current = false
+    })
+  }, [captureFrame, runOcrFlow])
+
   const onStoreSelect = useCallback(
     (candidate: StoreCandidate | null): void => {
       dispatch({ type: 'STORE_SELECTED' })
@@ -363,6 +376,7 @@ export const useScan = (): UseScanReturn => {
     startScan,
     stopScan,
     reset,
+    manualCapture,
     zoomLevel,
     setZoom,
     supportsHardwareZoom,

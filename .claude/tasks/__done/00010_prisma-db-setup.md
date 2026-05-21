@@ -19,7 +19,7 @@
 - R1: `backend/` に Prisma ORM を追加し、PostgreSQL 接続設定（`.env` 参照の `DATABASE_URL`）を持つ `backend/prisma/schema.prisma` を作成する
 - R2: `docs/design/database.md` に記載された以下 5 テーブルの Prisma スキーマを定義する: `allergens`, `allergen_components`, `products`, `scan_histories`, `users`
 - R3: `database.md` に記載された必須インデックス（GIN インデックス含む）を `schema.prisma` 内で表現する。GIN インデックスのように Prisma が直接表現できないものは `prisma/migrations/` の SQL または `prisma/schema.prisma` の `@@index` に `raw` で定義する
-- R4: `docs/design/database.md` の初期データ（allergens 29品目・allergen_components 主要アレルゲン分）を投入する `backend/prisma/seed.ts` を作成する
+- R4: `docs/design/database.md` の初期データ（allergens 29品目・allergen_components 主要アレルギー分）を投入する `backend/prisma/seed.ts` を作成する
 - R5: 開発環境の PostgreSQL を起動するための `docker-compose.yml` をリポジトリルートに作成する（ポート 5432、DB 名 `allergy_scan`、ユーザー `postgres`、パスワードは `.env` 参照）
 - R6: `backend/package.json` の `scripts` に `db:migrate`（`prisma migrate dev`）と `db:seed`（`prisma db seed`）を追加する
 - R7: `backend/src/prisma/` に `PrismaService`（`PrismaClient` を NestJS DI で扱うサービス）と `PrismaModule`（グローバルモジュール）を実装する

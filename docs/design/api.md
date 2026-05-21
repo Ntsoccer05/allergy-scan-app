@@ -6,10 +6,10 @@
 POST /users/init             初回Cookie発行・users INSERT（初回アクセス時）
 GET  /scan/presigned-url     S3 Presigned URL発行
 POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルゲン判定
+POST /scan/ocr               OCR + アレルギー判定
 GET  /history                履歴一覧取得
 POST /history                履歴保存
-GET  /allergens              アレルゲンマスター取得（設定画面用）
+GET  /allergens              アレルギーマスター取得（設定画面用）
 GET  /users/me               ユーザー設定取得
 PUT  /users/me               アレルギー設定更新
 DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
@@ -70,7 +70,7 @@ request: { s3_key: string }
 flow:
   S3から画像取得
     ↓
-  allergen_componentsテーブルからユーザーの有効アレルゲンの成分を取得
+  allergen_componentsテーブルからユーザーの有効アレルギーの成分を取得
     ↓
   Geminiにプロンプト送信（OCR + 判定）
     ↓

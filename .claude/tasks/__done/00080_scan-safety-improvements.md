@@ -48,7 +48,7 @@
 - R4: `frontend/src/hooks/useScan.ts` の OCR フロー catch ブロックで HTTP ステータス 422 を判別し、`dispatch({ type: 'ERROR', error: 'confidence_low' })` に遷移させる。422 以外は従来通り `api_error` とする
 - R5: `backend/src/users/users.repository.ts` に `UsersRepository` を新規作成する。`findById(userId: string)` メソッドを持ち、`users` テーブルから `id`・`allergies` を返す
 - R6: `backend/src/users/users.module.ts` に `UsersModule` を新規作成し、`UsersRepository` を provide/export する
-- R7: `backend/src/scan/scan.service.ts` から `private readonly prisma: PrismaService` の直接注入を除去し、`UsersRepository` 経由でユーザーのアレルゲン設定を取得する。`ScanModule` に `UsersModule` を import する
+- R7: `backend/src/scan/scan.service.ts` から `private readonly prisma: PrismaService` の直接注入を除去し、`UsersRepository` 経由でユーザーのアレルギー設定を取得する。`ScanModule` に `UsersModule` を import する
 - R8: `backend/src/scan/scan.module.ts` の `AppModule` 登録を維持したまま `UsersModule` を追加 import する
 - R9: `as any` / `@ts-ignore` を使用しない
 - R10: `console.log` を新規追加ファイルに書かない

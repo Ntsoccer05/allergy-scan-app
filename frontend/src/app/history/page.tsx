@@ -38,7 +38,7 @@ export default function HistoryPage() {
   } = useOthersScanned()
 
   return (
-    <main className="flex flex-col min-h-screen max-w-[480px] mx-auto px-4 pb-20 pt-6">
+    <main className="flex flex-col min-h-screen max-w-120 lg:max-w-3xl mx-auto px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-4">{t('title')}</h1>
 
       {/* みんな/自分 タブ（R1・R10） */}

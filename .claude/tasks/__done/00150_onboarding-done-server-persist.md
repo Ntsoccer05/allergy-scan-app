@@ -24,7 +24,7 @@
 1. localStorage をクリアした場合（ブラウザキャッシュ削除・別ブラウザ・プライベートモード）に
    `useOnboardingGuard` が `/onboarding` へリダイレクトする
 2. ユーザーが全4ステップを再度踏む
-3. `completeOnboarding()` が `PUT /users/me` を呼び、サーバー上の既存アレルゲン設定を上書きしてしまう
+3. `completeOnboarding()` が `PUT /users/me` を呼び、サーバー上の既存アレルギー設定を上書きしてしまう
 
 `backend/prisma/schema.prisma` の `User` モデル（`@@map("users")`）に `onboarding_done` カラムは存在しない。
 

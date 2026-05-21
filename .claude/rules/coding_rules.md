@@ -100,7 +100,7 @@ try { ... } catch (e) { /* 何もしない */ }  // ❌
 
 ```typescript
 // ❌ 翻訳コメント禁止
-// アレルゲンリストを取得する
+// アレルギーリストを取得する
 const getAllergens = async () => {}
 
 // ✅ WHY が非自明な場合のみ書く
@@ -146,7 +146,7 @@ type HighlightItem = {
 type OcrResponse = {
   raw_text: string
   confidence: Confidence
-  results: AllergenResult[]         // アレルゲンごとの判定（複数）
+  results: AllergenResult[]         // アレルギーごとの判定（複数）
   highlights: HighlightItem[]       // UI ハイライト用テキスト一覧
   incomplete: boolean
   price: number | null

@@ -9,7 +9,7 @@
 | 責務 | 集約場所 |
 |---|---|
 | Gemini プロンプト生成 | `src/scan/gemini-prompt.builder.ts` |
-| アレルゲン成分取得 | `AllergenComponentRepository` |
+| アレルギー成分取得 | `AllergenComponentRepository` |
 | キャッシュ期限計算（scan_count 連動） | `src/products/expires-at.util.ts` |
 | 商品 ID 生成（JAN / hash） | `src/products/product-id.util.ts` |
 | label_hash 生成ロジック | `src/products/label-hash.util.ts` |
@@ -24,7 +24,7 @@
 |---|---|
 | API クライアント関数 | `src/lib/api/` |
 | クライアントキャッシュ（TTL: 2時間） | `src/lib/cache.ts` |
-| アレルゲン設定の toggle ロジック | `src/lib/allergen.utils.ts` |
+| アレルギー設定の toggle ロジック | `src/lib/allergen.utils.ts` |
 | フレーム品質チェックロジック | `useFrameCheck` Hook |
 | バーコード検出ロジック | `useBarcode` Hook |
 | カメラ制御ロジック | `useCamera` Hook |
@@ -47,7 +47,7 @@
 - `expires_at` の計算式が複数箇所に書かれていないか
 - `scan_count` のしきい値（6, 21）が複数箇所にマジックナンバーで出ていないか
 
-### アレルゲン操作
+### アレルギー操作
 - `toggleAllergen`（enabled と partialAlert を連動させるロジック）が複数箇所に書かれていないか
 - `enabledAllergens` の絞り込み（`v.enabled === true`）が複数箇所に書かれていないか
 

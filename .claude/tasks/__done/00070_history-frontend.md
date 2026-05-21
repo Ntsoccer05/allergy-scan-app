@@ -26,7 +26,7 @@
 設計の根拠となる正典:
 - `.claude/rules/architecture.md` — フロントエンド層境界（Page → Hook → API クライアント関数 → UI コンポーネント）
 - `.claude/rules/anti_patterns.md` — #7（UI コンポーネントが fetch を直接呼ぶ禁止）
-- `.claude/rules/patterns.md` — パターン8（アレルゲン設定の表示順）、パターン4（カーソルページネーション）
+- `.claude/rules/patterns.md` — パターン8（アレルギー設定の表示順）、パターン4（カーソルページネーション）
 - `.claude/rules/implementation_rules.md` — モバイルファーストで実装する
 
 ---
@@ -128,7 +128,7 @@
 | `judgment: 'partial'` | `🟡` が表示される |
 | `judgment: 'ok'` | `✅` が表示される |
 | `product_name` あり | `product_name` のテキストが表示される |
-| `detected` に要素あり | 検出アレルゲン名が表示される |
+| `detected` に要素あり | 検出アレルギー名が表示される |
 
 ---
 

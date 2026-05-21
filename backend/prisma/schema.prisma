@@ -7,7 +7,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// アレルゲンマスター（29品目）
+// アレルギーマスター（29品目）
 model Allergen {
   id           String   @id @default(uuid())
   name         String   @unique
@@ -55,7 +55,7 @@ model AllergenComponent {
   @@map("allergen_components")
 }
 
-// 商品・アレルゲン情報
+// 商品・アレルギー情報
 model Product {
   id          String    @id @default(uuid())
   idType      String    @map("id_type")

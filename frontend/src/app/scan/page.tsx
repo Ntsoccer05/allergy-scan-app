@@ -7,29 +7,50 @@ import { CameraView } from '@/components/CameraView'
 import { ScanGuide } from '@/components/ScanGuide'
 import { ScanOverlay } from '@/components/ScanOverlay'
 import { ResultCard } from '@/components/ResultCard'
+import { GUIDE_MESSAGES } from '@/app/scan/scan.constants'
 
 export default function ScanPage() {
   useOnboardingGuard()
-  const { scanState, error, result, storeCandidates, onStoreSelect, videoRef, startScan, reset, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useScan()
+  const {
+    scanState, error, result, storeCandidates, onStoreSelect,
+    videoRef, startScan, reset, manualCapture,
+    zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode,
+  } = useScan()
 
   useEffect(() => {
     void startScan()
   }, [startScan])
 
+  const showManualButton = scanState === 'detecting' || scanState === 'idle'
+
   return (
-    <div className="relative flex flex-col w-full max-w-[480px] mx-auto h-[calc(100vh-56px)] overflow-hidden bg-black">
+    <div className="relative flex flex-col w-full max-w-120 lg:max-w-none mx-auto h-[calc(100vh-56px)] lg:h-screen overflow-hidden bg-black">
       <CameraView
-          videoRef={videoRef}
-          zoomLevel={zoomLevel}
-          supportsHardwareZoom={supportsHardwareZoom}
-          onZoomChange={setZoom}
-          facingMode={facingMode}
-          onToggleFacingMode={toggleFacingMode}
-        />
+        videoRef={videoRef}
+        zoomLevel={zoomLevel}
+        supportsHardwareZoom={supportsHardwareZoom}
+        onZoomChange={setZoom}
+        facingMode={facingMode}
+        onToggleFacingMode={toggleFacingMode}
+      />
       <ScanOverlay state={scanState} />
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center px-4">
+
+      <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-3 px-4">
+        {/* 手動キャプチャボタン: 自動検出が通らないときの手動トリガー */}
+        {showManualButton && (
+          <button
+            type="button"
+            onClick={() => { void manualCapture() }}
+            className="px-8 py-3 rounded-full bg-white/90 text-gray-900 text-sm font-semibold
+              shadow-lg active:scale-95 transition-transform
+              focus:outline-none focus:ring-2 focus:ring-white"
+          >
+            {GUIDE_MESSAGES.manual}
+          </button>
+        )}
         <ScanGuide state={scanState} error={error ?? undefined} />
       </div>
+
       {scanState === 'result' && result !== null && (
         <ResultCard result={result} onClose={reset} storeCandidates={storeCandidates} onStoreSelect={onStoreSelect} />
       )}

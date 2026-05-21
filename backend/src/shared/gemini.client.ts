@@ -36,7 +36,7 @@ export class GeminiClient {
   }
 
   /**
-   * Gemini Flash API に画像と動的プロンプトを送信して OCR + アレルゲン判定を行う。
+   * Gemini Flash API に画像と動的プロンプトを送信して OCR + アレルギー判定を行う。
    * JSON パース失敗時は FALLBACK_RESPONSE（判定不能）を返す（安全側に倒す）。
    */
   async analyzeImage(

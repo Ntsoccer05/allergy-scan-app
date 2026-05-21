@@ -13,7 +13,7 @@
 
 `products` テーブルは `user_id` を持たずクロスユーザーで共有される設計になっている（`UNIQUE(id_type, id_value)`）。現在は自分の `scan_histories` にある商品しか画面に表示されないが、他ユーザーがスキャン済みの商品も `products` テーブルに蓄積されている。
 
-この機能により、ユーザーは自分でスキャンしなくても他のユーザーが読み取った商品のアレルゲン判定を確認できる。よく売られているお菓子・加工食品などは既に誰かがスキャン済みのことが多く、再スキャンのコストを削減できる。
+この機能により、ユーザーは自分でスキャンしなくても他のユーザーが読み取った商品のアレルギー判定を確認できる。よく売られているお菓子・加工食品などは既に誰かがスキャン済みのことが多く、再スキャンのコストを削減できる。
 
 ## Requirements
 
@@ -81,7 +81,7 @@
 - `backend/src/products/__tests__/products.service.spec.ts`（または該当 spec）
   - 自分がスキャン済みの `product_id` を持つ `scan_histories` があるとき、その商品が結果に含まれないことを検証
   - `expires_at < NOW()` の商品が結果に含まれ、かつ `is_expired: true` フラグが付くことを検証
-  - `products.allergens.contains` に `users.allergies` の enabled アレルゲンが含まれるとき、`judgment: 'ng'` が返ることを検証
+  - `products.allergens.contains` に `users.allergies` の enabled アレルギーが含まれるとき、`judgment: 'ng'` が返ることを検証
 
 ### フロントエンド
 
@@ -112,7 +112,7 @@
 | リスク | 回避方針 |
 |---|---|
 | `products` テーブルが大量になったとき LEFT JOIN が遅い | `scan_histories(user_id, product_id)` に複合インデックスを追加する（`CREATE INDEX CONCURRENTLY`）。MVP 段階ではデータ量が少ないため許容 |
-| 他ユーザーの商品データが個人情報に該当するか | `products` テーブルには `user_id` を持たず誰のスキャンか追跡不能。商品名・アレルゲン情報は公開情報のため問題なし |
+| 他ユーザーの商品データが個人情報に該当するか | `products` テーブルには `user_id` を持たず誰のスキャンか追跡不能。商品名・アレルギー情報は公開情報のため問題なし |
 | 「みんなのスキャン」が空のとき（初期状態） | 「まだスキャンされた商品がありません」を i18n キーで表示する（空リストのハンドリング） |
 
 ---

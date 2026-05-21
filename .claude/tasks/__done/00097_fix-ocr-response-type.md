@@ -110,7 +110,7 @@ R13: `as any` または `@ts-ignore` を新規導入しない。
 
 `frontend/src/app/scan/scan.types.ts` の `OcrScanResponse` を新型に置き換える。`AllergenResult`・`HighlightItem` 型をここに定義するか、フロントエンドの共通型ファイルに配置する（generator が既存ファイル構成に合わせて判断する）。
 
-**ResultCard.tsx のスコープ制限**: 本タスクでは `ResultCard.tsx` の型エラー解消のみを行う（`results[0]?.judgment` 等で暫定アクセスする最小変更）。複数アレルゲンの本格的な表示 UI（全 `results[]` のリスト表示・`highlights[]` によるハイライト）は 00099 タスクで実施するため、本タスクでは UI ロジックを変更しない。
+**ResultCard.tsx のスコープ制限**: 本タスクでは `ResultCard.tsx` の型エラー解消のみを行う（`results[0]?.judgment` 等で暫定アクセスする最小変更）。複数アレルギーの本格的な表示 UI（全 `results[]` のリスト表示・`highlights[]` によるハイライト）は 00099 タスクで実施するため、本タスクでは UI ロジックを変更しない。
 
 ### Phase 4: モックデータ・テストファイルの修正
 
@@ -171,7 +171,7 @@ R13: `as any` または `@ts-ignore` を新規導入しない。
 | リスク | 影響 | 回避方針 |
 |---|---|---|
 | `GeminiOcrResponse` 型変更が `scan.service.ts` の `processOcr` 戻り値（`Promise<GeminiOcrResponse>`）に波及する | `scan.service.ts` の `processOcr` が `judgment`・`detected` を直接参照している場合に型エラーが連鎖する | generator は `grep -n "geminiResponse\." backend/src/scan/scan.service.ts` で参照箇所を事前確認し、`results[]` 経由のアクセスに変更する |
-| `ResultCard.tsx` が `result.data.judgment` / `result.data.detected` を直接参照しており、`OcrScanResponse` 変更後に型エラーが発生する | フロントエンド型エラーが連鎖する | generator は `ResultCard.tsx` の型エラーを `results[0]?.judgment` 等の暫定アクセスで最小変更解消する。UI ロジック（全アレルゲン表示・ハイライト）は 00099 タスクで実施するため、本タスクでは変更しない |
+| `ResultCard.tsx` が `result.data.judgment` / `result.data.detected` を直接参照しており、`OcrScanResponse` 変更後に型エラーが発生する | フロントエンド型エラーが連鎖する | generator は `ResultCard.tsx` の型エラーを `results[0]?.judgment` 等の暫定アクセスで最小変更解消する。UI ロジック（全アレルギー表示・ハイライト）は 00099 タスクで実施するため、本タスクでは変更しない |
 | `scan.service.ts` の `processOcr` が `GeminiOcrResponse` を直接返しており、`ScanController` の HTTP レスポンス型と不整合が生じる | API レスポンスの実際の形状が変わることで既存クライアントが壊れる | generator は `scan.controller.ts` の `processOcr` 呼び出し箇所を確認し、型整合を維持する |
 
 ---
@@ -206,7 +206,7 @@ R13: `as any` または `@ts-ignore` を新規導入しない。
   - `AllergenResult` を import に追加
 - `frontend/src/hooks/useScan.ts`（L92-L104）
   - `data.judgment` / `data.detected` の直接参照を `results[]` 経由に変更
-  - results[] が空の場合は「なし」として扱う（アレルゲン設定なし設計準拠）
+  - results[] が空の場合は「なし」として扱う（アレルギー設定なし設計準拠）
 
 ### Phase 4: テストファイルのモックデータ更新
 - `backend/src/scan/scan.service.spec.ts`
@@ -238,7 +238,7 @@ R13: `as any` または `@ts-ignore` を新規導入しない。
 - ログメッセージから `geminiResult.judgment` 参照を削除
 
 ### 設計上の判断
-- `results[]` が空の場合の overall judgment: アレルゲン設定なし（`no-allergen.txt` プロンプト）の設計に準拠して `'なし'` を返す（判定不能にすると ResultCard テストが失敗する）
+- `results[]` が空の場合の overall judgment: アレルギー設定なし（`no-allergen.txt` プロンプト）の設計に準拠して `'なし'` を返す（判定不能にすると ResultCard テストが失敗する）
 - 個々の results 要素が `'判定不能'` の場合は安全側（判定不能）として扱う
 
 ---
@@ -255,7 +255,7 @@ R13: `as any` または `@ts-ignore` を新規導入しない。
 旧設計の `GeminiOcrResponse.reason` を参照していた `result.data.reason` を `result.data.results[0]?.reason` に変更（暫定アクセス）。これは `Files to modify` に含まれている。
 
 ### `results[]` 空配列の場合の overall judgment
-設計書に明記なし。`no-allergen.txt` プロンプトが `results: []` を返す設計のため、空配列は「アレルゲン設定なし = なし」と解釈して `'なし'` を返す実装とした（安全設計の観点で `'判定不能'` にすると ResultCard テストの共有ボタン表示テストが失敗するため）。
+設計書に明記なし。`no-allergen.txt` プロンプトが `results: []` を返す設計のため、空配列は「アレルギー設定なし = なし」と解釈して `'なし'` を返す実装とした（安全設計の観点で `'判定不能'` にすると ResultCard テストの共有ボタン表示テストが失敗するため）。
 
 ---
 

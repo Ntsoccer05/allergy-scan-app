@@ -41,7 +41,7 @@ export class ScanController {
     return this.scanService.scanBarcode(dto.jan_code);
   }
 
-  /** POST /scan/ocr: S3 キーを受け取り OCR + アレルゲン判定を行う。 */
+  /** POST /scan/ocr: S3 キーを受け取り OCR + アレルギー判定を行う。 */
   @Post('ocr')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })

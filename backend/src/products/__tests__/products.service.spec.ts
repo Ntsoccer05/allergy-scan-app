@@ -102,7 +102,7 @@ describe('ProductsService', () => {
       expect(result.items[0].is_expired).toBe(false);
     });
 
-    it('products.allergens.contains に enabled アレルゲンが含まれるとき judgment: ng を返す（R5）', async () => {
+    it('products.allergens.contains に enabled アレルギーが含まれるとき judgment: ng を返す（R5）', async () => {
       const row = makeProductRecord({
         allergens: { contains: ['乳'], partial: [], components: ['乳'] },
       });
@@ -121,7 +121,7 @@ describe('ProductsService', () => {
       expect(result.items[0].detected).toEqual(['乳']);
     });
 
-    it('products.allergens.partial に partialAlert: true のアレルゲンが含まれるとき judgment: partial を返す（R5）', async () => {
+    it('products.allergens.partial に partialAlert: true のアレルギーが含まれるとき judgment: partial を返す（R5）', async () => {
       const row = makeProductRecord({
         allergens: { contains: [], partial: ['そば'], components: ['そば'] },
       });
@@ -139,7 +139,7 @@ describe('ProductsService', () => {
       expect(result.items[0].detected).toEqual(['そば']);
     });
 
-    it('enabled アレルゲンが allergens に含まれないとき judgment: ok を返す（R5）', async () => {
+    it('enabled アレルギーが allergens に含まれないとき judgment: ok を返す（R5）', async () => {
       const row = makeProductRecord({
         allergens: { contains: ['小麦'], partial: [], components: ['小麦'] },
       });

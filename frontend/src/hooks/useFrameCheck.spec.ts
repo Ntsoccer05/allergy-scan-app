@@ -64,35 +64,35 @@ const makeImageDataPairWithMotion = (
 }
 
 describe('checkBrightness', () => {
-  it('平均輝度が 80 未満のとき false を返す', () => {
+  it('平均輝度が閾値未満のとき false を返す', () => {
     const imageData = makeImageData(4, 4, 79)
-    expect(checkBrightness(imageData)).toBe(false)
+    expect(checkBrightness(imageData, 80)).toBe(false)
   })
 
-  it('平均輝度が 80 のとき true を返す', () => {
+  it('平均輝度が閾値と等しいとき true を返す', () => {
     const imageData = makeImageData(4, 4, 80)
-    expect(checkBrightness(imageData)).toBe(true)
+    expect(checkBrightness(imageData, 80)).toBe(true)
   })
 
-  it('平均輝度が 80 超のとき true を返す', () => {
+  it('平均輝度が閾値超のとき true を返す', () => {
     const imageData = makeImageData(4, 4, 200)
-    expect(checkBrightness(imageData)).toBe(true)
+    expect(checkBrightness(imageData, 80)).toBe(true)
   })
 })
 
 describe('checkMotion', () => {
-  it('フレーム間差分が 10 以上のとき false を返す', () => {
+  it('フレーム間差分が閾値以上のとき false を返す', () => {
     const { current, previous } = makeImageDataPairWithMotion(10)
-    expect(checkMotion(current, previous)).toBe(false)
+    expect(checkMotion(current, previous, 10)).toBe(false)
   })
 
-  it('フレーム間差分が 10 未満のとき true を返す', () => {
+  it('フレーム間差分が閾値未満のとき true を返す', () => {
     const { current, previous } = makeImageDataPairWithMotion(3)
-    expect(checkMotion(current, previous)).toBe(true)
+    expect(checkMotion(current, previous, 10)).toBe(true)
   })
 
   it('同一フレームのとき true を返す（差分 0）', () => {
     const imageData = makeImageData(4, 4, 128)
-    expect(checkMotion(imageData, imageData)).toBe(true)
+    expect(checkMotion(imageData, imageData, 10)).toBe(true)
   })
 })

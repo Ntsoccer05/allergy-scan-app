@@ -12,15 +12,15 @@
 
 ## Background
 
-設定画面 (`frontend/src/app/settings/page.tsx`, L236〜L515) は既実装済みで、アレルゲン設定リスト・言語設定・バックアップコード・データリセットの各セクションが存在する。`useSettings` フック (`frontend/src/hooks/useSettings.ts`) が `allergies: AllergySettings` を返しており、`enabled: true` の品目一覧はフロントエンドのみで導出できる。
+設定画面 (`frontend/src/app/settings/page.tsx`, L236〜L515) は既実装済みで、アレルギー設定リスト・言語設定・バックアップコード・データリセットの各セクションが存在する。`useSettings` フック (`frontend/src/hooks/useSettings.ts`) が `allergies: AllergySettings` を返しており、`enabled: true` の品目一覧はフロントエンドのみで導出できる。
 
 本タスクは以下を追加する:
-- アレルゲン設定リストの直下（言語設定セクションの上）に「お店予約用テキスト」セクションを追加
+- アレルギー設定リストの直下（言語設定セクションの上）に「お店予約用テキスト」セクションを追加
 - `allergies` の `enabled: true` 品目を結合して固定フォーマットの予約用テキストを自動生成する純粋フロントエンド機能
 - バックエンド変更・新規 API なし
 
 関連ファイルの現状:
-- `frontend/src/app/settings/page.tsx` — 設定画面（L161〜L515）。アレルゲンセクションは L253〜L269。
+- `frontend/src/app/settings/page.tsx` — 設定画面（L161〜L515）。アレルギーセクションは L253〜L269。
 - `frontend/src/hooks/useSettings.ts` — `allergies: AllergySettings` を返す（L138）
 - `frontend/src/app/settings/settings.types.ts` — `AllergySettings = Record<string, AllergenSetting>`, `AllergenItem` 型定義済み
 - `frontend/public/locales/ja/settings.json` — 既存キー群あり（L1〜L62）。`reservationText` キーは未定義
@@ -60,7 +60,7 @@
 - `frontend/public/locales/en/settings.json` に同構造の英語キーを追加
 
 ### Phase 3: 設定画面 UI 追加
-- `frontend/src/app/settings/page.tsx` のアレルゲン設定セクション（L253〜L269）直後、言語設定セクション（L271〜L292）の前に `<ReservationTextSection>` を挿入する（TBD: generator が実際の挿入行を確認すること）
+- `frontend/src/app/settings/page.tsx` のアレルギー設定セクション（L253〜L269）直後、言語設定セクション（L271〜L292）の前に `<ReservationTextSection>` を挿入する（TBD: generator が実際の挿入行を確認すること）
 - `ReservationTextSection` コンポーネントは `page.tsx` 内に定義してよい（または `ReservationTextSection.tsx` に分離してもよい）
 - コンポーネントの Props: `allergies: AllergySettings`, `allergenGroups: AllergenGroup[]`, `locale: 'ja' | 'en'`, `t: TranslateFn`
   - `allergenGroups` から品目の `display_name` を引いて予約用テキストに使う（`allergens.name` ではなく表示名を使う）か `allergens.name` をそのまま使うかは仕様上定められていないため、generator が `display_name` を使うよう実装する（ユーザー向けの自然言語テキストのため）
@@ -105,12 +105,12 @@
 
 ## Completion criteria
 
-- [ ] 設定画面を開いて `enabled: true` のアレルゲンが 1 件以上あるとき、アレルゲン設定リストの下部（言語設定の上）に「お店予約用テキスト」セクションが表示される
-- [ ] 設定画面を開いて全アレルゲンが `enabled: false` のとき、「お店予約用テキスト」セクションが DOM に存在しない（`grep -q 'reservationText' DOM` 相当ではなく要素の非存在をテストで確認）
+- [ ] 設定画面を開いて `enabled: true` のアレルギーが 1 件以上あるとき、アレルギー設定リストの下部（言語設定の上）に「お店予約用テキスト」セクションが表示される
+- [ ] 設定画面を開いて全アレルギーが `enabled: false` のとき、「お店予約用テキスト」セクションが DOM に存在しない（`grep -q 'reservationText' DOM` 相当ではなく要素の非存在をテストで確認）
 - [ ] `enabled: true` の品目名が textarea に生成テキストとして表示される（`buildReservationText` の出力と一致）
 - [ ] textarea に任意の文字列を入力できる（readonly でない）
 - [ ] 「再生成」ボタン押下後、textarea の値が `buildReservationText` の最新出力値に戻る
-- [ ] アレルゲンのトグル操作後、textarea が新しい自動生成テキストにリセットされる
+- [ ] アレルギーのトグル操作後、textarea が新しい自動生成テキストにリセットされる
 - [ ] 「コピーする」ボタンを押すと `navigator.clipboard.writeText(textarea.value)` が呼ばれる（テストでモック確認）
 - [ ] コピー成功後 2 秒間、ボタンテキストがコピー完了表示に変わる（テストで確認）
 - [ ] 「コピーする」ボタン押下時に `navigator.clipboard.writeText` が例外を投げてもページがクラッシュしない（テストでモック確認）
@@ -140,7 +140,7 @@
   - `useEffect([generatedText])` で allergies/locale 変化時に textarea をリセット（R5）
   - `navigator.clipboard` 存在チェック + `try/catch` でクラッシュ防止（R7）
   - `COPY_FEEDBACK_DURATION_MS = 2000` 定数でコピー完了 2秒表示（R6）
-- `frontend/src/app/settings/page.tsx` のアレルゲン設定セクション直後（言語設定の前）に `<ReservationTextSection>` を挿入（L272〜L278）
+- `frontend/src/app/settings/page.tsx` のアレルギー設定セクション直後（言語設定の前）に `<ReservationTextSection>` を挿入（L272〜L278）
 
 ### Phase 4: テスト
 - `frontend/src/lib/__tests__/reservation-text.util.test.ts` 新規作成（6件）

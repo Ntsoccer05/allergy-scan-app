@@ -24,7 +24,7 @@ GET /scan/presigned-url → S3 URL を発行
 POST /scan/ocr { s3_key }
     ↓
 1. S3 から画像取得
-2. ユーザーの有効アレルゲン取得
+2. ユーザーの有効アレルギー取得
 3. allergen_components から成分リスト取得（exclude 型を除外）
 4. Gemini Flash API に送信（プロンプト動的生成）
 5. incomplete: true → 即 400 返却
@@ -120,9 +120,9 @@ export const setCached = <T>(key: string, data: T): void => {
 
 スキャン結果のキャッシュキーは `jan:${janCode}` または `hash:${labelHash}`。
 
-### パターン8: アレルゲン設定の表示順
+### パターン8: アレルギー設定の表示順
 
-設定画面のアレルゲン一覧は `GET /allergens` で取得した `display_order` 順で表示する。フロントエンドでハードコードしない。
+設定画面のアレルギー一覧は `GET /allergens` で取得した `display_order` 順で表示する。フロントエンドでハードコードしない。
 
 ```
 mandatory（特定原材料 9品目・表示義務あり）→ 上部に表示
@@ -182,7 +182,7 @@ label_hash の生成: 「商品名 + 店舗名 + 原材料の先頭50文字」�
 
 ### パターン13: OCR レスポンスの detection_type 別処理
 
-Gemini からの OCR レスポンスはアレルゲンごとの `results[]` 配列と UI ハイライト用の `highlights[]` 配列を持つ。
+Gemini からの OCR レスポンスはアレルギーごとの `results[]` 配列と UI ハイライト用の `highlights[]` 配列を持つ。
 
 ```typescript
 // ✅ detection_type ごとの UI 表示分岐

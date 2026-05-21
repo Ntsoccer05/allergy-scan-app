@@ -144,7 +144,7 @@ export class ScanService {
   /**
    * OCR スキャンフロー（patterns.md パターン2）:
    * 1. S3 から画像取得
-   * 2. ユーザーの有効アレルゲン取得
+   * 2. ユーザーの有効アレルギー取得
    * 3. allergen_components から成分リスト取得（exclude 型を除外）してプロンプト動的生成
    * 4. Gemini Flash API に送信
    * 5. incomplete: true → 400
@@ -169,7 +169,7 @@ export class ScanService {
       });
     }
 
-    // Step 2: ユーザーの有効アレルゲン取得（未送信または未登録は空配列）
+    // Step 2: ユーザーの有効アレルギー取得（未送信または未登録は空配列）
     const enabledAllergens = await this.fetchEnabledAllergens(userId);
 
     // Step 3: プロンプト動的生成（exclude 型除外は buildGeminiPrompt 内で行う）
@@ -255,7 +255,7 @@ export class ScanService {
   }
 
   /**
-   * ユーザーの有効アレルゲン名リストを取得する。
+   * ユーザーの有効アレルギー名リストを取得する。
    * userId 未指定または未登録の場合は空配列を返す（Gemini へは「設定なし」として送信）。
    */
   private async fetchEnabledAllergens(
@@ -270,7 +270,7 @@ export class ScanService {
         .map(([name]) => name);
     } catch (error) {
       this.logger.error(
-        'ユーザーアレルゲン取得失敗',
+        'ユーザーアレルギー取得失敗',
         error instanceof Error ? error.message : String(error),
       );
       return [];
@@ -294,7 +294,7 @@ export class ScanService {
   /**
    * results[] 配列から overall judgment を導出する。
    * 優先順位: 含む > 一部含む > 判定不能 > なし
-   * results[] が空の場合は「アレルゲン設定なし」と解釈して「なし」を返す（no-allergen プロンプト設計準拠）
+   * results[] が空の場合は「アレルギー設定なし」と解釈して「なし」を返す（no-allergen プロンプト設計準拠）
    * ⚠️ 安全設計: 個々の results 要素が「判定不能」の場合は安全側に倒す（anti_patterns.md #1）
    */
   private deriveOverallJudgment(
@@ -349,7 +349,7 @@ export class ScanService {
     };
   }
 
-  /** Open Food Facts のアレルゲンタグから ProductAllergens を生成する。 */
+  /** Open Food Facts のアレルギータグから ProductAllergens を生成する。 */
   private buildAllergensFromOff(
     product: OpenFoodFactsProductFields,
   ): ProductAllergens {

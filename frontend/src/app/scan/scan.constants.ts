@@ -4,13 +4,33 @@ export const ZOOM_MAX = 5.0
 export const ZOOM_STEP = 0.1
 export const ZOOM_DEFAULT = 1.0
 
-/** フレーム品質チェックの閾値 */
-export const THRESHOLDS = {
-  brightness: 80,
-  blur: 100,
-  motion: 10,
-  stable: 3,
+/** デバイス種別。タッチ有無とビューポート幅で判定する。 */
+export type DeviceType = 'pc' | 'tablet' | 'sp'
+
+export const getDeviceType = (): DeviceType => {
+  if (typeof window === 'undefined') return 'sp'
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  if (!hasTouch) return 'pc'               // タッチなし → PC
+  if (window.innerWidth >= 1024) return 'pc'   // Tailwind lg ブレークポイント
+  if (window.innerWidth >= 768) return 'tablet' // Tailwind md ブレークポイント
+  return 'sp'
+}
+
+/** フレーム品質チェックの閾値（デバイス別）
+ * PC webcam は解像度・フォーカス精度が低いため blur/brightness を大きく緩和
+ * SP カメラは高品質なため標準的な閾値
+ */
+export const THRESHOLDS_BY_DEVICE: Record<
+  DeviceType,
+  { brightness: number; blur: number; motion: number; stable: number }
+> = {
+  pc:     { brightness: 50, blur: 15, motion: 30, stable: 3 },
+  tablet: { brightness: 60, blur: 35, motion: 22, stable: 3 },
+  sp:     { brightness: 70, blur: 60, motion: 15, stable: 3 },
 } as const
+
+/** 後方互換用。デバイス判定前のデフォルト（SP 相当）。 */
+export const THRESHOLDS = THRESHOLDS_BY_DEVICE.sp
 
 /** 連続 OK フレーム数（stable 遷移に必要） */
 export const CONSECUTIVE_FRAMES_REQUIRED = 3
@@ -34,12 +54,13 @@ export const GUIDE_MESSAGES = {
   stable: '読み取り中...',
   processing: '確認中...',
   result: '',
+  manual: 'タップして読み取る',
   error: {
-    dark: '明るい場所に移動してください',
-    blur: 'もう少し近づけて再スキャンしてください',
-    motion: 'カメラを安定させてください',
-    incomplete: 'ラベル全体が映るように離してください',
-    confidence_low: 'もう少し近づけて再スキャンしてください',
+    dark: '⚠️ 明るい場所に移動してください',
+    blur: '⚠️ もう少し近づけるか静止してください',
+    motion: '⚠️ カメラを安定させてください',
+    incomplete: '⚠️ ラベル全体が映るように離してください',
+    confidence_low: '⚠️ もう少し近づけて再スキャンしてください',
     api_error: '通信エラーが発生しました。再度お試しください',
   },
 } as const

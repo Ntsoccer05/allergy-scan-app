@@ -64,7 +64,7 @@ const makeOcrResult = (
   },
 })
 
-/** 複数アレルゲン結果を持つ OCR モック */
+/** 複数アレルギー結果を持つ OCR モック */
 const makeMultiAllergenResult = (
   items: AllergenResult[],
   highlights: HighlightItem[] = [],
@@ -205,7 +205,7 @@ describe('ResultCard', () => {
     })
   })
 
-  describe('複数アレルゲン表示（R1: results[] ループ）', () => {
+  describe('複数アレルギー表示（R1: results[] ループ）', () => {
     const multiItems: AllergenResult[] = [
       {
         allergen: '乳',
@@ -225,7 +225,7 @@ describe('ResultCard', () => {
       },
     ]
 
-    it('複数のアレルゲン名がすべて表示される', () => {
+    it('複数のアレルギー名がすべて表示される', () => {
       renderWithI18n(
         <ResultCard result={makeMultiAllergenResult(multiItems)} onClose={onClose} />,
       )
@@ -283,10 +283,10 @@ describe('ResultCard', () => {
     })
   })
 
-  describe('results: [] の場合（R6: アレルゲン設定なし）', () => {
-    it('アレルゲン設定なし文言が表示される', () => {
+  describe('results: [] の場合（R6: アレルギー設定なし）', () => {
+    it('アレルギー設定なし文言が表示される', () => {
       renderWithI18n(<ResultCard result={makeOcrResult('なし')} onClose={onClose} />)
-      expect(screen.getByText(/アレルゲン設定なし/)).toBeInTheDocument()
+      expect(screen.getByText(/アレルギー設定なし/)).toBeInTheDocument()
     })
   })
 
@@ -336,8 +336,8 @@ describe('ResultCard', () => {
     })
   })
 
-  describe('全アレルゲンがなしの場合（R4: ✅ 問題なし）', () => {
-    it('全アレルゲンが「なし」なら ✅ 問題なし が表示される', () => {
+  describe('全アレルギーがなしの場合（R4: ✅ 問題なし）', () => {
+    it('全アレルギーが「なし」なら ✅ 問題なし が表示される', () => {
       const noneItems: AllergenResult[] = [
         {
           allergen: '卵',

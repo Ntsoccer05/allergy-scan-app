@@ -10,7 +10,7 @@ import type { AllergySettings } from '@/app/settings/settings.types'
 /**
  * OCR 結果の results[] から overall judgment を導出する。
  * 優先順位: 含む > 一部含む > 判定不能 > なし
- * results[] が空の場合はアレルゲン未設定と解釈して「なし」を返す。
+ * results[] が空の場合はアレルギー未設定と解釈して「なし」を返す。
  */
 export const deriveOcrJudgment = (results: AllergenResult[]): Judgment => {
   if (!Array.isArray(results) || results.length === 0) return 'なし'
@@ -103,7 +103,7 @@ export const splitByHighlights = (
 }
 
 /**
- * allergy カテゴリー（mandatory / recommended）のアレルゲンを ON/OFF する。
+ * allergy カテゴリー（mandatory / recommended）のアレルギーを ON/OFF する。
  * enabled を ON にすると partialAlert も自動で ON になる（安全設計）。
  * enabled を OFF にすると partialAlert も自動で OFF になる。
  * 集約点: dry_principles.md § allergen toggle ロジック
@@ -121,7 +121,7 @@ export const toggleAllergen = (
 }
 
 /**
- * caution カテゴリー（addiction / skin）のアレルゲンを ON/OFF する。
+ * caution カテゴリー（addiction / skin）のアレルギーを ON/OFF する。
  * 単純な enabled の反転のみ。partialAlert フィールドは持たない。
  * 集約点: dry_principles.md § allergen toggle ロジック
  */

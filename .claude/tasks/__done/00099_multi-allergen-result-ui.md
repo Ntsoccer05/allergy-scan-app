@@ -1,4 +1,4 @@
-# 00099 複数アレルゲン表示 UI（ResultCard.tsx results[] 対応）
+# 00099 複数アレルギー表示 UI（ResultCard.tsx results[] 対応）
 
 ## Metadata
 
@@ -17,7 +17,7 @@
 
 タスク `00097` で `OcrScanResponse` が `results: AllergenResult[]` 配列を持つ新設計に移行した後も、`ResultCard.tsx` は `results[0]?.judgment` への暫定アクセスで型エラーを回避した最小変更にとどまる（00097 のスコープ制限）。
 
-本タスクでは `results[]` 配列全体を使って複数アレルゲンの判定結果を正しく表示する UI を実装する。合わせて `highlights[]` 配列を使って `raw_text` 内の検出テキストをハイライト表示する機能も追加する。
+本タスクでは `results[]` 配列全体を使って複数アレルギーの判定結果を正しく表示する UI を実装する。合わせて `highlights[]` 配列を使って `raw_text` 内の検出テキストをハイライト表示する機能も追加する。
 
 ### 設計書が定める表示仕様
 
@@ -38,25 +38,25 @@
 
 ### 現状の ResultCard.tsx（00097 実装後）
 
-- `results[0]?.judgment` で単一アレルゲンの判定のみ表示
+- `results[0]?.judgment` で単一アレルギーの判定のみ表示
 - `highlights[]` 未使用（`raw_text` はプレーンテキスト表示）
-- 複数アレルゲンが設定されている場合、2つ目以降の判定が非表示
+- 複数アレルギーが設定されている場合、2つ目以降の判定が非表示
 
 ---
 
 ## Requirements
 
-R1: `ResultCard.tsx` に `results[]` 配列のループ表示を実装する。各 `AllergenResult` に対して `allergen`（アレルゲン名）・`judgment`（判定）・`detection_type`（🔴/🟡/🟠）・`detected`（検出成分リスト）・`risk_level`・`reason` を表示する。
+R1: `ResultCard.tsx` に `results[]` 配列のループ表示を実装する。各 `AllergenResult` に対して `allergen`（アレルギー名）・`judgment`（判定）・`detection_type`（🔴/🟡/🟠）・`detected`（検出成分リスト）・`risk_level`・`reason` を表示する。
 
 R2: `detection_type` に応じた絵文字アイコンを表示する。`coding_rules.md` の `displayMap`（`contains: '🔴 NG'` / `partial: '🟡 注意'` / `may_contain: '🟠 注意喚起'`）に準拠する。`may_contain` を NG 扱い（🔴）にしない。
 
 R3: `highlights[]` 配列を使って `raw_text` 内の検出テキストをハイライト表示する。`judgment: 'ng'` のテキストは赤背景・`'partial'` は黄背景・`'may_contain'` はオレンジ背景でハイライトする。ハイライト処理は `raw_text` を文字列として走査し、`highlights[].text` に一致する部分を `<mark>` 等でラップする（XSS に注意: `dangerouslySetInnerHTML` 禁止）。
 
-R4: 全アレルゲンが「なし（judgment === 'なし'）」の場合は `✅ 問題なし` を表示する。いずれか1つでも `含む` / `一部含む` / `判定不能` があれば該当アレルゲンを強調表示する。
+R4: 全アレルギーが「なし（judgment === 'なし'）」の場合は `✅ 問題なし` を表示する。いずれか1つでも `含む` / `一部含む` / `判定不能` があれば該当アレルギーを強調表示する。
 
 R5: `raw_text` の表示は `実装規則`（`implementation_rules.md` §2）に従い、ユーザーが「原材料を確認する」ボタンで展開できる形を維持する。ハイライト表示はこの展開エリア内に実装する。
 
-R6: `results[]` が空配列の場合（アレルゲン未設定・判定スキップ等）は既存の「アレルゲン設定なし」表示を維持する（`implementation_rules.md` §安全設計参照）。
+R6: `results[]` が空配列の場合（アレルギー未設定・判定スキップ等）は既存の「アレルギー設定なし」表示を維持する（`implementation_rules.md` §安全設計参照）。
 
 R7: UIテキストは 00098 で導入した `t('キー名')` を使う。新規テキストがあれば `locales/ja/scan.json` と `locales/en/scan.json` に追加する。
 
@@ -72,11 +72,11 @@ R10: `dangerouslySetInnerHTML` を新規導入しない（XSS 防止）。ハイ
 
 ### Phase 1: results[] ループ表示
 
-`ResultCard.tsx` の暫定 `results[0]?.judgment` アクセスを削除し、`results.map()` で全アレルゲンを列挙する。各要素のレンダリングに `AllergenResult` 型を使う。
+`ResultCard.tsx` の暫定 `results[0]?.judgment` アクセスを削除し、`results.map()` で全アレルギーを列挙する。各要素のレンダリングに `AllergenResult` 型を使う。
 
 ### Phase 2: detection_type アイコン表示
 
-`detection_type` → 絵文字のマッピングを定数として定義し（`DETECTION_ICON` 等）、アレルゲンごとに適用する。`may_contain` を `contains` と混同しない。
+`detection_type` → 絵文字のマッピングを定数として定義し（`DETECTION_ICON` 等）、アレルギーごとに適用する。`may_contain` を `contains` と混同しない。
 
 ### Phase 3: highlights[] ハイライト処理
 
@@ -84,7 +84,7 @@ R10: `dangerouslySetInnerHTML` を新規導入しない（XSS 防止）。ハイ
 
 ### Phase 4: テスト更新
 
-`ResultCard.test.tsx` に複数 `results` を持つモックを追加し、各アレルゲン判定が正しく表示されることをテストする。ハイライト表示のテストも追加する。
+`ResultCard.test.tsx` に複数 `results` を持つモックを追加し、各アレルギー判定が正しく表示されることをテストする。ハイライト表示のテストも追加する。
 
 ---
 
@@ -93,7 +93,7 @@ R10: `dangerouslySetInnerHTML` を新規導入しない（XSS 防止）。ハイ
 | ファイル | 変更内容 |
 |---|---|
 | `frontend/src/components/ResultCard.tsx` | `results[]` ループ表示・`detection_type` アイコン・`highlights[]` ハイライト実装 |
-| `frontend/src/components/ResultCard.test.tsx` | 複数アレルゲン・ハイライト表示のテスト追加 |
+| `frontend/src/components/ResultCard.test.tsx` | 複数アレルギー・ハイライト表示のテスト追加 |
 | `frontend/public/locales/ja/scan.json` | 新規 UIテキストキー追加（必要な場合） |
 | `frontend/public/locales/en/scan.json` | 同上 |
 
@@ -101,10 +101,10 @@ R10: `dangerouslySetInnerHTML` を新規導入しない（XSS 防止）。ハイ
 
 ## Tests to add
 
-- 複数 `results`（乳・卵など2件以上）を持つ `OcrScanResponse` モックで、全アレルゲン判定が画面に表示されること
+- 複数 `results`（乳・卵など2件以上）を持つ `OcrScanResponse` モックで、全アレルギー判定が画面に表示されること
 - `detection_type: 'contains'` → 🔴、`'partial'` → 🟡、`'may_contain'` → 🟠 が表示されること
 - `may_contain` が 🔴 NG 表示にならないこと
-- `results: []` の場合にアレルゲン設定なし表示になること
+- `results: []` の場合にアレルギー設定なし表示になること
 - `highlights[]` に含まれるテキストが `raw_text` 展開エリアでハイライトされること
 
 ---
@@ -134,7 +134,7 @@ R10: `dangerouslySetInnerHTML` を新規導入しない（XSS 防止）。ハイ
 
 ### Phase 1: results[] ループ表示（ResultCard.tsx L187）
 
-`ResultCard.tsx` の暫定 `results[0]?.reason` アクセスおよび `ocrResults` 変数を削除し、`result.data.results.map()` で全アレルゲンを列挙するよう変更。各アレルゲンを `AllergenRow` サブコンポーネント（L85-L115）で表示する。`results.length === 0` の場合は `t('noAllergenSetting')` を表示（L176）。
+`ResultCard.tsx` の暫定 `results[0]?.reason` アクセスおよび `ocrResults` 変数を削除し、`result.data.results.map()` で全アレルギーを列挙するよう変更。各アレルギーを `AllergenRow` サブコンポーネント（L85-L115）で表示する。`results.length === 0` の場合は `t('noAllergenSetting')` を表示（L176）。
 
 ### Phase 2: detection_type アイコン表示（allergen.utils.ts L16-L22）
 
@@ -146,7 +146,7 @@ R10: `dangerouslySetInnerHTML` を新規導入しない（XSS 防止）。ハイ
 
 ### Phase 4: テスト追加（ResultCard.test.tsx）
 
-複数アレルゲン結果・`detection_type` 別絵文字・`may_contain` の非NG確認・`results:[]` 時のアレルゲン設定なし表示・ハイライト展開・全アレルゲンなし時の「✅ 問題なし」表示のテストを追加（計15テストケース）。
+複数アレルギー結果・`detection_type` 別絵文字・`may_contain` の非NG確認・`results:[]` 時のアレルギー設定なし表示・ハイライト展開・全アレルギーなし時の「✅ 問題なし」表示のテストを追加（計15テストケース）。
 
 ### DRY 遵守: allergen.utils.ts 新規作成
 
@@ -210,7 +210,7 @@ grep チェック（Completion criteria）は全項目パス済み:
 - `may_contain` → 🟠 注意喚起（🔴 NG 扱いなし）: `DETECTION_DISPLAY` 定数で正しく分岐、テストで検証済み ✅
 - `dangerouslySetInnerHTML` 不使用: `splitByHighlights` が indexOf ベースで実装されており XSS リスクなし ✅
 - `allergen.utils.ts` に `deriveOcrJudgment` / `DETECTION_DISPLAY` / `HIGHLIGHT_CLASS` / `splitByHighlights` が集約: dry_principles.md 準拠 ✅
-- `results: []` 時に「アレルゲン設定なし」表示: テスト `results: [] の場合（R6）` で検証済み ✅
+- `results: []` 時に「アレルギー設定なし」表示: テスト `results: [] の場合（R6）` で検証済み ✅
 - 免責テキスト（`t('caution')`）が全判定で常時 DOM に存在: L234-238 で条件なしレンダリング確認 ✅
 
 ### 改善提案（PASS / 次タスク繰越し可）

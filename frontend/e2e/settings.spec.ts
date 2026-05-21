@@ -66,7 +66,7 @@ test.describe('設定画面フロー', () => {
     await expect(page.locator('h1', { hasText: '設定' })).toBeVisible({ timeout: 10_000 })
   })
 
-  test('アレルゲントグルのクリックで PUT /api/users/me が呼ばれる', async ({ page }) => {
+  test('アレルギートグルのクリックで PUT /api/users/me が呼ばれる', async ({ page }) => {
     await setupPage(page)
 
     let putCalled = false

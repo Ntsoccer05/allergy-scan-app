@@ -108,7 +108,7 @@
 - [ ] `frontend/public/locales/en/scan.json` に `appTitle` キーが存在する（`grep -c 'appTitle' frontend/public/locales/en/scan.json` が 1 以上）
 - [ ] `frontend/public/locales/en/scan.json` の `appTitle` 値が `"Allergy Scan App"` である（`grep '"appTitle": "Allergy Scan App"' frontend/public/locales/en/scan.json` でヒット 1 以上）
 - [ ] `npx eslint --max-warnings=0 frontend/src/app/settings/ReservationTextSection.tsx` がエラー・警告 0 件で終了する
-- [ ] `ReservationTextSection` でアレルゲンを toggle した後に textarea が新しい自動生成テキストにリセットされることを検証するテストが PASS する（既存テスト `ReservationTextSection.test.tsx` の該当ケース）
+- [ ] `ReservationTextSection` でアレルギーを toggle した後に textarea が新しい自動生成テキストにリセットされることを検証するテストが PASS する（既存テスト `ReservationTextSection.test.tsx` の該当ケース）
 - [ ] `frontend/src/components/ResultCard.tsx` に `as any` が存在しない（`grep -c 'as any' frontend/src/components/ResultCard.tsx` が 0）
 - [ ] `frontend/src/app/settings/ReservationTextSection.tsx` に `as any` が存在しない（`grep -c 'as any' frontend/src/app/settings/ReservationTextSection.tsx` が 0）
 - [ ] `pnpm --filter frontend typecheck` がエラー 0 件で終了する

@@ -3,7 +3,7 @@
 ## 1. プロダクト概要
 
 ### コンセプト
-スーパー・コンビニでの食品購入時に、バーコードスキャンまたはラベル撮影（OCR）でアレルゲンを即座に判定するスマートフォンアプリ。
+スーパー・コンビニでの食品購入時に、バーコードスキャンまたはラベル撮影（OCR）でアレルギーを即座に判定するスマートフォンアプリ。
 
 ### ターゲットユーザー
 - 食物アレルギーを持つ成人（特に乳・卵アレルギー）
@@ -54,7 +54,7 @@
 
 ### アレルギー設定
 ```
-Step 1: アレルゲン選択（タップのみ）
+Step 1: アレルギー選択（タップのみ）
         特定原材料9品目 + 準ずるもの20品目 から選択
 
 Step 2: 一部含む商品も警告するか選択
@@ -62,11 +62,11 @@ Step 2: 一部含む商品も警告するか選択
         ☑ 一部含む商品も警告（ON/OFF選択可・デフォルトON）
 ```
 
-### 対応アレルゲン全品目（29品目）
+### 対応アレルギー全品目（29品目）
 
 **特定原材料（9品目・表示義務あり）**
 
-| アレルゲン | デフォルト |
+| アレルギー | デフォルト |
 |---|---|
 | えび | OFF |
 | かに | OFF |
@@ -80,7 +80,7 @@ Step 2: 一部含む商品も警告するか選択
 
 **特定原材料に準ずるもの（20品目・表示推奨）**
 
-| アレルゲン | デフォルト |
+| アレルギー | デフォルト |
 |---|---|
 | アーモンド | OFF |
 | あわび | OFF |
@@ -103,11 +103,11 @@ Step 2: 一部含む商品も警告するか選択
 | やまいも | OFF |
 | ゼラチン | OFF |
 
-### アレルゲン設定のデフォルト値
+### アレルギー設定のデフォルト値
 
 ```typescript
 // 全品目デフォルトOFF
-// ・enabled:false = アレルゲンOFF
+// ・enabled:false = アレルギーOFF
 // ・partialAlert:false = 一部含むOFF
 // ※ enabled:trueにした瞬間にpartialAlert:trueに自動設定
 
@@ -159,7 +159,7 @@ const toggleAllergen = (name: string) => {
 }
 ```
 
-### アレルゲン判定の2段階分類
+### アレルギー判定の2段階分類
 
 | 分類 | 判定基準 | 表示 |
 |---|---|---|
@@ -257,13 +257,13 @@ incomplete   → detecting継続（ガイド表示して継続）
 
 **Layer 2：Geminiへの指示（サーバー側）**
 ```
-【重要】有効なアレルゲンのみをプロンプトに渡す
+【重要】有効なアレルギーのみをプロンプトに渡す
 → allergen_componentsテーブルから動的生成
 → トークン節約 + 判定精度向上の両方が得られる
 
 例：ユーザーが「卵・乳」のみ有効にしている場合
 ---
-ユーザーが設定しているアレルゲン：[卵, 乳]
+ユーザーが設定しているアレルギー：[卵, 乳]
 
 【検出対象成分】
 ・乳、牛乳、生乳、脱脂粉乳
@@ -393,7 +393,7 @@ CREATE TABLE users (
 );
 ```
 
-### allergensテーブル（アレルゲンマスター）
+### allergensテーブル（アレルギーマスター）
 
 ```sql
 CREATE TABLE allergens (
@@ -477,7 +477,7 @@ allergens（マスター）
   → category順・display_order順で表示
 
 スキャン時：
-  有効アレルゲン → allergen_componentsから派生成分を取得
+  有効アレルギー → allergen_componentsから派生成分を取得
   → Geminiプロンプトを動的生成
 ```
 
@@ -579,7 +579,7 @@ INSERT INTO allergen_components VALUES
   (gen_random_uuid(), '卵', 'エッグ',        'direct',     true,  '代替表記'),
   (gen_random_uuid(), '卵', '卵黄',          'derivative', true,  NULL),
   (gen_random_uuid(), '卵', '卵白',          'derivative', true,  NULL),
-  (gen_random_uuid(), '卵', 'オボムコイド',   'derivative', true,  '加熱しても残るアレルゲン'),
+  (gen_random_uuid(), '卵', 'オボムコイド',   'derivative', true,  '加熱しても残るアレルギー'),
   (gen_random_uuid(), '卵', 'マヨネーズ',    'processed',  true,  '含む旨省略されることも'),
   (gen_random_uuid(), '卵', 'リゾチーム',    'additive',   true,  '卵白由来添加物'),
   (gen_random_uuid(), '卵', 'レシチン（卵由来）','additive', true, '大豆由来は卵ではない');
@@ -634,9 +634,9 @@ INSERT INTO allergen_components VALUES
 ```
 スキャン時のGeminiプロンプト生成フロー：
 
-ユーザーの有効アレルゲン取得（例：乳・卵）
+ユーザーの有効アレルギー取得（例：乳・卵）
         ↓
-allergen_componentsから該当アレルゲンを取得
+allergen_componentsから該当アレルギーを取得
   WHERE allergen_name IN ('乳', '卵')
   AND component_type != 'exclude'
         ↓
@@ -794,7 +794,7 @@ NestJS on AWS Lambda（コンテナデプロイ）
 S3               画像アップロード（Presigned URL）
 RDS t3.micro     自社商品DB・スキャン履歴（MVP）
 Aurora Serverless v2  スケール後に移行
-Gemini Flash API OCR + アレルゲン判定
+Gemini Flash API OCR + アレルギー判定
 Open Food Facts  JANコード初期照合（無料）
 Google Places API 店舗名取得
 ```
@@ -876,7 +876,7 @@ ScanScreen
 ```
 GET  /scan/presigned-url     S3 Presigned URL発行
 POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルゲン判定
+POST /scan/ocr               OCR + アレルギー判定
 GET  /history                履歴一覧取得
 POST /history                履歴保存
 GET  /users/me               ユーザー設定取得
@@ -1003,7 +1003,7 @@ LIMIT 20
 ### 設定変更のロジック
 
 ```typescript
-// アレルゲンON/OFF
+// アレルギーON/OFF
 // ONにした瞬間 → partialAlertも自動ON
 // OFFにした瞬間 → partialAlertも自動OFF
 toggleAllergen(name)
@@ -1021,7 +1021,7 @@ togglePartial(name)
 GET /users/me（TTL:5分でキャッシュ）
       ↓
 取得した設定でGeminiプロンプトを動的生成
-→ 有効なアレルゲンのみプロンプトに含める
+→ 有効なアレルギーのみプロンプトに含める
 ```
 
 ---
@@ -1101,7 +1101,7 @@ NG判定時（毎回）：
 ```
 取得時：明示的な同意が必要
 保管時：RDSの暗号化設定（必須）
-利用時：アプリ内のアレルゲン判定のみに限定
+利用時：アプリ内のアレルギー判定のみに限定
 第三者提供：原則禁止
 削除：ユーザーがデータ削除を要求できる機能が必要
 ```
@@ -1111,7 +1111,7 @@ NG判定時（毎回）：
 ```
 ・取得する情報の種類
   （デバイスID・アレルギー設定・位置情報・スキャン履歴）
-・利用目的（アレルゲン判定・履歴表示のみ）
+・利用目的（アレルギー判定・履歴表示のみ）
 ・第三者提供しない旨
 ・データ保管場所（AWS東京リージョン）
 ・データ削除方法

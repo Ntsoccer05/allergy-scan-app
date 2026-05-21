@@ -62,7 +62,7 @@ const buildShareContent = (result: ScanResult, title: string): { title: string; 
       : '商品'
   return {
     title,
-    text: `${name} はアレルゲンなし（${title}調べ）`,
+    text: `${name} はアレルギーなし（${title}調べ）`,
   }
 }
 
@@ -95,7 +95,7 @@ const HighlightedText = ({
 }
 
 /**
- * 1アレルゲンの判定行コンポーネント。
+ * 1アレルギーの判定行コンポーネント。
  * detection_type: 'contains' → 🔴 NG、'partial' → 🟡 注意、'may_contain' → 🟠 注意喚起
  * ⚠️ 安全設計: may_contain は製造ラインのコンタミ。contains（NG）と混同禁止
  */
@@ -200,7 +200,7 @@ export const ResultCard = ({
           </div>
         )}
 
-        {/* OCR: 全アレルゲン判定結果（results[] 全件表示） */}
+        {/* OCR: 全アレルギー判定結果（results[] 全件表示） */}
         {result.type === 'ocr' && (
           <>
             {result.data.results.length === 0 ? (
@@ -210,7 +210,7 @@ export const ResultCard = ({
                 className="space-y-2"
                 aria-label={t('allergenListLabel')}
               >
-                {/* 全アレルゲンが「なし」の場合は問題なし表示 */}
+                {/* 全アレルギーが「なし」の場合は問題なし表示 */}
                 {judgment === 'なし' && (
                   <p className="text-sm font-medium text-green-700">{t('overallOk')}</p>
                 )}

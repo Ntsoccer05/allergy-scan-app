@@ -1,4 +1,4 @@
-# Task 00110: 設定画面（アレルゲン ON/OFF・言語設定・データリセット）
+# Task 00110: 設定画面（アレルギー ON/OFF・言語設定・データリセット）
 
 ## Metadata
 
@@ -11,7 +11,7 @@
 
 ## Background
 
-設定画面 (`/settings`) は現在未実装。ユーザーがアレルゲン設定を変更するための画面であり、スキャン結果の精度に直結する中核機能。アレルゲンマスターは `GET /allergens` から動的取得し、フロントエンドにハードコードしない（`patterns.md` パターン8）。
+設定画面 (`/settings`) は現在未実装。ユーザーがアレルギー設定を変更するための画面であり、スキャン結果の精度に直結する中核機能。アレルギーマスターは `GET /allergens` から動的取得し、フロントエンドにハードコードしない（`patterns.md` パターン8）。
 
 `src/lib/allergen.utils.ts` に `toggleAllergen` / `toggleCaution` が定義済みの想定。これを必ず利用する（DRY 原則）。
 
@@ -26,7 +26,7 @@
 
 ## Requirements
 
-- R1: `GET /allergens` でアレルゲンマスターを取得して表示する（フロントエンドへのアレルゲン名ハードコード禁止）
+- R1: `GET /allergens` でアレルギーマスターを取得して表示する（フロントエンドへのアレルギー名ハードコード禁止）
 - R2: `GET /users/me` でユーザーの現在のアレルギー設定と言語設定を取得して初期値とする
 - R3: allergy カテゴリー（mandatory / recommended）のトグルには `src/lib/allergen.utils.ts` の `toggleAllergen` を使う（enabled ON → partialAlert 自動 ON）
 - R4: caution カテゴリー（addiction / skin）のトグルには `src/lib/allergen.utils.ts` の `toggleCaution` を使う（単純 ON/OFF のみ）
@@ -37,9 +37,9 @@
 - R9: すべての UIテキストを i18n キーで管理する（`settings.json` に定義）
 - R10: i18n 実装は next-intl を使用する
 - R11: `useSettings` フックが API 通信を担い、設定画面 Page コンポーネントは直接 `fetch` しない
-- R12: ログにアレルゲン設定の具体値を出力しない（`implementation_rules.md` 個人情報制約）
+- R12: ログにアレルギー設定の具体値を出力しない（`implementation_rules.md` 個人情報制約）
 - R13: Android のみバイブレーション設定項目を表示する（`navigator.vibrate` の直接呼び出し禁止。プラットフォーム判定で表示制御のみ）
-- R14: アレルゲン設定変更後は `PUT /users/me` で即時保存する（離脱時にまとめて保存しない）
+- R14: アレルギー設定変更後は `PUT /users/me` で即時保存する（離脱時にまとめて保存しない）
 
 ## Implementation plan
 
@@ -62,7 +62,7 @@
 ### Phase 4: 設定画面 UI
 - `frontend/src/app/settings/page.tsx` を新規作成
 - `useSettings` フックからデータと操作関数を受け取る
-- アレルゲン一覧を `display_order` 順で表示（フロントでのソートは行わず API レスポンス順を維持）
+- アレルギー一覧を `display_order` 順で表示（フロントでのソートは行わず API レスポンス順を維持）
 - カテゴリー別セクション: mandatory → recommended（もっと見る） → addiction → skin
 - 設定値を表示するコンポーネントはビジネスロジックなし（Props で受け取るだけ）
 
@@ -92,13 +92,13 @@
 
 ## Completion criteria
 
-- [ ] `/settings` にアクセスすると `GET /allergens` と `GET /users/me` が呼ばれ、アレルゲン一覧と現在の設定が表示される（Network タブまたはモックで確認）
+- [ ] `/settings` にアクセスすると `GET /allergens` と `GET /users/me` が呼ばれ、アレルギー一覧と現在の設定が表示される（Network タブまたはモックで確認）
 - [ ] mandatory カテゴリーの全9品目がリスト表示される
 - [ ] recommended カテゴリーは「もっと見る」ボタン押下前は非表示、押下後に全20品目が表示される
-- [ ] allergy カテゴリーのアレルゲンを ON にすると partialAlert も ON になる（`toggleAllergen` の動作）
-- [ ] allergy カテゴリーのアレルゲンを OFF にすると partialAlert も OFF になる
-- [ ] caution カテゴリーのアレルゲンをトグルしても partialAlert フィールドは変化しない
-- [ ] アレルゲントグル操作後に `PUT /users/me` が呼ばれる（モックで確認）
+- [ ] allergy カテゴリーのアレルギーを ON にすると partialAlert も ON になる（`toggleAllergen` の動作）
+- [ ] allergy カテゴリーのアレルギーを OFF にすると partialAlert も OFF になる
+- [ ] caution カテゴリーのアレルギーをトグルしても partialAlert フィールドは変化しない
+- [ ] アレルギートグル操作後に `PUT /users/me` が呼ばれる（モックで確認）
 - [ ] 言語設定を切り替えると `PUT /users/me` で `locale` が保存される
 - [ ] データリセットボタンをタップすると確認ダイアログが表示される（ダイアログなしで即削除は起きない）
 - [ ] 確認ダイアログでキャンセルすると `DELETE /users/me` が呼ばれない
@@ -113,7 +113,7 @@
 
 | リスク | 回避方針 |
 |---|---|
-| アレルゲントグル連打時に `PUT /users/me` が過剰発火する | debounce（300ms）を `useSettings` に実装する |
+| アレルギートグル連打時に `PUT /users/me` が過剰発火する | debounce（300ms）を `useSettings` に実装する |
 | `DELETE /users/me` 後の Cookie クリアが不完全でオンボーディングをスキップできる | `/users/init` が未呼び出し状態での `/scan` アクセスをバックエンド側で 401 返却するか、フロント側でミドルウェアガードを実装する |
 | recommended 20品目が `display_order` 順で返ってこない | API レスポンスを `display_order` でソートする処理を `useSettings` 内に持たず、`GET /allergens` が正しい順序で返すことをバックエンド仕様に明記する |
 
@@ -157,7 +157,7 @@
 
 ## Plan deviation
 
-- `useSettings` hook 内のエラーメッセージ（`setError` に渡すテキスト）は日本語ハードコードとした。hook 層では `useTranslations` を呼べるが、エラーメッセージはデバッグ内部用として許容した（page.tsx では i18n キーを使用）。アレルゲン設定の具体値は一切ログ出力していない（R12 準拠）。
+- `useSettings` hook 内のエラーメッセージ（`setError` に渡すテキスト）は日本語ハードコードとした。hook 層では `useTranslations` を呼べるが、エラーメッセージはデバッグ内部用として許容した（page.tsx では i18n キーを使用）。アレルギー設定の具体値は一切ログ出力していない（R12 準拠）。
 - `completed_date: 2026-05-19`
 
 ## Review comments

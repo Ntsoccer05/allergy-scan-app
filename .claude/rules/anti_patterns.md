@@ -16,7 +16,7 @@ if (!result || result.results.some(r => r.judgment === '判定不能')) {
 
 **理由**: アレルギーの見逃しはアナフィラキシーリスクに直結する。不明な場合は必ず安全側（警告）に倒す。
 
-### 2. incomplete フラグを無視してアレルゲン判定を返す
+### 2. incomplete フラグを無視してアレルギー判定を返す
 
 ```typescript
 // ❌ incomplete でも判定結果を返す
@@ -126,13 +126,13 @@ UPSERT 時は必ず `ON CONFLICT (id_type, id_value)` 句を使う。重複を�
 
 ## パフォーマンス・コスト
 
-### 11. 全アレルゲンの成分を常に Gemini プロンプトに含める
+### 11. 全アレルギーの成分を常に Gemini プロンプトに含める
 
 ```typescript
 // ❌ 全 29 品目を常に渡す（トークン無駄・精度低下）
 const allComponents = await getComponents(ALL_ALLERGENS)
 
-// ✅ ユーザーが有効にしたアレルゲンのみ
+// ✅ ユーザーが有効にしたアレルギーのみ
 const enabledAllergens = Object.entries(user.allergies)
   .filter(([, v]) => v.enabled)
   .map(([name]) => name)

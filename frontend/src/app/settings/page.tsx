@@ -19,22 +19,10 @@ type TranslateFn = (key: string) => string
 type AllergenToggleRowProps = {
   item: AllergenItem
   enabled: boolean
-  partialAlert: boolean
-  judgmentType: 'allergy' | 'caution'
   onToggle: () => void
-  onTogglePartial: () => void
-  t: TranslateFn
 }
 
-const AllergenToggleRow = ({
-  item,
-  enabled,
-  partialAlert,
-  judgmentType,
-  onToggle,
-  onTogglePartial,
-  t,
-}: AllergenToggleRowProps) => (
+const AllergenToggleRow = ({ item, enabled, onToggle }: AllergenToggleRowProps) => (
   <li className="py-3 border-b border-gray-100 last:border-0">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -63,30 +51,6 @@ const AllergenToggleRow = ({
         />
       </button>
     </div>
-
-    {/* partialAlert は allergy カテゴリーかつ enabled のときのみ表示 */}
-    {judgmentType === 'allergy' && enabled && (
-      <div className="flex items-center justify-between mt-2 pl-8">
-        <span className="text-xs text-gray-500">
-          {t('allergens.partialAlertDescription')}
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={partialAlert}
-          aria-label={t('allergens.partialAlert')}
-          onClick={onTogglePartial}
-          className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            ${partialAlert ? 'bg-blue-500' : 'bg-gray-300'}`}
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform mt-0.5
-              ${partialAlert ? 'translate-x-4' : 'translate-x-1'}`}
-          />
-        </button>
-      </div>
-    )}
   </li>
 )
 
@@ -95,7 +59,6 @@ type AllergenSectionProps = {
   allergies: Record<string, { enabled: boolean; partialAlert: boolean }>
   onToggleAllergen: (name: string) => void
   onToggleCaution: (name: string) => void
-  onTogglePartial: (name: string) => void
   t: TranslateFn
 }
 
@@ -104,56 +67,59 @@ const AllergenSection = ({
   allergies,
   onToggleAllergen,
   onToggleCaution,
-  onTogglePartial,
   t,
 }: AllergenSectionProps) => {
-  const [isExpanded, setIsExpanded] = useState(false)
-
   const isRecommended = group.category === 'recommended'
-  const visibleItems: AllergenItem[] = isRecommended && !isExpanded ? [] : group.items
+  const [isExpanded, setIsExpanded] = useState(!isRecommended)
 
   return (
-    <section className="mb-6">
-      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-        {t(`allergens.category.${group.category}`)}
-      </h2>
-      <ul className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 overflow-hidden">
-        {visibleItems.map((item) => {
-          const setting = allergies[item.name] ?? {
-            enabled: false,
-            partialAlert: false,
-          }
-          const isAllergy =
-            group.category === 'mandatory' || group.category === 'recommended'
-          return (
-            <AllergenToggleRow
-              key={item.name}
-              item={item}
-              enabled={setting.enabled}
-              partialAlert={setting.partialAlert}
-              judgmentType={isAllergy ? 'allergy' : 'caution'}
-              onToggle={() =>
-                isAllergy
-                  ? onToggleAllergen(item.name)
-                  : onToggleCaution(item.name)
-              }
-              onTogglePartial={() => onTogglePartial(item.name)}
-              t={t}
-            />
-          )
-        })}
-      </ul>
+    <section className="mb-4">
+      <button
+        type="button"
+        onClick={isRecommended ? () => setIsExpanded((prev) => !prev) : undefined}
+        className={`w-full flex items-center justify-between mb-2 ${
+          isRecommended ? 'cursor-pointer group' : 'cursor-default'
+        }`}
+        aria-expanded={isRecommended ? isExpanded : undefined}
+      >
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+          {t(`allergens.category.${group.category}`)}
+        </h2>
+        {isRecommended && (
+          <span
+            className={`text-gray-400 transition-transform duration-200 ${
+              isExpanded ? 'rotate-180' : ''
+            }`}
+            aria-hidden="true"
+          >
+            ▼
+          </span>
+        )}
+      </button>
 
-      {isRecommended && (
-        <button
-          type="button"
-          onClick={() => setIsExpanded((prev) => !prev)}
-          className="mt-2 w-full text-sm text-blue-600 py-2 hover:underline focus:outline-none"
-        >
-          {isExpanded
-            ? t('allergens.showLess')
-            : t('allergens.showMore')}
-        </button>
+      {isExpanded && (
+        <ul className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 overflow-hidden">
+          {group.items.map((item) => {
+            const setting = allergies[item.name] ?? {
+              enabled: false,
+              partialAlert: false,
+            }
+            const isAllergy =
+              group.category === 'mandatory' || group.category === 'recommended'
+            return (
+              <AllergenToggleRow
+                key={item.name}
+                item={item}
+                enabled={setting.enabled}
+                onToggle={() =>
+                  isAllergy
+                    ? onToggleAllergen(item.name)
+                    : onToggleCaution(item.name)
+                }
+              />
+            )
+          })}
+        </ul>
       )}
     </section>
   )
@@ -162,13 +128,11 @@ const AllergenSection = ({
 export default function SettingsPage() {
   useOnboardingGuard()
   const router = useRouter()
-  // テンプレートリテラルキー（動的カテゴリー名等）を型安全に扱うためキャストする
   const t = useTranslations('settings') as TranslateFn
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // バックアップコード関連ステート
   const [issuedCode, setIssuedCode] = useState<IssueBackupCodeResponse | null>(null)
   const [isIssuing, setIsIssuing] = useState(false)
   const [issueError, setIssueError] = useState<string | null>(null)
@@ -209,7 +173,6 @@ export default function SettingsPage() {
     error,
     handleToggleAllergen,
     handleToggleCaution,
-    handleTogglePartial,
     handleLocaleChange,
     handleDeleteUser,
   } = useSettings()
@@ -235,7 +198,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen max-w-[480px] mx-auto px-4 pb-20 pt-6">
+    <main className="flex flex-col min-h-screen max-w-120 lg:max-w-4xl mx-auto px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-6">{t('title')}</h1>
 
       {error && (
@@ -251,26 +214,26 @@ export default function SettingsPage() {
         <p className="text-xs text-gray-400 mb-2 text-right">{t('saving')}</p>
       )}
 
-      {/* アレルゲン設定セクション */}
+      {/* アレルギー設定セクション: PC は 2 カラム（mandatory | recommended + others） */}
       <section className="mb-8">
         <h2 className="text-base font-bold text-gray-800 mb-4">
           {t('allergens.title')}
         </h2>
-        {allergenGroups.map((group) => (
-          <AllergenSection
-            key={group.category}
-            group={group}
-            allergies={allergies}
-            onToggleAllergen={handleToggleAllergen}
-            onToggleCaution={handleToggleCaution}
-            onTogglePartial={handleTogglePartial}
-            t={t}
-          />
-        ))}
+        <div className="lg:grid lg:grid-cols-2 lg:gap-6">
+          {allergenGroups.map((group) => (
+            <AllergenSection
+              key={group.category}
+              group={group}
+              allergies={allergies}
+              onToggleAllergen={handleToggleAllergen}
+              onToggleCaution={handleToggleCaution}
+              t={t}
+            />
+          ))}
+        </div>
       </section>
 
       {/* お店予約用テキスト */}
-      {/* allergies または locale が変化したとき key が変わり再マウントされる（react-hooks/refs 回避）。 */}
       <ReservationTextSection
         key={
           allergenGroups
@@ -285,87 +248,93 @@ export default function SettingsPage() {
         t={t}
       />
 
-      {/* 言語設定 */}
-      <section className="mb-8">
-        <h2 className="text-base font-bold text-gray-800 mb-4">
-          {t('language.title')}
-        </h2>
-        <div className="bg-white rounded-xl shadow-sm p-4 flex gap-3">
-          {(['ja', 'en'] as const).map((lang) => (
-            <button
-              key={lang}
-              type="button"
-              onClick={() => handleLocaleChange(lang)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors
-                ${locale === lang
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              {t(`language.${lang}`)}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* バイブレーション設定（Android のみ表示） */}
-      {isAndroid() && (
+      {/* 言語・バイブレーション: PC は横並び */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6">
+        {/* 言語設定 */}
         <section className="mb-8">
           <h2 className="text-base font-bold text-gray-800 mb-4">
-            {t('vibration.title')}
+            {t('language.title')}
           </h2>
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <p className="text-sm text-gray-600">{t('vibration.description')}</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 flex gap-3">
+            {(['ja', 'en'] as const).map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => handleLocaleChange(lang)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors
+                  ${locale === lang
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                {t(`language.${lang}`)}
+              </button>
+            ))}
           </div>
         </section>
-      )}
 
-      {/* バックアップコード */}
-      <section className="mb-8">
-        <h2 className="text-base font-bold text-gray-800 mb-4">
-          {t('backup_code.title')}
-        </h2>
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <p className="text-sm text-gray-500 mb-3">
-            {t('backup_code.description')}
-          </p>
-          {issueError && (
-            <p className="text-sm text-red-600 mb-3">{issueError}</p>
-          )}
-          <button
-            type="button"
-            onClick={handleIssueBackupCode}
-            disabled={isIssuing}
-            className="w-full py-2.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium
-              border border-blue-200 hover:bg-blue-100 transition-colors
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              disabled:opacity-50"
-          >
-            {isIssuing ? t('loading') : t('backup_code.issueButton')}
-          </button>
-        </div>
-      </section>
+        {/* バイブレーション設定（Android のみ表示） */}
+        {isAndroid() && (
+          <section className="mb-8">
+            <h2 className="text-base font-bold text-gray-800 mb-4">
+              {t('vibration.title')}
+            </h2>
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <p className="text-sm text-gray-600">{t('vibration.description')}</p>
+            </div>
+          </section>
+        )}
+      </div>
 
-      {/* アカウント・データリセット */}
-      <section className="mb-8">
-        <h2 className="text-base font-bold text-gray-800 mb-4">
-          {t('account.title')}
-        </h2>
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <p className="text-sm text-gray-500 mb-3">
-            {t('account.deleteDataDescription')}
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="w-full py-2.5 rounded-lg bg-red-50 text-red-600 text-sm font-medium
-              border border-red-200 hover:bg-red-100 transition-colors
-              focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-          >
-            {t('account.deleteData')}
-          </button>
-        </div>
-      </section>
+      {/* バックアップ・アカウント: PC は横並び */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6">
+        {/* バックアップコード */}
+        <section className="mb-8">
+          <h2 className="text-base font-bold text-gray-800 mb-4">
+            {t('backup_code.title')}
+          </h2>
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <p className="text-sm text-gray-500 mb-3">
+              {t('backup_code.description')}
+            </p>
+            {issueError && (
+              <p className="text-sm text-red-600 mb-3">{issueError}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleIssueBackupCode}
+              disabled={isIssuing}
+              className="w-full py-2.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium
+                border border-blue-200 hover:bg-blue-100 transition-colors
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                disabled:opacity-50"
+            >
+              {isIssuing ? t('loading') : t('backup_code.issueButton')}
+            </button>
+          </div>
+        </section>
+
+        {/* アカウント・データリセット */}
+        <section className="mb-8">
+          <h2 className="text-base font-bold text-gray-800 mb-4">
+            {t('account.title')}
+          </h2>
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <p className="text-sm text-gray-500 mb-3">
+              {t('account.deleteDataDescription')}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full py-2.5 rounded-lg bg-red-50 text-red-600 text-sm font-medium
+                border border-red-200 hover:bg-red-100 transition-colors
+                focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              {t('account.deleteData')}
+            </button>
+          </div>
+        </section>
+      </div>
 
       {/* バックアップコード表示モーダル */}
       {issuedCode && (
@@ -434,7 +403,7 @@ export default function SettingsPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="reissue-dialog-title"
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+          className="fixed inset-0 z-60 flex items-center justify-center px-4"
         >
           <div
             className="absolute inset-0 bg-black/50"
@@ -482,13 +451,11 @@ export default function SettingsPage() {
           aria-labelledby="delete-dialog-title"
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
         >
-          {/* オーバーレイ */}
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowDeleteConfirm(false)}
             aria-hidden="true"
           />
-          {/* ダイアログ本体 */}
           <div className="relative bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
             <h3
               id="delete-dialog-title"

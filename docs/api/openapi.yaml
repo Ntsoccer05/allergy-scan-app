@@ -16,7 +16,7 @@ servers:
 
 tags:
   - name: allergens
-    description: アレルゲンマスター
+    description: アレルギーマスター
   - name: scan
     description: スキャン（バーコード・OCR）
   - name: history
@@ -108,7 +108,7 @@ paths:
       summary: みんなのスキャン一覧
       description: |
         リクエストユーザーがスキャンしていない商品一覧をカーソルページネーションで返す。
-        Cookie 認証必須。ユーザーのアレルゲン設定に基づいた judgment を付与する。
+        Cookie 認証必須。ユーザーのアレルギー設定に基づいた judgment を付与する。
       security:
         - cookieAuth: []
       parameters:
@@ -131,7 +131,7 @@ paths:
   /allergens:
     get:
       tags: [allergens]
-      summary: アレルゲンマスター取得
+      summary: アレルギーマスター取得
       description: 設定画面用。category・display_order 順で返す。
       responses:
         "200":
@@ -203,11 +203,11 @@ paths:
   /scan/ocr:
     post:
       tags: [scan]
-      summary: OCR + アレルゲン判定
+      summary: OCR + アレルギー判定
       description: |
         フロー:
         1. S3 から画像取得
-        2. ユーザーの有効アレルゲンを取得
+        2. ユーザーの有効アレルギーを取得
         3. allergen_components から成分リストを動的生成
         4. Gemini Flash API に送信
         5. incomplete: true → 400 返却
@@ -477,12 +477,12 @@ components:
           type: array
           items:
             type: string
-          description: 含むアレルゲン
+          description: 含むアレルギー
         partial:
           type: array
           items:
             type: string
-          description: 一部含むアレルゲン
+          description: 一部含むアレルギー
         components:
           type: array
           items:
@@ -510,7 +510,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AllergenResult"
-          description: アレルゲンごとの判定結果（複数）
+          description: アレルギーごとの判定結果（複数）
         highlights:
           type: array
           items:
@@ -539,7 +539,7 @@ components:
       properties:
         allergen:
           type: string
-          description: アレルゲン名（allergens.name と一致）
+          description: アレルギー名（allergens.name と一致）
         judgment:
           $ref: "#/components/schemas/Judgment"
         detection_type:
@@ -782,12 +782,12 @@ components:
           $ref: "#/components/schemas/ProductAllergens"
         judgment:
           $ref: "#/components/schemas/JudgmentShort"
-          description: ユーザーのアレルゲン設定に基づいた総合判定
+          description: ユーザーのアレルギー設定に基づいた総合判定
         detected:
           type: array
           items:
             type: string
-          description: ng/partial 時に検出されたアレルゲン名
+          description: ng/partial 時に検出されたアレルギー名
         updated_at:
           type: string
           format: date-time

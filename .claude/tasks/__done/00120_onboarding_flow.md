@@ -16,7 +16,7 @@
 
 オンボーディング完了後に `PUT /users/me` でアレルギー設定を保存してから `/scan` へ遷移する。バックエンドの `POST /users/init` を初回アクセス時に呼び出してユーザー（Cookie）を作成する。
 
-画面2のアレルゲン選択は mandatory 9品目が主体。recommended 20品目は「もっと見る」で展開。1品目以上選択しないと[次へ]が非活性（スキップ不可）。
+画面2のアレルギー選択は mandatory 9品目が主体。recommended 20品目は「もっと見る」で展開。1品目以上選択しないと[次へ]が非活性（スキップ不可）。
 
 影響ファイル:
 - `frontend/src/app/onboarding/page.tsx` — オンボーディング画面（新規作成）
@@ -34,13 +34,13 @@
 - R2: `onboarding_done` が `'true'` のとき `/onboarding` に直接アクセスしても `/scan` へリダイレクトする
 - R3: `/onboarding` の最初のロードで `POST /users/init` を呼び出し、HttpOnly Cookie を発行する（未発行の場合のみ。発行済みなら冪等に無視）
 - R4: 画面フローは画面1（ようこそ）→ 画面2（アレルギー設定）→ 画面3（一部含む警告）→ 画面4（免責同意）の4画面
-- R5: 画面2では `GET /allergens` から mandatory / recommended アレルゲン一覧を取得して表示する（ハードコード禁止）
+- R5: 画面2では `GET /allergens` から mandatory / recommended アレルギー一覧を取得して表示する（ハードコード禁止）
 - R6: 画面2の[次へ]ボタンは1品目以上が enabled: true の場合のみ活性化する（0品目では非活性）
 - R7: 画面3では画面2で enabled にした品目のみ表示し、partialAlert の ON/OFF を設定する
 - R8: 画面4（免責同意）の[同意してはじめる]ボタン以外にオンボーディング完了に至る経路を設けない（戻るボタンや画面外タップで完了しない）
 - R9: [同意してはじめる]押下後に `PUT /users/me` でアレルギー設定（allergies + locale）を保存する
 - R10: `PUT /users/me` 成功後に `localStorage.setItem('onboarding_done', 'true')` をセットし `/scan` へリダイレクトする
-- R11: アレルゲン選択の状態管理は `useOnboarding` フックに集約し、Page コンポーネントは直接 fetch しない
+- R11: アレルギー選択の状態管理は `useOnboarding` フックに集約し、Page コンポーネントは直接 fetch しない
 - R12: `toggleAllergen` / `toggleCaution` は `src/lib/allergen.utils.ts` のものを使う（DRY）
 - R13: すべての UIテキストを i18n キーで管理する（`onboarding.json` に定義）
 - R14: i18n 実装は next-intl を使用する
@@ -103,8 +103,8 @@
 - [ ] `localStorage.onboarding_done === 'true'` の状態で `/onboarding` にアクセスすると `/scan` へリダイレクトされる
 - [ ] `/onboarding` の初回ロードで `POST /users/init` が呼ばれる（Network タブまたはモックで確認）
 - [ ] 画面1に[はじめる]ボタンと「引き継ぎコードをお持ちの方」リンクが表示される
-- [ ] 画面2でアレルゲンを1品目も選択していない状態では[次へ]ボタンが非活性（`disabled` 属性）である
-- [ ] 画面2でアレルゲンを1品目以上選択すると[次へ]ボタンが活性化する
+- [ ] 画面2でアレルギーを1品目も選択していない状態では[次へ]ボタンが非活性（`disabled` 属性）である
+- [ ] 画面2でアレルギーを1品目以上選択すると[次へ]ボタンが活性化する
 - [ ] 画面3には画面2で enabled にした品目のみが表示される（disabled の品目は表示されない）
 - [ ] 画面4に免責文と[同意してはじめる]ボタンが表示され、スキップできる手段が存在しない
 - [ ] [同意してはじめる]押下後に `PUT /users/me` が呼ばれ、その後 `localStorage.onboarding_done` が `'true'` になる
@@ -141,7 +141,7 @@
 ### Phase 3: 画面コンポーネント
 - `frontend/src/app/onboarding/page.tsx` を新規作成。step 値に応じて Step1〜Step4 コンポーネントを条件分岐表示。
   - Step1 (L20-L45): ようこそ画面。[はじめる]ボタンと `/onboarding/restore` リンク。
-  - Step2 (L47-L170): アレルゲン選択。mandatory/recommended のみ表示。`canProceedStep2` が false の間は [次へ] が `disabled`。
+  - Step2 (L47-L170): アレルギー選択。mandatory/recommended のみ表示。`canProceedStep2` が false の間は [次へ] が `disabled`。
   - Step3 (L172-L270): 一部含む警告設定。`enabled: true` の品目のみ `partialAlert` スイッチを表示。
   - Step4 (L272-L337): 免責同意。⚠️ 安全設計: [同意してはじめる] 以外にオンボーディング完了への経路なし。
   - `BottomNav` は既存コードで `/onboarding` を HIDDEN_PATHS に含めているため変更不要。

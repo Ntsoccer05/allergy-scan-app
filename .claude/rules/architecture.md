@@ -57,7 +57,7 @@ Week4: 設定・オンボーディング
            + S3 (画像ストレージ)
 
 [外部API]
-    Gemini Flash API    OCR・アレルゲン判定
+    Gemini Flash API    OCR・アレルギー判定
     Open Food Facts     JANコード照合（無料）
     Google Places API   店舗名取得
 ```
@@ -119,13 +119,13 @@ POST /users/backup-code      バックアップコード発行（Cookie 認証�
 POST /users/restore          バックアップコードによるデバイス引き継ぎ（レートリミット: 60秒5回）
 GET  /scan/presigned-url     S3 Presigned URL 発行
 POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルゲン判定
+POST /scan/ocr               OCR + アレルギー判定
 GET  /history                履歴一覧（カーソルページネーション）
 POST /history                履歴保存
 DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
 GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
 PUT  /users/me               アレルギー設定更新
-GET  /allergens              アレルゲンマスター取得
+GET  /allergens              アレルギーマスター取得
 GET  /products/others        みんなのスキャン一覧（カーソルページネーション・Cookie 認証必須）
 ```
 

@@ -19,7 +19,7 @@
 
 **問題2: フロントエンドに `localStorage` 上の userId 管理コードが存在しない**
 
-現在の `frontend/src/lib/api/scan.api.ts` を確認すると、`x-user-id` ヘッダーの付与も `localStorage` 参照コードも存在しない（`grep "x-user-id" frontend/src/` の結果が 0件）。バックエンド `POST /scan/ocr` に `userId` が渡されないとアレルゲン設定が取得できず、`scan_histories` の `userId` も欠落する。userId の取得・管理手段が未実装の状態である。
+現在の `frontend/src/lib/api/scan.api.ts` を確認すると、`x-user-id` ヘッダーの付与も `localStorage` 参照コードも存在しない（`grep "x-user-id" frontend/src/` の結果が 0件）。バックエンド `POST /scan/ocr` に `userId` が渡されないとアレルギー設定が取得できず、`scan_histories` の `userId` も欠落する。userId の取得・管理手段が未実装の状態である。
 
 **解決方針**
 
@@ -40,7 +40,7 @@
 - R4: `ScanController.scanOcr`（`backend/src/scan/scan.controller.ts` L38）の `@Headers('x-user-id')` を `@Req()` または `@Cookies('userId')` に変更し、Cookie 値を userId として受け取る
 - R5: `HistoryController`（`backend/src/history/history.controller.ts`、タスク 00060 で実装予定）の `@Headers('x-user-id')` 参照箇所も Cookie 読み取りに変更する。00060 がまだ未実装の場合、HistoryController のスタブに Cookie 読み取りを組み込む
 - R6: `UsersModule`（`backend/src/users/users.module.ts`）・`UsersController` を新規作成し、`AppModule` に import する
-- R7: Cookie が未設定の状態で `POST /scan/ocr` または `GET /history` / `POST /history` を呼んだ場合、`userId` は `undefined` となり既存の動作（アレルゲン空・histories の userId は空文字または null）を維持する（401 は返さない。MVP のため認証は行わない）
+- R7: Cookie が未設定の状態で `POST /scan/ocr` または `GET /history` / `POST /history` を呼んだ場合、`userId` は `undefined` となり既存の動作（アレルギー空・histories の userId は空文字または null）を維持する（401 は返さない。MVP のため認証は行わない）
 - R8: `as any` / `@ts-ignore` を使用しない
 - R9: `console.log` を使用しない。NestJS `Logger` を使用する
 

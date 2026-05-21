@@ -1,4 +1,4 @@
-/** アレルゲン1品目の設定値 */
+/** アレルギー1品目の設定値 */
 export type AllergenSetting = {
   enabled: boolean
   partialAlert: boolean
@@ -25,7 +25,7 @@ export type UpdateUserBody = {
   onboarding_done?: boolean
 }
 
-/** アレルゲンマスターの1品目 */
+/** アレルギーマスターの1品目 */
 export type AllergenItem = {
   name: string
   display_name: string
