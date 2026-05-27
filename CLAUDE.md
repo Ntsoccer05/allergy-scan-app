@@ -130,31 +130,27 @@ GET  /products/others        みんなのスキャン一覧（カーソルペー
 - 完了後: `.claude/plans/done/` へ移動
 - 計画を書く際は `writing-plans` スキルを使用
 
-## ワークフロースキル（superpowers 統合）
+## ワークフロースキル
 
 Claude Code の `Skill` ツールで呼び出す。セッション開始時に `using-superpowers` が自動注入される。
+
+**ブランチ運用:** ブランチの作成・切り替えはユーザー自身が行う。Claude はブランチを作成・削除しない。
 
 | スキル | 使用タイミング |
 |---|---|
 | `using-superpowers` | セッション開始時に自動ロード — スキルの使い方を確立 |
 | `brainstorming` | 機能追加・設計変更など実装前に必ず使用 |
 | `writing-plans` | 仕様/要件がある多ステップタスクの計画作成 |
-| `executing-plans` | 書かれた実装計画をレビューチェックポイントつきで実行 |
+| `executing-plans` | 書かれた実装計画をサブエージェントレビューつきで実行 |
 | `subagent-driven-development` | 計画の独立タスクをサブエージェントで実行（推奨） |
-| `finishing-a-development-branch` | 実装完了後、マージ/PR/破棄を選択して完了処理 |
+| `finishing-a-development-branch` | 実装完了後 — テスト検証・ドキュメント更新・最終レビュー・PR |
 | `systematic-debugging` | バグ・テスト失敗・予期しない動作に遭遇したとき |
 | `verification-before-completion` | 完了主張やコミット・PR 作成の前に必ず実行 |
 | `test-driven-development` | 機能追加・バグ修正で実装コードを書く前 |
 | `dispatching-parallel-agents` | 2 件以上の独立タスクを並列処理するとき |
 | `requesting-code-review` | タスク完了後やマージ前のコードレビュー依頼 |
 | `receiving-code-review` | コードレビューフィードバックを受け取ったとき |
-| `using-git-worktrees` | 機能作業を現在のワークスペースから隔離するとき |
 | `writing-skills` | 新しいスキルの作成・既存スキルの編集 |
-
-## Claude Code 資産（エージェントパイプライン）
-
-- `.claude/skills/run-harness-cycle/` — Planner→Generator→Evaluator ループ
-- `.claude/agents/` — planner / generator / evaluator / spec-docs-syncer / static-test-runner
 
 ## 詳細設計ドキュメント（人間向け参照）
 
