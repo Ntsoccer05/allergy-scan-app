@@ -128,10 +128,13 @@ digraph process {
 - 承認されるまで繰り返す
 - 再レビューをスキップしない
 
+## 前提
+
+**ブランチの作成・切り替えはユーザーが事前に行う。** Claude はブランチを作成・削除しない。
+
 ## 統合
 
 **必要なワークフロースキル:**
-- **`using-git-worktrees`** — 隔離されたワークスペースを確保
 - **`writing-plans`** — このスキルが実行する計画を作成
 - **`requesting-code-review`** — レビューサブエージェント用のコードレビューテンプレート
-- **`finishing-a-development-branch`** — すべてのタスク後に開発を完了
+- **`finishing-a-development-branch`** — すべてのタスク後に開発を完了（ドキュメント更新・最終レビュー・PR）
