@@ -227,7 +227,16 @@ export const ResultCard = ({
     result.type === 'barcode' ? (result.data.detected ?? []) : []
 
   const productName =
-    result.type === 'barcode' ? result.data.product_name : undefined
+    result.type === 'barcode'
+      ? result.data.product_name
+      : result.type === 'ocr'
+        ? (result.data.product_name ?? null)
+        : undefined
+
+  const ocrPrice =
+    result.type === 'ocr' && result.data.price_confidence === 'high'
+      ? (result.data.price_with_tax ?? result.data.price)
+      : null
 
   const handleShare = async (): Promise<void> => {
     if (typeof navigator.share !== 'function') return
@@ -258,7 +267,18 @@ export const ResultCard = ({
       <div className="px-4 pb-6 space-y-4 max-h-[70vh] overflow-y-auto">
         {/* 商品名 */}
         {productName && (
-          <p className="text-base font-semibold text-gray-800">{productName}</p>
+          <p className="text-base font-semibold text-gray-800">
+            <span className="text-xs font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
+            {productName}
+          </p>
+        )}
+
+        {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
+        {ocrPrice !== null && (
+          <p className="text-sm text-gray-700">
+            <span className="text-xs font-normal text-gray-500 mr-1">{t('priceLabel')}</span>
+            {t('priceValue', { price: ocrPrice })}
+          </p>
         )}
 
         {/* 判定サマリ */}
