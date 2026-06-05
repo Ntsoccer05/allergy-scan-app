@@ -1,4 +1,20 @@
 {
+  "processing": "解析中...",
+  "caution": "⚠️ 購入前にラベルの実物も必ずご確認ください",
+  "capture": "撮影する",
+  "preview": {
+    "title": "この画像でスキャンしますか？",
+    "retake": "撮り直す",
+    "confirm": "スキャン開始"
+  },
+  "error": {
+    "api_error": "エラーが発生しました。もう一度お試しください",
+    "incomplete": "ラベル全体が映るように離してください",
+    "confidence_low": "画質が低いため判定できませんでした。明るい場所で再試行してください",
+    "quality_check_failed": "品質チェックに失敗しました。再度お試しください",
+    "daily_limit_exceeded": "本日のスキャン上限に達しました",
+    "cooldown": "しばらくお待ちください"
+  },
   "result": {
     "appTitle": "アレルギースキャンアプリ",
     "confidenceLow": "⚠️ 画質が低いため判定精度が低い可能性があります。必ずラベルの実物でご確認ください",
@@ -32,13 +48,22 @@
     "unreadableTitle": "📷 テキストを読み取れませんでした",
     "unreadableMessage": "ラベルに正面から近づけ、明るい場所で再試行してください。",
     "lowConfidenceTitle": "⚠️ 画質が低いためAI判定はできませんでした",
-    "lowConfidenceMessage": "読み取れた原材料テキストを以下に表示します。ご自身でアレルゲンをご確認ください。"
+    "lowConfidenceMessage": "読み取れた原材料テキストを以下に表示します。ご自身でアレルゲンをご確認ください。",
+    "productNameLabel": "商品名:",
+    "priceLabel": "参考価格:",
+    "priceValue": "¥{price}"
   },
   "camera": {
     "switchCamera": "カメラ切り替え",
     "videoLabel": "カメラ映像",
     "zoomLabel": "ズームレベル",
     "processingTitle": "撮影完了",
-    "processingSubtitle": "解析中です。商品をカメラから離して大丈夫です。"
+    "processingSubtitle": "解析中です。商品をカメラから離して大丈夫です。",
+    "uploadButton": "画像から解析"
+  },
+  "tabs": {
+    "camera": "カメラ",
+    "upload": "画像",
+    "uploadHint": "ギャラリーや写真から食品ラベルを選択してください"
   }
 }

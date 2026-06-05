@@ -1,172 +1,134 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useTranslations } from 'next-intl'
+import { AppLayout } from '@/components/templates/AppLayout'
+import { LoadingOverlay } from '@/components/atoms/LoadingOverlay'
 import { useScan } from '@/hooks/useScan'
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
-import { CameraView } from '@/components/CameraView'
-import { ScanGuide } from '@/components/ScanGuide'
-import { ScanOverlay } from '@/components/ScanOverlay'
-import { ResultCard } from '@/components/ResultCard'
-import { GUIDE_MESSAGES } from '@/app/scan/scan.constants'
-
-type ScanTab = 'camera' | 'upload'
+import { ResultCard } from '@/components/organisms/ResultCard'
 
 export default function ScanPage() {
   useOnboardingGuard()
-  const tTabs = useTranslations('tabs')
-  const tCamera = useTranslations('camera')
+  const t = useTranslations('scan')
+
   const {
-    scanState, error, result, storeCandidates, onStoreSelect,
-    videoRef, startScan, stopScan, reset, manualCapture, uploadAndScanImage,
-    zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode,
+    scanState,
+    error,
+    result,
+    previewDataUrl,
+    storeCandidates,
+    onStoreSelect,
+    videoRef,
+    startScan,
+    stopScan,
+    reset,
+    handleCapture,
+    confirmAndScan,
+    facingMode,
+    toggleFacingMode,
   } = useScan()
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [activeTab, setActiveTab] = useState<ScanTab>('camera')
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-
-  // 初回マウント時のみカメラを起動する（依存配列のサイズを一定に保つ）
+  // 初回マウント時にカメラを起動し、アンマウント時に停止する
   useEffect(() => {
     void startScan()
+    return () => stopScan()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startScan])
+  }, [])
 
-  const handleTabChange = useCallback((tab: ScanTab) => {
-    if (tab === activeTab) return
-    setActiveTab(tab)
-    if (tab === 'upload') {
-      stopScan()
-    } else {
-      void startScan()
-    }
-  }, [activeTab, stopScan, startScan])
-
-  // 「もう一度スキャンする」: reset で状態をリセットし、タブはそのまま継続
-  const handleScanAgain = useCallback(() => {
-    reset()
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return null
-    })
-    if (activeTab === 'camera') {
-      void startScan()
-    }
-  }, [reset, startScan, activeTab])
-
-  const showManualButton = scanState === 'idle'
-
-  return (
-    <div className="relative flex flex-col w-full max-w-120 lg:max-w-none mx-auto h-[calc(100vh-56px)] lg:h-screen overflow-hidden bg-black">
-
-      {/* タブバー: 上部に固定 */}
-      <div className="flex gap-2 border-b border-gray-700 bg-black/80 z-20 flex-shrink-0">
-        {(['camera', 'upload'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => handleTabChange(tab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab
-                ? 'border-blue-400 text-blue-300'
-                : 'border-transparent text-gray-400'
-            }`}
-          >
-            {tTabs(tab)}
-          </button>
-        ))}
-      </div>
-
-      {/* カメラタブのコンテンツ */}
-      {activeTab === 'camera' && (
-        <>
-          <CameraView
-            videoRef={videoRef}
-            zoomLevel={zoomLevel}
-            supportsHardwareZoom={supportsHardwareZoom}
-            onZoomChange={setZoom}
-            facingMode={facingMode}
-            onToggleFacingMode={toggleFacingMode}
-          />
-          <ScanOverlay state={scanState} />
-
-          <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-3 px-4">
-            {/* 手動キャプチャボタン: 自動検出が通らないときの手動トリガー */}
-            {showManualButton && (
-              <button
-                type="button"
-                onClick={() => { void manualCapture() }}
-                className="px-8 py-3 rounded-full bg-white/90 text-gray-900 text-sm font-semibold
-                  shadow-lg active:scale-95 transition-transform
-                  focus:outline-none focus:ring-2 focus:ring-white"
-              >
-                {GUIDE_MESSAGES.manual}
-              </button>
-            )}
-            <ScanGuide state={scanState} error={error ?? undefined} />
+  // プレビュー画面
+  if (scanState === 'preview' && previewDataUrl) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center gap-4 p-4">
+          <h2 className="font-bold">{t('preview.title')}</h2>
+          <img src={previewDataUrl} alt="preview" className="max-w-sm rounded-lg shadow" />
+          <div className="flex gap-4">
+            <button
+              onClick={reset}
+              className="rounded-lg border px-6 py-3 text-sm font-medium hover:bg-accent"
+            >
+              {t('preview.retake')}
+            </button>
+            <button
+              onClick={() => { void confirmAndScan() }}
+              className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground"
+            >
+              {t('preview.confirm')}
+            </button>
           </div>
-        </>
-      )}
+        </div>
+      </AppLayout>
+    )
+  }
 
-      {/* 画像タブのコンテンツ */}
-      {activeTab === 'upload' && scanState !== 'result' && (
-        <div className="relative flex-1 flex flex-col overflow-hidden">
-          {/* アップロードした画像のプレビュー */}
-          {previewUrl && (
-            <img
-              src={previewUrl}
-              alt="preview"
-              className="absolute inset-0 w-full h-full object-contain"
-            />
-          )}
+  // 結果画面
+  if (scanState === 'result' && result !== null) {
+    return (
+      <AppLayout>
+        <div className="relative h-[calc(100dvh-4rem)] lg:h-screen">
+          <ResultCard
+            result={result}
+            onClose={reset}
+            storeCandidates={storeCandidates}
+            onStoreSelect={onStoreSelect}
+          />
+        </div>
+      </AppLayout>
+    )
+  }
 
-          {/* processing 中は ScanOverlay を重ねて表示 */}
-          {scanState === 'processing' && (
-            <ScanOverlay state="processing" />
-          )}
+  // カメラ画面（idle / processing / error）
+  return (
+    <AppLayout>
+      <LoadingOverlay isOpen={scanState === 'processing'} message={t('processing')} />
 
-          {/* processing でないとき: ヒントとボタン */}
-          {scanState !== 'processing' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-end gap-4 pb-8 px-8">
-              {!previewUrl && (
-                <p className="text-gray-300 text-sm text-center">{tTabs('uploadHint')}</p>
-              )}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-8 py-4 rounded-full bg-blue-600 text-white text-base font-semibold shadow-lg active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                {tCamera('uploadButton')}
-              </button>
+      <div className="relative flex h-[calc(100dvh-4rem)] flex-col lg:h-screen">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-full w-full object-cover"
+          aria-label={t('camera.videoLabel')}
+        />
+
+        <div className="absolute inset-0 flex flex-col justify-between p-4">
+          <div className="flex items-center justify-end">
+            {/* カメラ切り替えボタン（モバイルのみ表示） */}
+            <button
+              onClick={toggleFacingMode}
+              aria-label={t('camera.switchCamera')}
+              className="rounded-full bg-black/40 p-2 text-white lg:hidden"
+            >
+              🔄
+            </button>
+          </div>
+
+          {error && (
+            <div className="mx-auto rounded-lg bg-black/60 px-4 py-2 text-sm text-white">
+              {t(`error.${error}`)}
             </div>
           )}
+
+          <div className="flex flex-col items-center gap-3 pb-8">
+            {/* タップ撮影ボタン */}
+            <button
+              onClick={handleCapture}
+              disabled={scanState === 'processing'}
+              aria-label={t('capture')}
+              className="h-20 w-20 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm transition-opacity disabled:opacity-50"
+            >
+              <span className="text-2xl">📷</span>
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* ResultCard は両タブで共通 */}
-      {scanState === 'result' && result !== null && (
-        <ResultCard result={result} onClose={handleScanAgain} storeCandidates={storeCandidates} onStoreSelect={onStoreSelect} />
-      )}
-
-      {/* hidden file input: 画像タブ用。capture 属性なし（ギャラリー選択を許可するため） */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) {
-            setPreviewUrl((prev) => {
-              if (prev) URL.revokeObjectURL(prev)
-              return URL.createObjectURL(file)
-            })
-            void uploadAndScanImage(file)
-          }
-          // 同じファイルを再選択できるようにリセット
-          e.target.value = ''
-        }}
-      />
-    </div>
+      {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
+      <p className="p-2 text-center text-xs text-muted-foreground">
+        {t('caution')}
+      </p>
+    </AppLayout>
   )
 }
