@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { HistoryCard } from '@/components/organisms/HistoryCard'
+import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
 import { useOthersScanned } from '@/hooks/useOthersScanned'
 import { useAuthContext } from '@/providers/AuthProvider'
@@ -138,11 +139,7 @@ export default function HistoryPage() {
 
           {myIsLoading && (
             <div className="flex justify-center items-center py-12">
-              <div
-                className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"
-                role="status"
-                aria-label={t('loading')}
-              />
+              <LoadingSpinner />
             </div>
           )}
 
@@ -188,11 +185,7 @@ export default function HistoryPage() {
         <>
           {othersIsLoading && (
             <div className="flex justify-center items-center py-12">
-              <div
-                className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"
-                role="status"
-                aria-label={t('loading')}
-              />
+              <LoadingSpinner />
             </div>
           )}
 
