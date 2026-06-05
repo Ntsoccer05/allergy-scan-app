@@ -23,7 +23,12 @@
     "rawTextCollapse": "原材料を確認する ▲",
     "caution": "⚠️ 購入前にラベルの実物も必ずご確認ください",
     "ngDisclaimer": "このアプリの判定は参考情報です。アナフィラキシーのリスクがある方は必ず実物ラベルでご確認ください",
-    "share": "共有する",
+    "share": {
+      "button": "共有する",
+      "title": "アレルギースキャンアプリ",
+      "defaultProductName": "商品",
+      "text": "{name} はアレルギーなし（{title}調べ）"
+    },
     "scanAgain": "もう一度スキャンする",
     "noAllergenSetting": "アレルギー設定なし",
     "allergenListLabel": "アレルギー判定結果",
@@ -51,7 +56,8 @@
     "lowConfidenceMessage": "読み取れた原材料テキストを以下に表示します。ご自身でアレルゲンをご確認ください。",
     "productNameLabel": "商品名:",
     "priceLabel": "参考価格:",
-    "priceValue": "¥{price}"
+    "priceValue": "¥{price}",
+    "regionLabel": "スキャン結果"
   },
   "camera": {
     "switchCamera": "カメラ切り替え",

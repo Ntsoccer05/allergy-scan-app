@@ -1,3 +1,6 @@
+/** 1日あたりのデフォルトスキャン上限（サブスクリプション情報が取得できない場合に使用） */
+export const DEFAULT_DAILY_SCAN_LIMIT = 20
+
 /** カメラズームの設定 */
 export const ZOOM_MIN = 1.0
 export const ZOOM_MAX = 5.0

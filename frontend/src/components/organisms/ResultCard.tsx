@@ -54,21 +54,6 @@ const deriveJudgment = (result: ScanResult): Judgment | null => {
 const isNgJudgment = (judgment: Judgment | null): boolean =>
   judgment === '含む' || judgment === '一部含む'
 
-/**
- * Web Share API に渡す共有コンテンツを構築する。
- * ⚠️ navigator.share は HTTPS 環境でのみ動作する（localhost 開発時は非対応の場合がある）
- */
-const buildShareContent = (result: ScanResult, title: string): { title: string; text: string } => {
-  const name =
-    result.type === 'barcode'
-      ? (result.data.product_name ?? '商品')
-      : '商品'
-  return {
-    title,
-    text: `${name} はアレルギーなし（${title}調べ）`,
-  }
-}
-
 /** Web Share API のサポート有無を判定する */
 const supportsWebShare = (): boolean =>
   typeof navigator !== 'undefined' && typeof navigator.share === 'function'
@@ -138,6 +123,22 @@ export const ResultCard = ({
   const [rawTextOpen, setRawTextOpen] = useState(false)
   const t = useTranslations('result')
 
+  /**
+   * Web Share API に渡す共有コンテンツを構築する。
+   * ⚠️ navigator.share は HTTPS 環境でのみ動作する（localhost 開発時は非対応の場合がある）
+   */
+  const buildShareContent = (): { title: string; text: string } => {
+    const title = t('share.title')
+    const name =
+      result.type === 'barcode'
+        ? (result.data.product_name ?? t('share.defaultProductName'))
+        : t('share.defaultProductName')
+    return {
+      title,
+      text: t('share.text', { name, title }),
+    }
+  }
+
   /** judgment 値から表示ラベルへのマッピング（t() はコンポーネント内で呼ぶ必要がある） */
   const judgmentLabel: Record<Judgment, string> = {
     '含む': t('judgment.contains'),
@@ -152,7 +153,7 @@ export const ResultCard = ({
       <div
         className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
         role="region"
-        aria-label="スキャン結果"
+        aria-label={t('regionLabel')}
       >
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
@@ -189,7 +190,7 @@ export const ResultCard = ({
       <div
         className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
         role="region"
-        aria-label="スキャン結果"
+        aria-label={t('regionLabel')}
       >
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
@@ -241,7 +242,7 @@ export const ResultCard = ({
   const handleShare = async (): Promise<void> => {
     if (typeof navigator.share !== 'function') return
     vibrateIfAndroid(VIBRATE_SHARE_MS)
-    const shareContent = buildShareContent(result, t('appTitle'))
+    const shareContent = buildShareContent()
     try {
       await navigator.share(shareContent)
     } catch (err) {
@@ -257,7 +258,7 @@ export const ResultCard = ({
       className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
         translate-y-0 transition-transform duration-300"
       role="region"
-      aria-label="スキャン結果"
+      aria-label={t('regionLabel')}
     >
       {/* ドラッグハンドル */}
       <div className="flex justify-center pt-2 pb-1">
@@ -400,7 +401,7 @@ export const ResultCard = ({
             className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
               bg-black text-white text-sm font-medium"
           >
-            {t('share')}
+            {t('share.button')}
           </button>
         )}
 

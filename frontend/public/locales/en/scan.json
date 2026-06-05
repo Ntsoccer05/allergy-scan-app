@@ -23,7 +23,12 @@
     "rawTextCollapse": "Check ingredients ▲",
     "caution": "⚠️ Always check the actual label before purchasing.",
     "ngDisclaimer": "This app's judgment is for reference only. If you are at risk of anaphylaxis, please always verify the actual label.",
-    "share": "Share",
+    "share": {
+      "button": "Share",
+      "title": "Allergy Scan App",
+      "defaultProductName": "product",
+      "text": "{name} has no allergens (checked by {title})"
+    },
     "scanAgain": "Scan again",
     "noAllergenSetting": "No allergen settings",
     "allergenListLabel": "Allergen judgment results",
@@ -51,7 +56,8 @@
     "lowConfidenceMessage": "The extracted ingredient text is shown below. Please check for your allergens manually.",
     "productNameLabel": "Product:",
     "priceLabel": "Est. price:",
-    "priceValue": "¥{price}"
+    "priceValue": "¥{price}",
+    "regionLabel": "Scan result"
   },
   "camera": {
     "switchCamera": "Switch Camera",
