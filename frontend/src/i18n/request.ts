@@ -30,7 +30,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
     settingsMessages,
     onboardingMessages,
     historyMessages,
-  ] = ['scan', 'common', 'settings', 'onboarding', 'history'].map((ns) =>
+    authMessages,
+  ] = ['scan', 'common', 'settings', 'onboarding', 'history', 'auth'].map((ns) =>
     readLocaleFile(locale, ns),
   )
 
@@ -42,6 +43,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       settings: settingsMessages,
       onboarding: onboardingMessages,
       history: historyMessages,
+      auth: authMessages,
     },
   }
 })
