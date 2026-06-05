@@ -37,7 +37,6 @@ CREATE TABLE "user_daily_scans" (
     CONSTRAINT "user_daily_scans_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX "user_daily_scans_user_id_scan_date_key" ON "user_daily_scans"("user_id", "scan_date");
-CREATE INDEX "user_daily_scans_user_date_idx" ON "user_daily_scans"("user_id", "scan_date");
 
 -- CreateTable: stripe_customers
 CREATE TABLE "stripe_customers" (
@@ -61,6 +60,10 @@ ALTER TABLE "scan_histories" ADD COLUMN "is_public" BOOLEAN NOT NULL DEFAULT tru
 
 -- DropTable: backup_codes (Supabase Auth で代替)
 DROP TABLE IF EXISTS "backup_codes";
+
+-- 必須インデックス: store_name での履歴検索用（implementation_rules.md 準拠）
+-- location JSONB 内の store_name を抽出する式インデックス
+CREATE INDEX IF NOT EXISTS "scan_histories_store_idx" ON "scan_histories"(((location->>'store_name')), scanned_at DESC);
 
 -- AddForeignKey
 ALTER TABLE "user_subscriptions" ADD CONSTRAINT "user_subscriptions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

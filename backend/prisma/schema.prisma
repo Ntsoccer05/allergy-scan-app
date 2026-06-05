@@ -166,7 +166,6 @@ model UserDailyScan {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, scanDate])
-  @@index([userId, scanDate], name: "user_daily_scans_user_date_idx")
   @@map("user_daily_scans")
 }
 
