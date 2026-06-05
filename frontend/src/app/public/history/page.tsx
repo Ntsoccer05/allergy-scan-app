@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { JudgmentBadge } from '@/components/molecules/JudgmentBadge'
 import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { usePublicHistory, usePublicHistoryDigest } from '@/hooks/usePublicHistory'
@@ -10,6 +10,7 @@ import type { JudgmentShort } from '@/app/scan/scan.types'
 
 export default function PublicHistoryPage() {
   const t = useTranslations('history')
+  const locale = useLocale()
   const queryClient = useQueryClient()
   const [showUpdateBanner, setShowUpdateBanner] = useState(false)
 
@@ -84,7 +85,7 @@ export default function PublicHistoryPage() {
                 <p className="mt-1 text-xs text-muted-foreground">📍 {item.store_name}</p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                {new Date(item.scanned_at).toLocaleDateString('ja-JP')}
+                {new Date(item.scanned_at).toLocaleDateString(locale)}
               </p>
             </div>
           ))}
