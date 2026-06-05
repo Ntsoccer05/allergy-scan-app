@@ -3,6 +3,7 @@
     "label": "Bottom navigation",
     "scan": "Scan",
     "history": "History",
-    "settings": "Settings"
+    "settings": "Settings",
+    "signOut": "Sign out"
   }
 }
