@@ -15,6 +15,7 @@ import { BarcodeScandDto } from './dto/barcode-scan.dto';
 import { OcrScanDto } from './dto/ocr-scan.dto';
 import type { BarcodeScanResult, OcrScanResult, PresignedUrlResult } from './scan.service';
 import { COOKIE_NAME } from '../users/users.constants';
+import { Public } from '../auth/public.decorator';
 import {
   THROTTLE_OCR_TTL,
   THROTTLE_OCR_LIMIT,
@@ -27,12 +28,14 @@ export class ScanController {
   constructor(private readonly scanService: ScanService) {}
 
   /** GET /scan/presigned-url: S3 Presigned PUT URL を発行する。 */
+  @Public()
   @Get('presigned-url')
   async getPresignedUrl(): Promise<PresignedUrlResult> {
     return this.scanService.getPresignedUrl();
   }
 
   /** POST /scan/barcode: JAN コード照合。found フィールドを必ず含むレスポンスを返す。 */
+  @Public()
   @Post('barcode')
   @HttpCode(HttpStatus.OK)
   @Throttle({
@@ -43,6 +46,7 @@ export class ScanController {
   }
 
   /** POST /scan/ocr: S3 キーを受け取り OCR + アレルギー判定を行う。 */
+  @Public()
   @Post('ocr')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
@@ -59,6 +63,7 @@ export class ScanController {
    * raw_text が確定するたびに raw_text イベントを送信し、完了後に result イベントを送信する。
    * ⚠️ Lambda 環境では Response Streaming が必要（ローカル開発では通常の SSE で動作する）。
    */
+  @Public()
   @Post('ocr-stream')
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
   async ocrStream(

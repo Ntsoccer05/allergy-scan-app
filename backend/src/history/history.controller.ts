@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,43 +15,25 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
-import { IsNumber, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
 import { HistoryService } from './history.service';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
+import { PatchHistoryDto } from './dto/patch-history.dto';
 import type { HistoryListResult } from './history.service';
 import type { ScanHistoryRecord } from './scan-history.repository';
 import { COOKIE_NAME } from '../users/users.constants';
+import { Public } from '../auth/public.decorator';
 import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
 } from '../shared/throttler.constants';
-
-/** PATCH /history/:id のリクエストボディ内 location DTO */
-class PatchLocationDto {
-  @IsString()
-  store_name!: string;
-
-  @IsNumber()
-  lat!: number;
-
-  @IsNumber()
-  lng!: number;
-}
-
-/** PATCH /history/:id のリクエストボディ DTO */
-class PatchHistoryDto {
-  @ValidateNested()
-  @Type(() => PatchLocationDto)
-  location!: PatchLocationDto;
-}
 
 @Controller('history')
 export class HistoryController {
   constructor(private readonly historyService: HistoryService) {}
 
   /** GET /history: カーソルページネーションでスキャン履歴を取得する。 */
+  @Public()
   @Get()
   @Throttle({
     default: { ttl: THROTTLE_HISTORY_TTL, limit: THROTTLE_HISTORY_LIMIT },
@@ -70,6 +53,7 @@ export class HistoryController {
   }
 
   /** POST /history: スキャン履歴を1件保存する。 */
+  @Public()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createHistory(
@@ -86,10 +70,11 @@ export class HistoryController {
     return this.historyService.createHistory(userId, body);
   }
 
-  /** PATCH /history/:id: 履歴の location を更新する。Cookie 認証必須。 */
+  /** PATCH /history/:id: 履歴の product_name・store_name・memo・location を更新する。Cookie 認証必須。 */
+  @Public()
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  async updateLocation(
+  async updateHistory(
     @Req() req: Request,
     @Param('id') id: string,
     @Body() body: PatchHistoryDto,
@@ -101,6 +86,24 @@ export class HistoryController {
         code: 'UNAUTHORIZED',
       });
     }
-    await this.historyService.updateLocation(id, userId, body.location);
+    await this.historyService.updateHistory(id, userId, body);
+  }
+
+  /** DELETE /history/:id: 履歴を物理削除する。Cookie 認証必須。成功時 204 を返す。 */
+  @Public()
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteHistory(
+    @Req() req: Request,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    if (!userId) {
+      throw new UnauthorizedException({
+        message: '認証が必要です',
+        code: 'UNAUTHORIZED',
+      });
+    }
+    await this.historyService.deleteHistory(id, userId);
   }
 }

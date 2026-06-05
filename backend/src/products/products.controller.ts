@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { ProductsService } from './products.service';
 import type { OthersProductListResult } from './products.service';
 import { COOKIE_NAME } from '../users/users.constants';
+import { Public } from '../auth/public.decorator';
 import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
@@ -24,6 +25,7 @@ export class ProductsController {
    * リクエストユーザーがスキャンしていない商品一覧をカーソルページネーションで返す（R2・R3・R4）。
    * Cookie なしのリクエストは 401 を返す（R: Completion criteria）。
    */
+  @Public()
   @Get('others')
   @Throttle({
     default: { ttl: THROTTLE_HISTORY_TTL, limit: THROTTLE_HISTORY_LIMIT },

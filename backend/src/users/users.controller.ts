@@ -19,6 +19,7 @@ import { randomUUID } from 'crypto';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 import { UsersRepository } from './users.repository';
 import { COOKIE_NAME, COOKIE_MAX_AGE } from './users.constants';
+import { Public } from '../auth/public.decorator';
 import {
   THROTTLE_USERS_INIT_TTL,
   THROTTLE_USERS_INIT_LIMIT,
@@ -52,6 +53,7 @@ export class UsersController {
   constructor(private readonly usersRepository: UsersRepository) {}
 
   /** POST /users/init: Cookie が未設定の場合は UUID を生成して users テーブルに INSERT し Cookie を発行する。 */
+  @Public()
   @Post('init')
   @Throttle({
     default: { ttl: THROTTLE_USERS_INIT_TTL, limit: THROTTLE_USERS_INIT_LIMIT },
@@ -90,6 +92,7 @@ export class UsersController {
   }
 
   /** GET /users/me: Cookie からユーザー情報を取得する */
+  @Public()
   @Get('me')
   async getMe(@Req() req: Request): Promise<UserMeResponse> {
     const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
@@ -108,6 +111,7 @@ export class UsersController {
   }
 
   /** PUT /users/me: アレルギー設定・ロケールを更新する */
+  @Public()
   @Put('me')
   async updateMe(
     @Req() req: Request,
@@ -129,6 +133,7 @@ export class UsersController {
   }
 
   /** DELETE /users/me: ユーザーデータを削除する（要配慮個人情報の削除権） */
+  @Public()
   @Delete('me')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteMe(@Req() req: Request, @Res() res: Response): Promise<void> {
