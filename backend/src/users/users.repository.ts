@@ -6,13 +6,11 @@ export type UserRecord = {
   id: string;
   allergies: UserAllergies;
   locale: string;
-  onboardingDone: boolean;
 };
 
 export type UpdateUserInput = {
   allergies?: UserAllergies;
   locale?: string;
-  onboardingDone?: boolean;
 };
 
 @Injectable()
@@ -22,7 +20,7 @@ export class UsersRepository {
   async findById(userId: string): Promise<UserRecord | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, allergies: true, locale: true, onboardingDone: true },
+      select: { id: true, allergies: true, locale: true },
     });
     if (!user) return null;
     return {
@@ -30,8 +28,6 @@ export class UsersRepository {
       allergies: user.allergies as unknown as UserAllergies,
       // DEFAULT 'ja' だが null 混入防止のためフォールバックを持たせる
       locale: user.locale ?? 'ja',
-      // DEFAULT false だが null 混入防止のためフォールバックを持たせる
-      onboardingDone: user.onboardingDone ?? false,
     };
   }
 
@@ -56,21 +52,16 @@ export class UsersRepository {
     if (input.locale !== undefined) {
       data.locale = input.locale;
     }
-    // onboarding_done は true への更新のみ許可する（false への上書きは安全設計上禁止）
-    if (input.onboardingDone === true) {
-      data.onboardingDone = true;
-    }
 
     const user = await this.prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, allergies: true, locale: true, onboardingDone: true },
+      select: { id: true, allergies: true, locale: true },
     });
     return {
       id: user.id,
       allergies: user.allergies as unknown as UserAllergies,
       locale: user.locale ?? 'ja',
-      onboardingDone: user.onboardingDone ?? false,
     };
   }
 }

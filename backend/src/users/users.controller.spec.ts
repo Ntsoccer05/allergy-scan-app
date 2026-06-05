@@ -37,7 +37,6 @@ const makeUserRecord = (overrides?: Partial<UserRecord>): UserRecord => ({
   id: 'user-1',
   allergies: {},
   locale: 'ja',
-  onboardingDone: false,
   ...overrides,
 });
 
@@ -71,7 +70,7 @@ describe('UsersController', () => {
   });
 
   describe('POST /users/init', () => {
-    it('Cookie なしで呼んだ場合、UUID を生成して UsersRepository.create が1回呼ばれ { created: true, onboarding_done: false } を返す', async () => {
+    it('Cookie なしで呼んだ場合、UUID を生成して UsersRepository.create が1回呼ばれ { created: true } を返す', async () => {
       const req = { cookies: {} } as unknown as Request;
       const { res, statusFn, jsonFn, cookieFn } = buildMockRes();
 
@@ -82,14 +81,11 @@ describe('UsersController', () => {
       expect(statusFn).toHaveBeenCalledWith(201);
       expect(jsonFn).toHaveBeenCalledWith({
         created: true,
-        onboarding_done: false,
       });
     });
 
-    it('Cookie あり（userId 設定済み）で呼んだ場合、UsersRepository.create が呼ばれず { created: false, onboarding_done: false } を返す', async () => {
-      repository.findById.mockResolvedValue(
-        makeUserRecord({ onboardingDone: false }),
-      );
+    it('Cookie あり（userId 設定済み）で呼んだ場合、UsersRepository.create が呼ばれず { created: false } を返す', async () => {
+      repository.findById.mockResolvedValue(makeUserRecord());
       const req = {
         cookies: { [COOKIE_NAME]: 'existing-uuid' },
       } as unknown as Request;
@@ -101,24 +97,6 @@ describe('UsersController', () => {
       expect(cookieFn).not.toHaveBeenCalled();
       expect(jsonFn).toHaveBeenCalledWith({
         created: false,
-        onboarding_done: false,
-      });
-    });
-
-    it('Cookie あり（onboarding_done: true のユーザー）で呼んだ場合、{ created: false, onboarding_done: true } を返す', async () => {
-      repository.findById.mockResolvedValue(
-        makeUserRecord({ onboardingDone: true }),
-      );
-      const req = {
-        cookies: { [COOKIE_NAME]: 'existing-uuid' },
-      } as unknown as Request;
-      const { res, jsonFn } = buildMockRes();
-
-      await controller.init(req, res as unknown as Response);
-
-      expect(jsonFn).toHaveBeenCalledWith({
-        created: false,
-        onboarding_done: true,
       });
     });
 
@@ -173,10 +151,8 @@ describe('UsersController', () => {
   });
 
   describe('GET /users/me', () => {
-    it('Cookie あり・ユーザー存在時に onboarding_done を含むプロファイルを返す', async () => {
-      repository.findById.mockResolvedValue(
-        makeUserRecord({ onboardingDone: true }),
-      );
+    it('Cookie あり・ユーザー存在時にプロファイルを返す', async () => {
+      repository.findById.mockResolvedValue(makeUserRecord());
       const req = {
         cookies: { [COOKIE_NAME]: 'user-1' },
       } as unknown as Request;
@@ -187,7 +163,6 @@ describe('UsersController', () => {
         id: 'user-1',
         allergies: {},
         locale: 'ja',
-        onboarding_done: true,
       });
     });
 
@@ -199,33 +174,20 @@ describe('UsersController', () => {
   });
 
   describe('PUT /users/me', () => {
-    it('onboarding_done: true を渡すと UsersRepository.update が onboardingDone: true で呼ばれる', async () => {
+    it('allergies と locale を渡すと UsersRepository.update が正しい引数で呼ばれる', async () => {
+      const mockAllergies = { 乳: { enabled: true, partialAlert: true } };
       repository.update.mockResolvedValue(
-        makeUserRecord({ onboardingDone: true }),
+        makeUserRecord({ allergies: mockAllergies, locale: 'en' }),
       );
       const req = {
         cookies: { [COOKIE_NAME]: 'user-1' },
       } as unknown as Request;
 
-      await controller.updateMe(req, { onboarding_done: true });
+      await controller.updateMe(req, { allergies: mockAllergies, locale: 'en' });
 
       expect(repository.update).toHaveBeenCalledWith(
         'user-1',
-        expect.objectContaining({ onboardingDone: true }),
-      );
-    });
-
-    it('onboarding_done: false を渡すと UsersRepository.update で onboardingDone が undefined になる（無視される）', async () => {
-      repository.update.mockResolvedValue(makeUserRecord());
-      const req = {
-        cookies: { [COOKIE_NAME]: 'user-1' },
-      } as unknown as Request;
-
-      await controller.updateMe(req, { onboarding_done: false });
-
-      expect(repository.update).toHaveBeenCalledWith(
-        'user-1',
-        expect.objectContaining({ onboardingDone: undefined }),
+        expect.objectContaining({ allergies: mockAllergies, locale: 'en' }),
       );
     });
 

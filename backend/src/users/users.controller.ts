@@ -16,7 +16,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
-import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsObject, IsOptional, IsString } from 'class-validator';
 import { UsersRepository } from './users.repository';
 import { COOKIE_NAME, COOKIE_MAX_AGE } from './users.constants';
 import {
@@ -27,14 +27,12 @@ import type { UserAllergies } from '../shared/types/db.types';
 
 type InitResponse = {
   created: boolean;
-  onboarding_done: boolean;
 };
 
 type UserMeResponse = {
   id: string;
   allergies: UserAllergies;
   locale: string;
-  onboarding_done: boolean;
 };
 
 class UpdateUserDto {
@@ -45,10 +43,6 @@ class UpdateUserDto {
   @IsOptional()
   @IsString()
   locale?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  onboarding_done?: boolean;
 }
 
 @Controller('users')
@@ -67,12 +61,13 @@ export class UsersController {
 
     if (existingUserId) {
       const user = await this.usersRepository.findById(existingUserId);
-      const onboardingDone = user?.onboardingDone ?? false;
-      res.json({
-        created: false,
-        onboarding_done: onboardingDone,
-      } satisfies InitResponse);
-      return;
+      if (user) {
+        res.json({
+          created: false,
+        } satisfies InitResponse);
+        return;
+      }
+      // Cookie に userId があるが DB に存在しない場合（DB リセット等）→ 新規作成して Cookie を上書き
     }
 
     const userId = randomUUID();
@@ -91,7 +86,6 @@ export class UsersController {
     this.logger.log('新規ユーザー Cookie を発行しました');
     res.status(201).json({
       created: true,
-      onboarding_done: false,
     } satisfies InitResponse);
   }
 
@@ -110,11 +104,10 @@ export class UsersController {
       id: user.id,
       allergies: user.allergies,
       locale: user.locale,
-      onboarding_done: user.onboardingDone,
     };
   }
 
-  /** PUT /users/me: アレルギー設定・ロケール・オンボーディング完了フラグを更新する */
+  /** PUT /users/me: アレルギー設定・ロケールを更新する */
   @Put('me')
   async updateMe(
     @Req() req: Request,
@@ -127,14 +120,11 @@ export class UsersController {
     const updated = await this.usersRepository.update(userId, {
       allergies: dto.allergies,
       locale: dto.locale,
-      // onboarding_done は true のみ受け付ける（false への上書き禁止）
-      onboardingDone: dto.onboarding_done === true ? true : undefined,
     });
     return {
       id: updated.id,
       allergies: updated.allergies,
       locale: updated.locale,
-      onboarding_done: updated.onboardingDone,
     };
   }
 

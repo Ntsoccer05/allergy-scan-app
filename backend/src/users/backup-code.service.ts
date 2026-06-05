@@ -97,25 +97,41 @@ export class BackupCodeService {
       throw new BadRequestException({ message: 'code_invalid' });
     }
 
+    // TODO: remove in Task 7 — backup_codes table removed from schema
+    type TxWithBackupCode = typeof this.prisma & {
+      backupCode: {
+        updateMany: (args: {
+          where: { userId?: string };
+          data: { userId?: string };
+        }) => Promise<unknown>;
+        update: (args: {
+          where: { id: string };
+          data: { isUsed: boolean; usedAt: Date };
+        }) => Promise<unknown>;
+      };
+    };
+
     // トランザクション: 旧 user_id に新デバイスのデータを付け替え → 新 users レコード削除
     await this.prisma.$transaction(async (tx) => {
+      const txTyped = tx as unknown as TxWithBackupCode;
+
       // scan_histories の user_id を旧デバイスに付け替え
-      await tx.scanHistory.updateMany({
+      await txTyped.scanHistory.updateMany({
         where: { userId: newUserId },
         data: { userId: oldUserId },
       });
 
       // backup_codes の user_id を旧デバイスに付け替え（新デバイスが発行したコードがあれば）
-      await tx.backupCode.updateMany({
+      await txTyped.backupCode.updateMany({
         where: { userId: newUserId },
         data: { userId: oldUserId },
       });
 
       // 新デバイスの users レコードを削除
-      await tx.user.delete({ where: { id: newUserId } });
+      await txTyped.user.delete({ where: { id: newUserId } });
 
       // コードを使用済みにする
-      await tx.backupCode.update({
+      await txTyped.backupCode.update({
         where: { id: record.id },
         data: { isUsed: true, usedAt: new Date() },
       });

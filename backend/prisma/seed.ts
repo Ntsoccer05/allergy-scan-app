@@ -181,6 +181,30 @@ const ALLERGEN_COMPONENTS_SEED: Array<{
 ];
 
 async function main(): Promise<void> {
+  // plans を upsert（無料・プレミアムプランの初期データ）
+  await prisma.plan.upsert({
+    where: { name: 'free' },
+    update: { dailyScanLimit: 20 },
+    create: {
+      name: 'free',
+      displayName: '無料プラン',
+      dailyScanLimit: 20,
+      priceMonthlyJpy: 0,
+      priceYearlyJpy: 0,
+    },
+  });
+  await prisma.plan.upsert({
+    where: { name: 'premium' },
+    update: { dailyScanLimit: 50 },
+    create: {
+      name: 'premium',
+      displayName: 'プレミアムプラン',
+      dailyScanLimit: 50,
+      priceMonthlyJpy: 980,
+      priceYearlyJpy: 9800,
+    },
+  });
+
   // allergens を upsert（重複実行しても安全）
   for (const allergen of ALLERGENS_SEED) {
     await prisma.allergen.upsert({

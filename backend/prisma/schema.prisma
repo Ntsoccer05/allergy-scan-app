@@ -79,21 +79,24 @@ model Product {
 
 // スキャン履歴
 model ScanHistory {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  productId   String?  @map("product_id")
-  productName String?  @map("product_name")
-  judgment    String
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  productId    String?  @map("product_id")
+  productName  String?  @map("product_name")
+  judgment     String
   // 'ng' / 'partial' / 'ok'
-  detected    Json     @default("[]")
+  detected     Json     @default("[]")
   // JSONB: { store_name: string, lat: number, lng: number }
-  location    Json?
+  location     Json?
   // NOTE: scan_histories_store_idx（store_name カラム）は database.md の設計では
   //       location JSONB 内の store_name を指す。Prisma では表現不可のため
   //       migration SQL 手動編集で対応する。
   //       手動SQL: CREATE INDEX scan_histories_store_idx ON scan_histories((location->>'store_name'), scanned_at DESC);
-  thumbnailUrl String? @map("thumbnail_url")
-  scannedAt   DateTime @default(now()) @map("scanned_at")
+  thumbnailUrl  String?  @map("thumbnail_url")
+  ocrImageUrl   String?  @map("ocr_image_url")
+  isPublic      Boolean  @default(true) @map("is_public")
+  memo          String?
+  scannedAt     DateTime @default(now()) @map("scanned_at")
 
   product Product? @relation(fields: [productId], references: [id])
 
@@ -103,33 +106,78 @@ model ScanHistory {
 
 // ユーザー・アレルギー設定
 model User {
-  id             String   @id
+  id        String   @id
   // JSONB: { "乳": { enabled: boolean, partialAlert: boolean }, ... }
-  allergies      Json     @default("{}")
-  locale         String   @default("ja")
-  onboardingDone Boolean  @default(false) @map("onboarding_done")
-  createdAt      DateTime @default(now()) @map("created_at")
-  lastUsedAt     DateTime @default(now()) @map("last_used_at")
+  allergies Json     @default("{}")
+  locale    String   @default("ja")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  backupCodes BackupCode[]
+  subscriptions  UserSubscription[]
+  dailyScans     UserDailyScan[]
+  stripeCustomer StripeCustomer?
 
   @@map("users")
 }
 
-// デバイス引き継ぎ用バックアップコード
-model BackupCode {
-  id        String    @id @default(uuid())
-  userId    String    @map("user_id")
-  // ALRG-XXXX-XXXX 形式（O/0・I/1 を除く大文字英数字）
-  code      String    @unique
-  isUsed    Boolean   @default(false) @map("is_used")
-  expiresAt DateTime  @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+// プラン定義（無料・プレミアム等）
+model Plan {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  displayName     String   @map("display_name")
+  dailyScanLimit  Int      @map("daily_scan_limit")
+  priceMonthlyJpy Int      @default(0) @map("price_monthly_jpy")
+  priceYearlyJpy  Int      @default(0) @map("price_yearly_jpy")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  subscriptions UserSubscription[]
+
+  @@map("plans")
+}
+
+// ユーザーサブスクリプション
+model UserSubscription {
+  id                   String    @id @default(uuid())
+  userId               String    @map("user_id")
+  planId               String    @map("plan_id")
+  status               String    @default("active")
+  currentPeriodStart   DateTime  @default(now()) @map("current_period_start")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status], name: "user_subscriptions_user_idx")
+  @@map("user_subscriptions")
+}
+
+// ユーザー日次スキャン数
+model UserDailyScan {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  scanDate  DateTime @db.Date @map("scan_date")
+  scanCount Int      @default(0) @map("scan_count")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([code], name: "backup_codes_code_idx")
-  @@index([userId], name: "backup_codes_user_idx")
-  @@map("backup_codes")
+  @@unique([userId, scanDate])
+  @@index([userId, scanDate], name: "user_daily_scans_user_date_idx")
+  @@map("user_daily_scans")
+}
+
+// Stripe 顧客情報
+model StripeCustomer {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  stripeCustomerId String   @unique @map("stripe_customer_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("stripe_customers")
 }

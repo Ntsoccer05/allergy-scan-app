@@ -40,12 +40,11 @@ describe('UsersRepository', () => {
   });
 
   describe('findById', () => {
-    it('ユーザーが存在する場合、id・allergies・locale・onboardingDone を返す', async () => {
+    it('ユーザーが存在する場合、id・allergies・locale を返す', async () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         allergies: mockAllergies,
         locale: 'ja',
-        onboardingDone: true,
       });
 
       const result = await repository.findById('user-1');
@@ -54,7 +53,6 @@ describe('UsersRepository', () => {
         id: 'user-1',
         allergies: mockAllergies,
         locale: 'ja',
-        onboardingDone: true,
       });
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
@@ -62,7 +60,6 @@ describe('UsersRepository', () => {
           id: true,
           allergies: true,
           locale: true,
-          onboardingDone: true,
         },
       });
     });
@@ -74,84 +71,49 @@ describe('UsersRepository', () => {
 
       expect(result).toBeNull();
     });
-
-    it('onboardingDone が null の場合 false にフォールバックする', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        allergies: {},
-        locale: 'ja',
-        onboardingDone: null,
-      });
-
-      const result = await repository.findById('user-1');
-
-      expect(result?.onboardingDone).toBe(false);
-    });
   });
 
   describe('update', () => {
-    it('onboardingDone: true を渡すと Prisma update に onboardingDone: true が含まれる', async () => {
+    it('allergies と locale を渡すと Prisma update に正しいデータが含まれる', async () => {
       prisma.user.update.mockResolvedValue({
         id: 'user-1',
-        allergies: {},
-        locale: 'ja',
-        onboardingDone: true,
+        allergies: mockAllergies,
+        locale: 'en',
       });
 
       const result = await repository.update('user-1', {
-        onboardingDone: true,
+        allergies: mockAllergies,
+        locale: 'en',
       });
 
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { onboardingDone: true },
+        data: { allergies: mockAllergies, locale: 'en' },
         select: {
           id: true,
           allergies: true,
           locale: true,
-          onboardingDone: true,
         },
       });
-      expect(result.onboardingDone).toBe(true);
+      expect(result.locale).toBe('en');
+      expect(result.allergies).toEqual(mockAllergies);
     });
 
-    it('onboardingDone: false を渡すと Prisma update の data に onboardingDone が含まれない（無視される）', async () => {
+    it('allergies のみ渡した場合 locale が data に含まれない', async () => {
       prisma.user.update.mockResolvedValue({
         id: 'user-1',
-        allergies: {},
+        allergies: mockAllergies,
         locale: 'ja',
-        onboardingDone: false,
       });
 
-      await repository.update('user-1', { onboardingDone: false });
+      await repository.update('user-1', { allergies: mockAllergies });
 
-      const updateCalls1 = prisma.user.update.mock.calls as Array<
+      const updateCalls = prisma.user.update.mock.calls as Array<
         [{ data: Record<string, unknown> }]
       >;
-      const callArg1 = updateCalls1[0][0];
-      expect(callArg1.data).not.toHaveProperty('onboardingDone');
-    });
-
-    it('allergies と locale のみ渡した場合 onboardingDone が data に含まれない', async () => {
-      prisma.user.update.mockResolvedValue({
-        id: 'user-1',
-        allergies: mockAllergies,
-        locale: 'en',
-        onboardingDone: false,
-      });
-
-      await repository.update('user-1', {
-        allergies: mockAllergies,
-        locale: 'en',
-      });
-
-      const updateCalls2 = prisma.user.update.mock.calls as Array<
-        [{ data: Record<string, unknown> }]
-      >;
-      const callArg = updateCalls2[0][0];
-      expect(callArg.data).not.toHaveProperty('onboardingDone');
+      const callArg = updateCalls[0][0];
+      expect(callArg.data).not.toHaveProperty('locale');
       expect(callArg.data.allergies).toEqual(mockAllergies);
-      expect(callArg.data.locale).toBe('en');
     });
   });
 });
