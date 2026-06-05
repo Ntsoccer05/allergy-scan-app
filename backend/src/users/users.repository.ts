@@ -44,6 +44,30 @@ export class UsersRepository {
     await this.prisma.user.delete({ where: { id: userId } });
   }
 
+  async createWithFreePlan(userId: string): Promise<void> {
+    const freePlan = await this.prisma.plan.findUniqueOrThrow({ where: { name: 'free' } })
+    await this.prisma.$transaction([
+      this.prisma.user.create({ data: { id: userId } }),
+      this.prisma.userSubscription.create({
+        data: { userId, planId: freePlan.id, status: 'active' },
+      }),
+    ])
+  }
+
+  async findByIdWithSubscription(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscriptions: {
+          where: { status: 'active' },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    })
+  }
+
   async update(userId: string, input: UpdateUserInput): Promise<UserRecord> {
     const data: Record<string, unknown> = {};
     if (input.allergies !== undefined) {
