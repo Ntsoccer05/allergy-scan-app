@@ -19,7 +19,7 @@ const makeItem = (overrides: Partial<HistoryItem> = {}): HistoryItem => ({
   productName: null,
   judgment: 'ok',
   detected: [],
-  thumbnailUrl: null,
+  thumbnail_url: null,
   ocr_image_url: null,
   is_public: false,
   memo: null,

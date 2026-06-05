@@ -220,7 +220,7 @@ export default function HistoryPage() {
                           productName: item.product_name,
                           judgment: item.judgment,
                           detected: item.detected,
-                          thumbnailUrl: null,
+                          thumbnail_url: null,
                           ocr_image_url: null,
                           is_public: true,
                           memo: null,

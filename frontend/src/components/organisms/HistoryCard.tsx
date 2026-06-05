@@ -18,7 +18,7 @@ type HistoryCardProps = {
 
 export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: HistoryCardProps) => {
   const t = useTranslations('history')
-  const { judgment, productName, detected, scannedAt, location, memo, thumbnailUrl, is_public } = item
+  const { judgment, productName, detected, scannedAt, location, memo, thumbnail_url, is_public } = item
 
   const emoji = JUDGMENT_EMOJI[judgment]
   const formattedDate = new Date(scannedAt).toLocaleString('ja-JP', {
@@ -40,9 +40,9 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: History
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 space-y-2">
       <div className="flex items-start gap-3">
         {/* サムネイル */}
-        {thumbnailUrl ? (
+        {thumbnail_url ? (
           <img
-            src={thumbnailUrl}
+            src={thumbnail_url}
             alt={productName ?? ''}
             className="h-16 w-16 rounded object-cover shrink-0"
           />
