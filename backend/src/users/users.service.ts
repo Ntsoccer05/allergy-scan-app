@@ -20,7 +20,7 @@ export class UsersService {
 
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  async initUser(userId: string, email: string | undefined): Promise<InitResult> {
+  async initUser(userId: string, _email?: string): Promise<InitResult> {
     const existing = await this.usersRepository.findById(userId)
     if (existing) return { created: false }
     await this.usersRepository.createWithFreePlan(userId)
