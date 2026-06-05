@@ -7,7 +7,11 @@ export type HistoryItem = {
   judgment: 'ng' | 'partial' | 'ok'
   detected: string[]
   thumbnailUrl: string | null
+  ocr_image_url: string | null
+  is_public: boolean
+  memo: string | null
   scannedAt: string
+  location?: { store_name: string; lat: number; lng: number } | null
 }
 
 /** GET /history のレスポンス型。 */
@@ -24,6 +28,15 @@ export type CreateHistoryBody = {
   detected: string[]
   thumbnail_url?: string
   location?: { store_name: string; lat: number; lng: number }
+}
+
+/** PATCH /history/:id のリクエストボディ型。 */
+export type PatchHistoryBody = {
+  product_name?: string | null
+  store_name?: string | null
+  memo?: string | null
+  is_public?: boolean
+  thumbnail_url?: string | null
 }
 
 /** 履歴フィルター型。 */

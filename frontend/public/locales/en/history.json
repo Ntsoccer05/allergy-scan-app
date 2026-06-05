@@ -14,5 +14,24 @@
   "othersEmpty": "No products have been scanned yet",
   "loadMore": "Load more",
   "loading": "Loading...",
-  "expiredTag": "May be outdated"
+  "expiredTag": "May be outdated",
+  "storeName": "📍 {store}",
+  "editButton": "Edit",
+  "deleteButton": "Delete",
+  "deleteConfirm": "Are you sure you want to delete this entry? This action cannot be undone.",
+  "deleteDeleting": "Deleting...",
+  "memoLabel": "Memo",
+  "public_badge": "Public",
+  "private_badge": "Private",
+  "memo_label": "Memo",
+  "edit_memo": "Edit memo",
+  "is_public_label": "Share to public history",
+  "editModal": {
+    "title": "Edit History",
+    "productName": "Product Name",
+    "storeName": "Store Name",
+    "memo": "Memo",
+    "save": "Save",
+    "cancel": "Cancel"
+  }
 }

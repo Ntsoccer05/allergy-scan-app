@@ -14,5 +14,24 @@
   "othersEmpty": "まだスキャンされた商品がありません",
   "loadMore": "もっと見る",
   "loading": "読み込み中...",
-  "expiredTag": "情報が古い可能性"
+  "expiredTag": "情報が古い可能性",
+  "storeName": "📍 {store}",
+  "editButton": "編集",
+  "deleteButton": "削除",
+  "deleteConfirm": "この履歴を削除しますか？この操作は取り消せません。",
+  "deleteDeleting": "削除中...",
+  "memoLabel": "メモ",
+  "public_badge": "公開中",
+  "private_badge": "非公開",
+  "memo_label": "メモ",
+  "edit_memo": "メモを編集",
+  "is_public_label": "みんなの履歴に公開",
+  "editModal": {
+    "title": "履歴を編集",
+    "productName": "商品名",
+    "storeName": "店舗名",
+    "memo": "メモ",
+    "save": "保存",
+    "cancel": "キャンセル"
+  }
 }

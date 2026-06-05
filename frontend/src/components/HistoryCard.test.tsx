@@ -20,6 +20,8 @@ const makeItem = (overrides: Partial<HistoryItem> = {}): HistoryItem => ({
   judgment: 'ok',
   detected: [],
   thumbnailUrl: null,
+  ocr_image_url: null,
+  is_public: false,
   memo: null,
   scannedAt: '2026-05-18T12:00:00.000Z',
   ...overrides,
