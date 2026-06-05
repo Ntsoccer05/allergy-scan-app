@@ -23,7 +23,7 @@ export const SCAN_COUNT_THRESHOLD = {
 export const S3_KEY_PREFIX = 'images/';
 
 /** 使用する Gemini モデル名。 */
-export const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
+export const GEMINI_MODEL_NAME = 'gemini-3.1-flash-lite';
 
 /** S3 Presigned URL の有効期限（秒）。5分固定。 */
 export const PRESIGNED_URL_EXPIRES_SEC = 300;
@@ -33,3 +33,6 @@ export const RAW_TEXT_PREFIX_LENGTH = 50;
 
 /** Gemini エラーログに出力するテキストの最大文字数。 */
 export const GEMINI_ERROR_LOG_MAX_LENGTH = 200;
+
+/** スキャンエンドポイントのクールダウン時間（ミリ秒）。Lambda 再起動でリセットされる短期制御。 */
+export const SCAN_COOLDOWN_MS = 3_000;

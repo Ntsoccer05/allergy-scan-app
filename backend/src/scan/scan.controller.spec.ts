@@ -11,6 +11,7 @@ import {
 import request from 'supertest';
 import { ScanController } from './scan.controller';
 import { ScanService } from './scan.service';
+import { DailyScanLimitGuard } from './daily-scan-limit.guard';
 import { ThrottlerExceptionFilter } from '../shared/throttler-exception.filter';
 import {
   THROTTLE_OCR_TTL,
@@ -38,6 +39,7 @@ const validOcrResponse: GeminiOcrResponse = {
   price: null,
   price_with_tax: null,
   price_confidence: null,
+  product_name: null,
 };
 
 /**
@@ -87,7 +89,10 @@ const buildApp = async (
         useClass: ThrottlerExceptionFilter,
       },
     ],
-  }).compile();
+  })
+    .overrideGuard(DailyScanLimitGuard)
+    .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+    .compile();
 
   const app = module.createNestApplication();
   await app.init();

@@ -12,6 +12,7 @@ import { ScanHistoryRepository } from '../history/scan-history.repository';
 import { S3Client } from '../shared/s3.client';
 import { GeminiClient } from '../shared/gemini.client';
 import { UsersRepository } from '../users/users.repository';
+import { UserDailyScansService } from '../users/user-daily-scans.service';
 import { PLACES_PROVIDER_TOKEN } from '../shared/places.interface';
 import type { ProductAllergens } from '../shared/types/db.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
@@ -48,6 +49,7 @@ const validGeminiResponse: GeminiOcrResponse = {
   price: null,
   price_with_tax: null,
   price_confidence: null,
+  product_name: null,
 };
 
 describe('ScanService.scanBarcode', () => {
@@ -101,6 +103,10 @@ describe('ScanService.scanBarcode', () => {
         { provide: S3Client, useValue: s3Client },
         { provide: GeminiClient, useValue: geminiClient },
         { provide: UsersRepository, useValue: usersRepository },
+        {
+          provide: UserDailyScansService,
+          useValue: { canUserScan: jest.fn().mockResolvedValue(true), incrementScanCount: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: PLACES_PROVIDER_TOKEN, useValue: placesClient },
       ],
     }).compile();
@@ -237,6 +243,10 @@ describe('ScanService.processOcr', () => {
         { provide: S3Client, useValue: s3Client },
         { provide: GeminiClient, useValue: geminiClient },
         { provide: UsersRepository, useValue: usersRepository },
+        {
+          provide: UserDailyScansService,
+          useValue: { canUserScan: jest.fn().mockResolvedValue(true), incrementScanCount: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: PLACES_PROVIDER_TOKEN, useValue: placesClient },
       ],
     }).compile();

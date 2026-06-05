@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
@@ -17,6 +19,7 @@ import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
 import { S3Client } from '../shared/s3.client';
 import { GeminiClient } from '../shared/gemini.client';
 import { UsersRepository } from '../users/users.repository';
+import { UserDailyScansService } from '../users/user-daily-scans.service';
 import {
   PLACES_PROVIDER_TOKEN,
   type StoreCandidate,
@@ -28,7 +31,11 @@ import {
   CACHE_TTL_MEMORY_SEC,
   RAW_TEXT_PREFIX_LENGTH,
   S3_KEY_PREFIX,
+  SCAN_COOLDOWN_MS,
 } from './scan.constants';
+
+// Lambda 再起動でリセットされる短期クールダウン用 Map（TTL: 3秒）
+const lastScanTimestamps = new Map<string, number>();
 
 /** POST /scan/barcode のレスポンス型（openapi.yaml BarcodeScanResponse 準拠）。 */
 export type BarcodeScanResult = {
@@ -73,6 +80,7 @@ export class ScanService {
     private readonly s3Client: S3Client,
     private readonly geminiClient: GeminiClient,
     private readonly usersRepository: UsersRepository,
+    private readonly userDailyScansService: UserDailyScansService,
     @Inject(PLACES_PROVIDER_TOKEN) private readonly placesClient: StoreCandidateProvider,
   ) {}
 
@@ -83,7 +91,8 @@ export class ScanService {
    * 3. Open Food Facts API 照合
    * 4. 全ミス → { found: false }
    */
-  async scanBarcode(janCode: string): Promise<BarcodeScanResult> {
+  async scanBarcode(janCode: string, userId?: string): Promise<BarcodeScanResult> {
+    if (userId) this.checkCooldown(userId);
     const cacheKey = `jan:${janCode}`;
 
     // Step 1: メモリキャッシュ確認
@@ -142,7 +151,8 @@ export class ScanService {
    * S3 Presigned PUT URL を発行する（R1）。
    * s3_key はリクエストごとに UUID ベースで一意に生成する。
    */
-  async getPresignedUrl(): Promise<PresignedUrlResult> {
+  async getPresignedUrl(userId?: string): Promise<PresignedUrlResult> {
+    if (userId) this.checkCooldown(userId);
     const s3Key = `${S3_KEY_PREFIX}${randomUUID()}.jpg`;
     const url = await this.s3Client.generatePresignedPutUrl(s3Key);
     this.logger.log(`Presigned URL issued for key: ${s3Key}`);
@@ -222,7 +232,7 @@ export class ScanService {
     );
     const allergens = this.buildAllergensFromGemini(geminiResult);
     const product = await this.productRepository.upsertByHash(labelHash, {
-      productName: null,
+      productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
@@ -249,7 +259,7 @@ export class ScanService {
     await this.scanHistoryRepository.create({
       userId: userId ?? randomUUID(),
       productId: product.id,
-      productName: null,
+      productName: geminiResult.product_name ?? null,
       judgment,
       detected: allDetected,
       location,
@@ -259,6 +269,11 @@ export class ScanService {
     this.logger.log(
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
     );
+
+    // スキャン回数のインクリメント（食品ラベルが確認された場合のみ）
+    if (userId) {
+      await this.userDailyScansService.incrementScanCount(userId);
+    }
 
     // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
     if (storeCandidates.length >= 2) {
@@ -327,7 +342,7 @@ export class ScanService {
     );
     const allergens = this.buildAllergensFromGemini(geminiResult);
     const product = await this.productRepository.upsertByHash(labelHash, {
-      productName: null,
+      productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
@@ -350,7 +365,7 @@ export class ScanService {
     await this.scanHistoryRepository.create({
       userId: userId ?? randomUUID(),
       productId: product.id,
-      productName: null,
+      productName: geminiResult.product_name ?? null,
       judgment,
       detected: allDetected,
       location,
@@ -364,6 +379,22 @@ export class ScanService {
     } else {
       yield { type: 'result', data: geminiResult };
     }
+  }
+
+  /**
+   * ユーザーの連続スキャンを 3 秒のクールダウンで制限する。
+   * Lambda 再起動でリセットされるのは意図的（短期制御のみ）。
+   */
+  private checkCooldown(userId: string): void {
+    const last = lastScanTimestamps.get(userId) ?? 0;
+    const elapsed = Date.now() - last;
+    if (elapsed < SCAN_COOLDOWN_MS) {
+      throw new HttpException(
+        { message: 'scan.error.cooldown', remaining_ms: SCAN_COOLDOWN_MS - elapsed },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    lastScanTimestamps.set(userId, Date.now());
   }
 
   /**

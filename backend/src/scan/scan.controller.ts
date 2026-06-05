@@ -7,6 +7,7 @@ import {
   Post,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
@@ -14,8 +15,9 @@ import { ScanService } from './scan.service';
 import { BarcodeScandDto } from './dto/barcode-scan.dto';
 import { OcrScanDto } from './dto/ocr-scan.dto';
 import type { BarcodeScanResult, OcrScanResult, PresignedUrlResult } from './scan.service';
-import { COOKIE_NAME } from '../users/users.constants';
 import { Public } from '../auth/public.decorator';
+import { DailyScanLimitGuard } from './daily-scan-limit.guard';
+import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 import {
   THROTTLE_OCR_TTL,
   THROTTLE_OCR_LIMIT,
@@ -23,38 +25,42 @@ import {
   THROTTLE_BARCODE_LIMIT,
 } from '../shared/throttler.constants';
 
+type AuthRequest = Request & { user?: SupabaseJwtPayload };
+
 @Controller('scan')
 export class ScanController {
   constructor(private readonly scanService: ScanService) {}
 
   /** GET /scan/presigned-url: S3 Presigned PUT URL を発行する。 */
-  @Public()
+  @UseGuards(DailyScanLimitGuard)
   @Get('presigned-url')
-  async getPresignedUrl(): Promise<PresignedUrlResult> {
-    return this.scanService.getPresignedUrl();
+  async getPresignedUrl(@Req() req: AuthRequest): Promise<PresignedUrlResult> {
+    const userId = req.user?.sub;
+    return this.scanService.getPresignedUrl(userId);
   }
 
   /** POST /scan/barcode: JAN コード照合。found フィールドを必ず含むレスポンスを返す。 */
-  @Public()
+  @UseGuards(DailyScanLimitGuard)
   @Post('barcode')
   @HttpCode(HttpStatus.OK)
   @Throttle({
     default: { ttl: THROTTLE_BARCODE_TTL, limit: THROTTLE_BARCODE_LIMIT },
   })
-  async scanBarcode(@Body() dto: BarcodeScandDto): Promise<BarcodeScanResult> {
-    return this.scanService.scanBarcode(dto.jan_code);
+  async scanBarcode(@Body() dto: BarcodeScandDto, @Req() req: AuthRequest): Promise<BarcodeScanResult> {
+    const userId = req.user?.sub;
+    return this.scanService.scanBarcode(dto.jan_code, userId);
   }
 
   /** POST /scan/ocr: S3 キーを受け取り OCR + アレルギー判定を行う。 */
-  @Public()
+  @UseGuards(DailyScanLimitGuard)
   @Post('ocr')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
   async scanOcr(
     @Body() dto: OcrScanDto,
-    @Req() req: Request,
+    @Req() req: AuthRequest,
   ): Promise<OcrScanResult> {
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    const userId = req.user?.sub;
     return this.scanService.processOcr(dto.s3_key, userId, dto.lat, dto.lng, dto.allow_low_confidence);
   }
 
@@ -68,7 +74,7 @@ export class ScanController {
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
   async ocrStream(
     @Body() dto: OcrScanDto,
-    @Req() req: Request,
+    @Req() req: AuthRequest,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
     res.status(200);
@@ -78,7 +84,7 @@ export class ScanController {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    const userId = req.user?.sub;
 
     try {
       const stream = this.scanService.processOcrStream(
