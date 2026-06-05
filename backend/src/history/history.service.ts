@@ -10,6 +10,7 @@ import type { ScanHistoryRecord } from './scan-history.repository';
 import type { ScanHistoryLocation } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
+import { PatchHistoryDto } from './dto/patch-history.dto';
 
 /** GET /history のレスポンス型。 */
 export type HistoryListResult = {
@@ -92,6 +93,86 @@ export class HistoryService {
     }
     await this.scanHistoryRepository.updateLocation(id, location);
     this.logger.log(`location 更新: historyId=${id}, userId=${userId}`);
+  }
+
+  /**
+   * 履歴の product_name・store_name・memo を更新する。
+   * 所有権確認: 該当履歴が userId に属さない場合は ForbiddenException を throw する。
+   */
+  async updateHistory(
+    id: string,
+    userId: string,
+    data: PatchHistoryDto,
+  ): Promise<void> {
+    const record = await this.scanHistoryRepository.findById(id);
+    if (!record) {
+      throw new NotFoundException({
+        message: '履歴が見つかりません',
+        code: 'HISTORY_NOT_FOUND',
+      });
+    }
+    if (record.userId !== userId) {
+      throw new ForbiddenException({
+        message: 'この履歴を更新する権限がありません',
+        code: 'FORBIDDEN',
+      });
+    }
+    await this.scanHistoryRepository.update(id, {
+      productName: data.product_name,
+      storeName: data.store_name,
+      memo: data.memo,
+    });
+
+    // location フィールドが指定された場合は location も更新する（後方互換）
+    if (data.location !== undefined) {
+      await this.scanHistoryRepository.updateLocation(id, data.location);
+    }
+
+    this.logger.log(`履歴更新: historyId=${id}, userId=${userId}`);
+  }
+
+  /**
+   * 履歴を物理削除する。
+   * 所有権確認: 該当履歴が userId に属さない場合は ForbiddenException を throw する。
+   */
+  async deleteHistory(id: string, userId: string): Promise<void> {
+    const record = await this.scanHistoryRepository.findById(id);
+    if (!record) {
+      throw new NotFoundException({
+        message: '履歴が見つかりません',
+        code: 'HISTORY_NOT_FOUND',
+      });
+    }
+    if (record.userId !== userId) {
+      throw new ForbiddenException({
+        message: 'この履歴を削除する権限がありません',
+        code: 'FORBIDDEN',
+      });
+    }
+    await this.scanHistoryRepository.deleteById(id);
+    this.logger.log(`履歴削除: historyId=${id}, userId=${userId}`);
+  }
+
+  /**
+   * 公開スキャン履歴をカーソルページネーションで取得する。
+   * isPublic: true のレコードのみ返す。認証不要。
+   */
+  async getPublicHistory(limit: number, before?: Date): Promise<HistoryListResult> {
+    const items = await this.scanHistoryRepository.findPublicHistory(limit + 1, before);
+    const hasMore = items.length > limit;
+    const pageItems = hasMore ? items.slice(0, limit) : items;
+    return {
+      items: pageItems,
+      next_before:
+        hasMore && pageItems.length > 0
+          ? pageItems[pageItems.length - 1].scannedAt.toISOString()
+          : null,
+    };
+  }
+
+  /** 公開履歴の件数と最終更新日時を返す（ダイジェスト）。認証不要。 */
+  async getPublicHistoryDigest(): Promise<{ count: number; last_updated_at: Date | null }> {
+    return this.scanHistoryRepository.getPublicHistoryDigest();
   }
 
   /** スキャン履歴を1件 INSERT する。 */
