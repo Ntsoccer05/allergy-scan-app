@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as crypto from 'crypto';
 import { IS_PUBLIC_KEY } from './public.decorator';
@@ -6,6 +6,8 @@ import type { SupabaseJwtPayload } from './types/supabase-jwt.types';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
+  private readonly logger = new Logger(SupabaseJwtGuard.name);
+
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -24,7 +26,8 @@ export class SupabaseJwtGuard implements CanActivate {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       (request as Record<string, unknown>).user = payload;
       return true;
-    } catch {
+    } catch (err) {
+      this.logger.warn('JWT verification failed', err instanceof Error ? err.message : String(err));
       throw new UnauthorizedException();
     }
   }
