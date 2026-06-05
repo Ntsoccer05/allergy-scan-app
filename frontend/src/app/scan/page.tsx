@@ -1,16 +1,23 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/templates/AppLayout'
 import { LoadingOverlay } from '@/components/atoms/LoadingOverlay'
+import { ScanLimitBadge } from '@/components/molecules/ScanLimitBadge'
 import { useScan } from '@/hooks/useScan'
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
+import { useAuthContext } from '@/providers/AuthProvider'
 import { ResultCard } from '@/components/organisms/ResultCard'
+import { getUser } from '@/lib/api/users.api'
+
+const DEFAULT_DAILY_SCAN_LIMIT = 20
 
 export default function ScanPage() {
   useOnboardingGuard()
   const t = useTranslations('scan')
+  const { user } = useAuthContext()
+  const [scanUsage, setScanUsage] = useState<{ used: number; limit: number } | null>(null)
 
   const {
     scanState,
@@ -25,7 +32,6 @@ export default function ScanPage() {
     reset,
     handleCapture,
     confirmAndScan,
-    facingMode,
     toggleFacingMode,
   } = useScan()
 
@@ -35,6 +41,19 @@ export default function ScanPage() {
     return () => stopScan()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ユーザーのサブスクリプション情報からスキャン上限を取得する
+  useEffect(() => {
+    if (!user) return
+    getUser().then((u) => {
+      const limit = u.subscription?.daily_scan_limit ?? DEFAULT_DAILY_SCAN_LIMIT
+      // daily_scan_used は未実装のため used=0 を仮置き（TODO: userDailyScans API 追加後に差し替え）
+      setScanUsage({ used: 0, limit })
+    }).catch(() => {
+      // 取得失敗時はバッジを非表示にする（スキャン自体は継続可能）
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   // プレビュー画面
   if (scanState === 'preview' && previewDataUrl) {
@@ -57,6 +76,10 @@ export default function ScanPage() {
               {t('preview.confirm')}
             </button>
           </div>
+          {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
+          <p className="text-center text-xs text-muted-foreground">
+            {t('caution')}
+          </p>
         </div>
       </AppLayout>
     )
@@ -69,7 +92,7 @@ export default function ScanPage() {
         <div className="relative h-[calc(100dvh-4rem)] lg:h-screen">
           <ResultCard
             result={result}
-            onClose={reset}
+            onReset={reset}
             storeCandidates={storeCandidates}
             onStoreSelect={onStoreSelect}
           />
@@ -94,7 +117,11 @@ export default function ScanPage() {
         />
 
         <div className="absolute inset-0 flex flex-col justify-between p-4">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            {/* スキャン使用量バッジ */}
+            {scanUsage !== null && (
+              <ScanLimitBadge used={scanUsage.used} limit={scanUsage.limit} />
+            )}
             {/* カメラ切り替えボタン（モバイルのみ表示） */}
             <button
               onClick={toggleFacingMode}

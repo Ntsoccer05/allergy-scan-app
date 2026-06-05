@@ -39,6 +39,7 @@ const makeUser = (): UserProfile => ({
   },
   locale: 'ja',
   onboarding_done: true,
+  subscription: null,
 })
 
 beforeEach(() => {

@@ -78,6 +78,7 @@ beforeEach(() => {
     allergies: {},
     locale: 'ja',
     onboarding_done: true,
+    subscription: null,
   })
 })
 

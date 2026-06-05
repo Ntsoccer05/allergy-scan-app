@@ -14,7 +14,7 @@ import { VIBRATION_STORAGE_KEY } from '@/app/settings/page'
 
 type ResultCardProps = {
   result: ScanResult
-  onClose: () => void
+  onReset: () => void
   storeCandidates?: StoreCandidate[]
   onStoreSelect?: (candidate: StoreCandidate | null) => void
 }
@@ -131,7 +131,7 @@ const AllergenRow = ({ item }: { item: AllergenResult }) => {
 
 export const ResultCard = ({
   result,
-  onClose,
+  onReset,
   storeCandidates = [],
   onStoreSelect,
 }: ResultCardProps) => {
@@ -170,7 +170,7 @@ export const ResultCard = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={onReset}
             className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
           >
             {t('scanAgain')}
@@ -202,7 +202,7 @@ export const ResultCard = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={onReset}
             className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
           >
             {t('scanAgain')}
@@ -434,7 +434,7 @@ export const ResultCard = ({
           type="button"
           onClick={() => {
             vibrateIfAndroid(30)
-            onClose()
+            onReset()
           }}
           className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
         >

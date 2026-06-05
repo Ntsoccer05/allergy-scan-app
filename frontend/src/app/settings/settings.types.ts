@@ -10,12 +10,20 @@ export type AllergenSetting = {
  */
 export type AllergySettings = Record<string, AllergenSetting>
 
+/** ユーザーのサブスクリプション情報 */
+export type UserSubscription = {
+  plan_name: string
+  daily_scan_limit: number
+  status: string
+}
+
 /** ユーザー設定（GET /users/me のレスポンス型） */
 export type UserProfile = {
   id: string
   allergies: AllergySettings
   locale: 'ja' | 'en'
   onboarding_done: boolean
+  subscription: UserSubscription | null
 }
 
 /** ユーザー設定更新のリクエストボディ（PUT /users/me） */
