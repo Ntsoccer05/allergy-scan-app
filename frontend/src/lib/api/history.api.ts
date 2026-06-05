@@ -5,6 +5,7 @@ import type {
   HistoryListResponse,
   PatchHistoryBody,
 } from '@/app/history/history.types'
+import type { JudgmentShort } from '@/app/scan/scan.types'
 import { apiFetch } from './api-client'
 
 type GetHistoryParams = {
@@ -69,7 +70,7 @@ export const deleteHistory = async (historyId: string): Promise<void> => {
 export type PublicHistoryItem = {
   id: string
   product_name: string | null
-  judgment: 'ng' | 'partial' | 'ok'
+  judgment: JudgmentShort
   thumbnail_url: string | null
   store_name: string | null
   scanned_at: string

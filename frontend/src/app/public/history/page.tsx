@@ -6,8 +6,6 @@ import { JudgmentBadge } from '@/components/molecules/JudgmentBadge'
 import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { usePublicHistory, usePublicHistoryDigest } from '@/hooks/usePublicHistory'
 import { useQueryClient } from '@tanstack/react-query'
-import type { JudgmentShort } from '@/app/scan/scan.types'
-
 export default function PublicHistoryPage() {
   const t = useTranslations('history')
   const locale = useLocale()
@@ -79,10 +77,12 @@ export default function PublicHistoryPage() {
               )}
               <div className="flex items-start justify-between gap-2">
                 <p className="font-medium line-clamp-2">{item.product_name ?? t('unnamed')}</p>
-                <JudgmentBadge judgment={item.judgment as JudgmentShort} />
+                <JudgmentBadge judgment={item.judgment} />
               </div>
               {item.store_name && (
-                <p className="mt-1 text-xs text-muted-foreground">📍 {item.store_name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('storeName', { store: item.store_name })}
+                </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
                 {new Date(item.scanned_at).toLocaleDateString(locale)}
