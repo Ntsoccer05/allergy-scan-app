@@ -4,7 +4,7 @@ import type {
   PresignedUrlResponse,
   StoreCandidate,
 } from '@/app/scan/scan.types'
-import { API_BASE_URL } from '@/lib/constants'
+import { apiFetch } from './api-client'
 
 /** POST /scan/ocr のレスポンス型（storeCandidates は候補 2 件以上のときのみ含まれる）。 */
 export type OcrApiResponse = OcrScanResponse & {
@@ -20,15 +20,11 @@ export type OcrStreamEvent =
   | { type: 'result'; data: OcrApiResponse }
 
 export const getPresignedUrl = async (): Promise<PresignedUrlResponse> => {
-  const res = await fetch(`${API_BASE_URL}/scan/presigned-url`, {
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    throw new Error(`presigned-url fetch failed: ${res.status}`)
-  }
+  const res = await apiFetch('/scan/presigned-url', { headers: {} })
   return res.json() as Promise<PresignedUrlResponse>
 }
 
+// S3への直接アップロードは Presigned URL 宛てのため Bearer Token は不要
 export const uploadToS3 = async (url: string, imageBlob: Blob): Promise<void> => {
   const res = await fetch(url, {
     method: 'PUT',
@@ -43,15 +39,10 @@ export const uploadToS3 = async (url: string, imageBlob: Blob): Promise<void> =>
 export const postBarcode = async (
   janCode: string,
 ): Promise<BarcodeScanResponse> => {
-  const res = await fetch(`${API_BASE_URL}/scan/barcode`, {
+  const res = await apiFetch('/scan/barcode', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ jan_code: janCode }),
   })
-  if (!res.ok) {
-    throw new Error(`barcode scan failed: ${res.status}`)
-  }
   return res.json() as Promise<BarcodeScanResponse>
 }
 
@@ -79,10 +70,21 @@ export const postOcr = async ({
   if (lng !== undefined) body.lng = lng
   if (allowLowConfidence) body.allow_low_confidence = true
 
-  const res = await fetch(`${API_BASE_URL}/scan/ocr`, {
+  // apiFetch throws on non-ok; OCR errors carry a structured body so we intercept
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+
+  const res = await fetch(`${baseUrl}/scan/ocr`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    headers,
     body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -104,10 +106,20 @@ export async function* postOcrStream(params: PostOcrParams): AsyncGenerator<OcrS
   if (params.lng !== undefined) body.lng = params.lng
   if (params.allowLowConfidence) body.allow_low_confidence = true
 
-  const res = await fetch(`${API_BASE_URL}/scan/ocr-stream`, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+
+  const res = await fetch(`${baseUrl}/scan/ocr-stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    headers,
     body: JSON.stringify(body),
   })
 

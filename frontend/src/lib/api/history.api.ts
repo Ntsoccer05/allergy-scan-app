@@ -3,8 +3,9 @@ import type {
   HistoryFilter,
   HistoryItem,
   HistoryListResponse,
+  PatchHistoryBody,
 } from '@/app/history/history.types'
-import { API_BASE_URL } from '@/lib/constants'
+import { apiFetch } from './api-client'
 
 type GetHistoryParams = {
   filter?: HistoryFilter
@@ -22,26 +23,18 @@ export const getHistory = async (
     query.set('before', params.before)
   }
 
-  const url = `${API_BASE_URL}/history${query.toString() ? `?${query.toString()}` : ''}`
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) {
-    throw new Error(`GET /history failed: ${res.status}`)
-  }
+  const path = `/history${query.toString() ? `?${query.toString()}` : ''}`
+  const res = await apiFetch(path)
   return res.json() as Promise<HistoryListResponse>
 }
 
 export const postHistory = async (
   body: CreateHistoryBody,
 ): Promise<HistoryItem> => {
-  const res = await fetch(`${API_BASE_URL}/history`, {
+  const res = await apiFetch('/history', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    throw new Error(`POST /history failed: ${res.status}`)
-  }
   return res.json() as Promise<HistoryItem>
 }
 
@@ -49,13 +42,26 @@ export const patchHistoryLocation = async (
   historyId: string,
   location: { store_name: string; lat: number; lng: number },
 ): Promise<void> => {
-  const res = await fetch(`${API_BASE_URL}/history/${historyId}`, {
+  await apiFetch(`/history/${historyId}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ location }),
   })
-  if (!res.ok) {
-    throw new Error(`PATCH /history/${historyId} failed: ${res.status}`)
-  }
+}
+
+export const patchHistory = async (
+  historyId: string,
+  data: PatchHistoryBody,
+): Promise<void> => {
+  await apiFetch(`/history/${historyId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export const deleteHistory = async (historyId: string): Promise<void> => {
+  await apiFetch(`/history/${historyId}`, {
+    method: 'DELETE',
+    // DELETE has no body, override Content-Type to avoid sending it
+    headers: {},
+  })
 }

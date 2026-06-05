@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '@/lib/constants'
+import { apiFetch } from './api-client'
 
 export type IssueBackupCodeResponse = {
   code: string
@@ -15,31 +15,37 @@ export type RestoreFromCodeError = {
 
 /**
  * POST /users/backup-code: バックアップコードを発行する
- * Cookie 認証が必要（credentials: 'include' を付ける）
  */
 export const issueBackupCode = async (): Promise<IssueBackupCodeResponse> => {
-  const res = await fetch(`${API_BASE_URL}/users/backup-code`, {
+  const res = await apiFetch('/users/backup-code', {
     method: 'POST',
-    credentials: 'include',
+    headers: {},
   })
-  if (!res.ok) {
-    throw new Error(`POST /users/backup-code failed: ${res.status}`)
-  }
   return res.json() as Promise<IssueBackupCodeResponse>
 }
 
 /**
  * POST /users/restore: バックアップコードで引き継ぎを実行する
- * Cookie 認証が必要（credentials: 'include' を付ける）
  * @throws { message: 'code_invalid' } コードが無効な場合
  */
 export const restoreFromCode = async (
   code: string,
 ): Promise<RestoreFromCodeResponse> => {
-  const res = await fetch(`${API_BASE_URL}/users/restore`, {
+  // apiFetch throws on non-ok responses, but we need to handle 400 specially here
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+
+  const res = await fetch(`${baseUrl}/users/restore`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    headers,
     body: JSON.stringify({ code }),
   })
   if (res.status === 400) {
