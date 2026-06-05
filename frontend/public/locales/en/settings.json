@@ -65,12 +65,19 @@
       "separator": ", "
     }
   },
+  "plan": "Current Plan",
+  "dailyLimit": "Daily scan limit: {limit}",
+  "changePassword": "Change Password",
+  "changePassword.newPasswordPlaceholder": "New password (min 6 characters)",
+  "changePassword.button": "Update Password",
+  "changePassword.success": "Password updated successfully",
   "loading": "Loading...",
   "saving": "Saving...",
   "error": {
     "loadFailed": "Failed to load settings",
     "saveFailed": "Failed to save settings",
     "localeChangeFailed": "Failed to save language setting",
-    "deleteFailed": "Failed to reset data"
+    "deleteFailed": "Failed to reset data",
+    "passwordChangeFailed": "Failed to change password"
   }
 }

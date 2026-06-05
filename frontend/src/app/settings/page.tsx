@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useSettings } from '@/hooks/useSettings'
-import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
+import { useAuthContext } from '@/providers/AuthProvider'
 import { issueBackupCode } from '@/lib/api/backup-code'
+import { createClient } from '@/lib/supabase/client'
 import { ReservationTextSection } from './ReservationTextSection'
 import type { AllergenGroup, AllergenItem } from './settings.types'
 import type { IssueBackupCodeResponse } from '@/lib/api/backup-code'
@@ -16,7 +17,7 @@ const isAndroid = (): boolean =>
 
 export const VIBRATION_STORAGE_KEY = 'vibration_enabled'
 
-type TranslateFn = (key: string) => string
+type TranslateFn = (key: string, values?: Record<string, string | number>) => string
 
 type AllergenToggleRowProps = {
   item: AllergenItem
@@ -161,9 +162,13 @@ const AllergenSection = ({
 }
 
 export default function SettingsPage() {
-  useOnboardingGuard()
   const router = useRouter()
   const t = useTranslations('settings') as TranslateFn
+  const { user } = useAuthContext()
+  const isEmailProvider =
+    user?.app_metadata?.provider === 'email' ||
+    (user?.identities?.some((identity: { provider: string }) => identity.provider === 'email') ??
+      false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -188,6 +193,30 @@ export default function SettingsPage() {
   const [isIssuing, setIsIssuing] = useState(false)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [showReissueConfirm, setShowReissueConfirm] = useState(false)
+
+  const [newPassword, setNewPassword] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsChangingPassword(true)
+    setPasswordError(null)
+    setPasswordSuccess(false)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) {
+        setPasswordError(t('error.passwordChangeFailed'))
+      } else {
+        setPasswordSuccess(true)
+        setNewPassword('')
+      }
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
 
   const handleIssueBackupCode = async () => {
     setIsIssuing(true)
@@ -219,6 +248,7 @@ export default function SettingsPage() {
     allergenGroups,
     allergies,
     locale,
+    userSettings,
     isLoading,
     isSaving,
     error,
@@ -283,6 +313,17 @@ export default function SettingsPage() {
           ))}
         </div>
       </section>
+
+      {/* サブスクリプション情報 */}
+      {userSettings?.subscription && (
+        <section className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 mb-8">
+          <h2 className="text-base font-bold text-gray-800 mb-2">{t('plan')}</h2>
+          <p className="text-sm text-gray-700">{userSettings.subscription.plan_name}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {t('dailyLimit', { limit: userSettings.subscription.daily_scan_limit })}
+          </p>
+        </section>
+      )}
 
       {/* お店予約用テキスト */}
       <ReservationTextSection
@@ -381,6 +422,45 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        {/* パスワード変更（メールプロバイダーのみ） */}
+        {isEmailProvider && (
+          <section className="mb-8">
+            <h2 className="text-base font-bold text-gray-800 mb-4">
+              {t('changePassword')}
+            </h2>
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder={t('changePassword.newPasswordPlaceholder')}
+                  minLength={6}
+                  required
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                    focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {passwordError && (
+                  <p className="text-sm text-red-600">{passwordError}</p>
+                )}
+                {passwordSuccess && (
+                  <p className="text-sm text-green-600">{t('changePassword.success')}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={isChangingPassword || newPassword.length < 6}
+                  className="w-full py-2.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium
+                    border border-blue-200 hover:bg-blue-100 transition-colors
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                    disabled:opacity-50"
+                >
+                  {isChangingPassword ? t('loading') : t('changePassword.button')}
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
 
         {/* アカウント・データリセット */}
         <section className="mb-8">

@@ -65,12 +65,19 @@
       "separator": "・"
     }
   },
+  "plan": "現在のプラン",
+  "dailyLimit": "1日のスキャン上限: {limit}回",
+  "changePassword": "パスワード変更",
+  "changePassword.newPasswordPlaceholder": "新しいパスワード（6文字以上）",
+  "changePassword.button": "パスワードを変更する",
+  "changePassword.success": "パスワードを変更しました",
   "loading": "読み込み中...",
   "saving": "保存中...",
   "error": {
     "loadFailed": "設定の読み込みに失敗しました",
     "saveFailed": "設定の保存に失敗しました",
     "localeChangeFailed": "言語設定の保存に失敗しました",
-    "deleteFailed": "データのリセットに失敗しました"
+    "deleteFailed": "データのリセットに失敗しました",
+    "passwordChangeFailed": "パスワードの変更に失敗しました"
   }
 }

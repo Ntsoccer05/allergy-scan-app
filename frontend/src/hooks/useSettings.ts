@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AllergenGroup, AllergySettings } from '@/app/settings/settings.types'
+import type { AllergenGroup, AllergySettings, UserProfile } from '@/app/settings/settings.types'
 import { DEBOUNCE_WAIT_MS } from '@/app/settings/settings.constants'
 import { getAllergens } from '@/lib/api/allergens.api'
 import { deleteUser, getUser, updateUser } from '@/lib/api/users.api'
@@ -11,6 +11,7 @@ type UseSettingsReturn = {
   allergenGroups: AllergenGroup[]
   allergies: AllergySettings
   locale: 'ja' | 'en'
+  userSettings: UserProfile | null
   isLoading: boolean
   isSaving: boolean
   error: string | null
@@ -25,6 +26,7 @@ export const useSettings = (): UseSettingsReturn => {
   const [allergenGroups, setAllergenGroups] = useState<AllergenGroup[]>([])
   const [allergies, setAllergies] = useState<AllergySettings>({})
   const [locale, setLocale] = useState<'ja' | 'en'>('ja')
+  const [userSettings, setUserSettings] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +46,7 @@ export const useSettings = (): UseSettingsReturn => {
         setAllergenGroups(groups)
         setAllergies(user.allergies)
         setLocale(user.locale)
+        setUserSettings(user)
       } catch {
         if (!isMounted) return
         setError('error.loadFailed')
@@ -139,6 +142,7 @@ export const useSettings = (): UseSettingsReturn => {
     allergenGroups,
     allergies,
     locale,
+    userSettings,
     isLoading,
     isSaving,
     error,
