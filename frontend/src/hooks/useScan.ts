@@ -4,7 +4,6 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { ScanError, ScanResult, ScanState, StoreCandidate } from '@/app/scan/scan.types'
 import type { CreateHistoryBody } from '@/app/history/history.types'
 import {
-  CONSECUTIVE_FRAMES_REQUIRED,
   FRAME_CHECK_INTERVAL_MS,
   GEO_TIMEOUT_MS,
   OCR_MAX_DIMENSION,
@@ -14,14 +13,12 @@ import type { OcrApiResponse, OcrStreamEvent } from '@/lib/api/scan.api'
 import { preprocessFrame } from '@/lib/image-preprocess'
 import { useBarcode } from './useBarcode'
 import { useCamera } from './useCamera'
-import { useFrameCheck } from './useFrameCheck'
 import { useScanApi } from './useScanApi'
 
 export type Action =
   | { type: 'START_CAMERA' }
-  | { type: 'STABLE' }
+  | { type: 'PREVIEW'; imageDataUrl: string }
   | { type: 'PROCESSING' }
-  | { type: 'PARTIAL_TEXT'; text: string }
   | { type: 'RESULT'; payload: ScanResult }
   | { type: 'ERROR'; error: ScanError }
   | { type: 'RESET' }
@@ -31,49 +28,36 @@ export type State = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
+  previewDataUrl: string | null
   storeCandidates: StoreCandidate[]
-  partialRawText: string | null
 }
 
 export const initialState: State = {
   scanState: 'idle',
   error: null,
   result: null,
+  previewDataUrl: null,
   storeCandidates: [],
-  partialRawText: null,
 }
 
 export const scanReducer = (state: State, action: Action): State => {
   switch (action.type) {
     case 'START_CAMERA':
-      return { ...state, scanState: 'detecting', error: null, result: null, storeCandidates: [] }
+      return { ...initialState, scanState: 'idle' }
 
-    case 'STABLE':
-      if (state.scanState !== 'detecting') return state
-      return { ...state, scanState: 'stable' }
+    case 'PREVIEW':
+      return { ...state, scanState: 'preview', previewDataUrl: action.imageDataUrl, error: null }
 
     case 'PROCESSING':
-      return { ...state, scanState: 'processing', partialRawText: null }
-
-    case 'PARTIAL_TEXT':
-      return { ...state, partialRawText: action.text }
+      return { ...state, scanState: 'processing', previewDataUrl: null }
 
     case 'RESULT': {
-      const storeCandidates =
-        action.payload.type === 'ocr'
-          ? (action.payload.storeCandidates ?? [])
-          : []
+      const storeCandidates = action.payload.type === 'ocr' ? (action.payload.storeCandidates ?? []) : []
       return { ...state, scanState: 'result', result: action.payload, storeCandidates }
     }
 
-    case 'ERROR': {
-      if (action.error === 'api_error') {
-        // api_error → idle（ユーザー操作が必要なため自動リトライしない）
-        return { ...state, scanState: 'idle', error: action.error }
-      }
-      // dark / blur / motion / incomplete / confidence_low → detecting 継続
-      return { ...state, scanState: 'detecting', error: action.error }
-    }
+    case 'ERROR':
+      return { ...state, scanState: 'error', error: action.error }
 
     case 'STORE_SELECTED':
       return { ...state, storeCandidates: [] }
@@ -94,13 +78,18 @@ type UseScanReturn = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
+  previewDataUrl: string | null
   storeCandidates: StoreCandidate[]
-  partialRawText: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
   startScan: () => Promise<void>
   stopScan: () => void
   reset: () => void
+  /** タップ撮影: 現在フレームをキャプチャして preview 状態に遷移する */
+  handleCapture: () => void
+  /** プレビュー確定: preview 状態から OCR フローに進む */
+  confirmAndScan: () => Promise<void>
   manualCapture: () => Promise<void>
+  uploadAndScanImage: (file: File) => Promise<void>
   zoomLevel: number
   setZoom: (level: number) => void
   supportsHardwareZoom: boolean
@@ -155,12 +144,9 @@ export const useScan = (): UseScanReturn => {
   const [state, dispatch] = useReducer(scanReducer, initialState)
   const { videoRef, captureFrame, startCamera, stopCamera, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useCamera()
   const { detectFromImageData } = useBarcode()
-  const { isQualityOk } = useFrameCheck()
   const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation } =
     useScanApi()
 
-  const consecutiveOkRef = useRef(0)
-  const prevFrameRef = useRef<ImageData | null>(null)
   const intervalRef = useRef<number | null>(null)
   const isProcessingRef = useRef(false)
   const stateRef = useRef<ScanState>('idle')
@@ -222,7 +208,7 @@ export const useScan = (): UseScanReturn => {
 
         for await (const event of stream as AsyncGenerator<OcrStreamEvent>) {
           if (event.type === 'raw_text') {
-            dispatch({ type: 'PARTIAL_TEXT', text: event.text })
+            // raw_text イベントは現在表示しない（プレビューフローでは不要）
           } else if (event.type === 'confidence_low') {
             lowConfidenceRawText = event.raw_text
           } else if (event.type === 'error') {
@@ -271,70 +257,40 @@ export const useScan = (): UseScanReturn => {
 
   const tick = useCallback(async (): Promise<void> => {
     if (isProcessingRef.current) return
-    if (stateRef.current !== 'detecting' && stateRef.current !== 'stable') return
+    if (stateRef.current !== 'idle') return
 
     const frame = captureFrame()
     if (!frame) return
 
     // バーコード検出を優先
-    if (stateRef.current === 'detecting') {
-      const janCode = await detectFromImageData(frame)
-      if (janCode) {
-        isProcessingRef.current = true
-        dispatch({ type: 'PROCESSING' })
-        try {
-          const result = await scanBarcodeWithCache(janCode)
-          if (result.found) {
-            const scanResult: ScanResult = { type: 'barcode', data: result }
-            dispatch({ type: 'RESULT', payload: scanResult })
+    const janCode = await detectFromImageData(frame)
+    if (janCode) {
+      isProcessingRef.current = true
+      dispatch({ type: 'PROCESSING' })
+      try {
+        const result = await scanBarcodeWithCache(janCode)
+        if (result.found) {
+          const scanResult: ScanResult = { type: 'barcode', data: result }
+          dispatch({ type: 'RESULT', payload: scanResult })
 
-            // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
-            const historyBody = buildHistoryBody(scanResult)
-            if (historyBody) {
-              void saveHistory(historyBody)
-            }
-          } else {
-            // found:false → OCR フローに自動切り替え
-            await runOcrFlow(frame)
+          // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
+          const historyBody = buildHistoryBody(scanResult)
+          if (historyBody) {
+            void saveHistory(historyBody)
           }
-        } catch {
-          dispatch({ type: 'ERROR', error: 'api_error' })
-        } finally {
-          isProcessingRef.current = false
+        } else {
+          // found:false → OCR フローに自動切り替え
+          await runOcrFlow(frame)
         }
-        return
-      }
-    }
-
-    // フレーム品質チェック
-    const { ok, reasons } = isQualityOk(frame, prevFrameRef.current)
-    prevFrameRef.current = frame
-
-    if (ok) {
-      consecutiveOkRef.current++
-      if (consecutiveOkRef.current >= CONSECUTIVE_FRAMES_REQUIRED) {
-        consecutiveOkRef.current = 0
-        dispatch({ type: 'STABLE' })
-
-        // stable になったら直ちに OCR フロー
-        if (stateRef.current === 'stable' || stateRef.current === 'detecting') {
-          isProcessingRef.current = true
-          await runOcrFlow(frame).finally(() => {
-            isProcessingRef.current = false
-          })
-        }
-      }
-    } else {
-      consecutiveOkRef.current = 0
-      const primaryReason = reasons[0]
-      if (primaryReason) {
-        dispatch({ type: 'ERROR', error: primaryReason })
+      } catch {
+        dispatch({ type: 'ERROR', error: 'api_error' })
+      } finally {
+        isProcessingRef.current = false
       }
     }
   }, [
     captureFrame,
     detectFromImageData,
-    isQualityOk,
     scanBarcodeWithCache,
     runOcrFlow,
     saveHistory,
@@ -343,8 +299,6 @@ export const useScan = (): UseScanReturn => {
   const startScan = useCallback(async (): Promise<void> => {
     await startCamera()
     dispatch({ type: 'START_CAMERA' })
-    consecutiveOkRef.current = 0
-    prevFrameRef.current = null
     isProcessingRef.current = false
     geolocationRef.current = null
     scanHistoryIdRef.current = null
@@ -387,7 +341,7 @@ export const useScan = (): UseScanReturn => {
   /** 品質チェックをスキップして現在フレームを即時OCR送信する（PC・手動操作用） */
   const manualCapture = useCallback(async (): Promise<void> => {
     if (isProcessingRef.current) return
-    if (stateRef.current !== 'detecting' && stateRef.current !== 'idle') return
+    if (stateRef.current !== 'idle') return
     const frame = captureFrame()
     if (!frame) return
     isProcessingRef.current = true
@@ -395,6 +349,98 @@ export const useScan = (): UseScanReturn => {
       isProcessingRef.current = false
     })
   }, [captureFrame, runOcrFlow])
+
+  /**
+   * タップ撮影: 現在フレームをキャプチャして preview 状態に遷移する。
+   * idle 状態でのみ有効。
+   */
+  const handleCapture = useCallback((): void => {
+    if (isProcessingRef.current) return
+    if (stateRef.current !== 'idle') return
+    const frame = captureFrame()
+    if (!frame) return
+    // TODO: ImageData → data URL 変換して PREVIEW アクションを発火する
+    const canvas = document.createElement('canvas')
+    canvas.width = frame.width
+    canvas.height = frame.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.putImageData(frame, 0, 0)
+    const dataUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
+    dispatch({ type: 'PREVIEW', imageDataUrl: dataUrl })
+  }, [captureFrame])
+
+  /**
+   * プレビュー確定: preview 状態から OCR フローに進む。
+   * previewDataUrl を ImageData に変換して runOcrFlow に渡す。
+   */
+  const confirmAndScan = useCallback(async (): Promise<void> => {
+    // TODO: state.previewDataUrl から ImageData を復元して runOcrFlow を呼ぶ
+    if (isProcessingRef.current) return
+    if (stateRef.current !== 'preview') return
+    isProcessingRef.current = true
+    dispatch({ type: 'PROCESSING' })
+    try {
+      // previewDataUrl は handleCapture 時に canvas.toDataURL で生成済み
+      // 再度 ImageData に変換して runOcrFlow へ渡す
+      // （runOcrFlow が ImageData を受け取る設計のため canvas 経由で変換する）
+      const img = new Image()
+      const previewUrl = state.previewDataUrl
+      if (!previewUrl) {
+        dispatch({ type: 'ERROR', error: 'api_error' })
+        return
+      }
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('image load failed'))
+        img.src = previewUrl
+      })
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('canvas context unavailable')
+      ctx.drawImage(img, 0, 0)
+      const imageData = ctx.getImageData(0, 0, img.width, img.height)
+      await runOcrFlow(imageData)
+    } catch {
+      dispatch({ type: 'ERROR', error: 'api_error' })
+    } finally {
+      isProcessingRef.current = false
+    }
+  }, [runOcrFlow, state.previewDataUrl])
+
+  /**
+   * ギャラリー / ファイルシステムから選択した画像を OCR 解析する。
+   * File → createImageBitmap → Canvas → ImageData に変換して runOcrFlow に渡す。
+   */
+  const uploadAndScanImage = useCallback(
+    async (file: File): Promise<void> => {
+      if (isProcessingRef.current) return
+      isProcessingRef.current = true
+      dispatch({ type: 'PROCESSING' })
+      try {
+        const bitmap = await createImageBitmap(file)
+        const longEdge = Math.max(bitmap.width, bitmap.height)
+        const scale = Math.min(1, OCR_MAX_DIMENSION / longEdge)
+        const targetW = Math.round(bitmap.width * scale)
+        const targetH = Math.round(bitmap.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = targetW
+        canvas.height = targetH
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('canvas context unavailable')
+        ctx.drawImage(bitmap, 0, 0, targetW, targetH)
+        const imageData = ctx.getImageData(0, 0, targetW, targetH)
+        await runOcrFlow(imageData)
+      } catch {
+        dispatch({ type: 'ERROR', error: 'api_error' })
+      } finally {
+        isProcessingRef.current = false
+      }
+    },
+    [runOcrFlow],
+  )
 
   const onStoreSelect = useCallback(
     (candidate: StoreCandidate | null): void => {
@@ -423,13 +469,16 @@ export const useScan = (): UseScanReturn => {
     scanState: state.scanState,
     error: state.error,
     result: state.result,
+    previewDataUrl: state.previewDataUrl,
     storeCandidates: state.storeCandidates,
-    partialRawText: state.partialRawText,
     videoRef,
     startScan,
     stopScan,
     reset,
+    handleCapture,
+    confirmAndScan,
     manualCapture,
+    uploadAndScanImage,
     zoomLevel,
     setZoom,
     supportsHardwareZoom,

@@ -9,15 +9,11 @@ type ScanGuideProps = {
 }
 
 const guideMessage = (state: ScanState, error?: ScanError): string => {
-  // detecting/idle 中にエラーがある場合はエラーメッセージを優先表示
-  // (scanReducer では blur/dark/motion エラーは scanState を 'detecting' のまま継続するため
-  //  state === 'error' は存在しない。error prop を直接チェックする必要がある)
-  if (error !== undefined && (state === 'detecting' || state === 'idle' || state === 'error')) {
+  if (state === 'error' && error !== undefined) {
     return GUIDE_MESSAGES.error[error]
   }
   if (state === 'idle') return GUIDE_MESSAGES.idle
-  if (state === 'detecting') return GUIDE_MESSAGES.detecting
-  if (state === 'stable') return GUIDE_MESSAGES.stable
+  if (state === 'preview') return GUIDE_MESSAGES.preview
   if (state === 'processing') return GUIDE_MESSAGES.processing
   return GUIDE_MESSAGES.result
 }

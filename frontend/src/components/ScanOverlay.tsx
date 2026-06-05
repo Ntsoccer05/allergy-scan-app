@@ -5,18 +5,17 @@ import type { ScanState } from '@/app/scan/scan.types'
 
 type ScanOverlayProps = {
   state: ScanState
-  partialRawText?: string | null
 }
 
-export const ScanOverlay = ({ state, partialRawText }: ScanOverlayProps) => {
+export const ScanOverlay = ({ state }: ScanOverlayProps) => {
   const t = useTranslations('camera')
 
   if (state === 'idle' || state === 'result') return null
 
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {/* 検出中・安定中: スキャン枠と走査線アニメーション */}
-      {(state === 'detecting' || state === 'stable') && (
+      {/* プレビュー状態: スキャン枠を表示 */}
+      {state === 'preview' && (
         <div className="absolute inset-8 border-2 border-white/70 rounded-lg">
           <div className="absolute left-0 right-0 h-0.5 bg-white/80 animate-bounce top-1/2" />
         </div>
@@ -42,15 +41,7 @@ export const ScanOverlay = ({ state, partialRawText }: ScanOverlayProps) => {
           </div>
           <div className="flex flex-col items-center gap-1 text-center px-6">
             <p className="text-white text-lg font-bold">{t('processingTitle')}</p>
-            {partialRawText ? (
-            <div className="max-h-20 overflow-y-auto w-full">
-              <p className="text-white/70 text-[11px] leading-relaxed text-center break-all whitespace-pre-wrap">
-                {partialRawText}
-              </p>
-            </div>
-          ) : (
             <p className="text-white/80 text-sm">{t('processingSubtitle')}</p>
-          )}
           </div>
           {/* スピナー */}
           <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
