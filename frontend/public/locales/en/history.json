@@ -33,5 +33,11 @@
     "memo": "Memo",
     "save": "Save",
     "cancel": "Cancel"
-  }
+  },
+  "public": {
+    "title": "Community History",
+    "newItems": "New scans available",
+    "refresh": "Refresh"
+  },
+  "unnamed": "Unnamed product"
 }

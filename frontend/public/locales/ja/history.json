@@ -33,5 +33,11 @@
     "memo": "メモ",
     "save": "保存",
     "cancel": "キャンセル"
-  }
+  },
+  "public": {
+    "title": "みんなの履歴",
+    "newItems": "新しいスキャンがあります",
+    "refresh": "更新する"
+  },
+  "unnamed": "商品名なし"
 }

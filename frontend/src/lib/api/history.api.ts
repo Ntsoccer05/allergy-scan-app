@@ -65,3 +65,38 @@ export const deleteHistory = async (historyId: string): Promise<void> => {
     headers: {},
   })
 }
+
+export type PublicHistoryItem = {
+  id: string
+  product_name: string | null
+  judgment: 'ng' | 'partial' | 'ok'
+  thumbnail_url: string | null
+  store_name: string | null
+  scanned_at: string
+}
+
+export const getPublicHistory = async (
+  limit: number,
+  before?: string,
+): Promise<{ items: PublicHistoryItem[]; next_before: string | null }> => {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    ...(before ? { before } : {}),
+  })
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/public/history?${params}`,
+  )
+  if (!res.ok) throw new Error('Failed to fetch public history')
+  return res.json() as Promise<{ items: PublicHistoryItem[]; next_before: string | null }>
+}
+
+export const getPublicHistoryDigest = async (): Promise<{
+  count: number
+  last_updated_at: string | null
+}> => {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/public/history/digest`,
+  )
+  if (!res.ok) throw new Error('Failed to fetch digest')
+  return res.json() as Promise<{ count: number; last_updated_at: string | null }>
+}
