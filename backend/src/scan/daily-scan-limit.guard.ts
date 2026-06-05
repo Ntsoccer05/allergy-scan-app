@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common'
 import { UserDailyScansService } from '../users/user-daily-scans.service'
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types'
@@ -14,7 +15,11 @@ export class DailyScanLimitGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest()
-    const userId = (request.user as SupabaseJwtPayload).sub
+    const user = request.user as SupabaseJwtPayload | undefined
+    if (!user?.sub) {
+      throw new UnauthorizedException()
+    }
+    const userId = user.sub
     const canScan = await this.userDailyScansService.canUserScan(userId)
     if (!canScan) {
       throw new HttpException(
