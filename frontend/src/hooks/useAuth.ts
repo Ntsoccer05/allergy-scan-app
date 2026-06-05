@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 
@@ -14,14 +14,18 @@ type UseAuthReturn = {
 export const useAuth = (): UseAuthReturn => {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setIsLoading(false)
-    })
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        setSession(data.session)
+        setIsLoading(false)
+      })
+      .catch(() => {
+        setIsLoading(false)
+      })
 
     // Listen for auth changes
     const {
