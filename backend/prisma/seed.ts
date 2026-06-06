@@ -4,6 +4,8 @@ const prisma = new PrismaClient();
 
 // allergens 初期データ（29品目）
 // display_order は database.md の display_order カラムに対応する
+// emoji フィールドは SVG アイコンのファイル名スラッグとして使用
+// 対応ファイル: frontend/public/icons/allergens/{emoji}.svg
 const ALLERGENS_SEED: Array<{
   name: string;
   display_name: string;
@@ -12,36 +14,36 @@ const ALLERGENS_SEED: Array<{
   emoji: string;
 }> = [
   // 特定原材料（9品目・表示義務あり）
-  { name: 'えび',          display_name: 'えび',              category: 'mandatory',   display_order: 1,  emoji: '🦐' },
-  { name: 'かに',          display_name: 'かに',              category: 'mandatory',   display_order: 2,  emoji: '🦀' },
-  { name: 'カシューナッツ', display_name: 'カシューナッツ',    category: 'mandatory',   display_order: 3,  emoji: '🌰' },
-  { name: 'くるみ',        display_name: 'くるみ',            category: 'mandatory',   display_order: 4,  emoji: '🌰' },
-  { name: '小麦',          display_name: '小麦',              category: 'mandatory',   display_order: 5,  emoji: '🌾' },
-  { name: 'そば',          display_name: 'そば',              category: 'mandatory',   display_order: 6,  emoji: '🍜' },
-  { name: '卵',            display_name: '卵',                category: 'mandatory',   display_order: 7,  emoji: '🥚' },
-  { name: '乳',            display_name: '乳',                category: 'mandatory',   display_order: 8,  emoji: '🥛' },
-  { name: '落花生',        display_name: '落花生（ピーナッツ）', category: 'mandatory', display_order: 9,  emoji: '🥜' },
+  { name: 'えび',          display_name: 'えび',              category: 'mandatory',   display_order: 1,  emoji: 'ebi' },
+  { name: 'かに',          display_name: 'かに',              category: 'mandatory',   display_order: 2,  emoji: 'kani' },
+  { name: 'カシューナッツ', display_name: 'カシューナッツ',    category: 'mandatory',   display_order: 3,  emoji: 'cashew' },
+  { name: 'くるみ',        display_name: 'くるみ',            category: 'mandatory',   display_order: 4,  emoji: 'walnut' },
+  { name: '小麦',          display_name: '小麦',              category: 'mandatory',   display_order: 5,  emoji: 'wheat' },
+  { name: 'そば',          display_name: 'そば',              category: 'mandatory',   display_order: 6,  emoji: 'soba' },
+  { name: '卵',            display_name: '卵',                category: 'mandatory',   display_order: 7,  emoji: 'egg' },
+  { name: '乳',            display_name: '乳',                category: 'mandatory',   display_order: 8,  emoji: 'milk' },
+  { name: '落花生',        display_name: '落花生（ピーナッツ）', category: 'mandatory', display_order: 9,  emoji: 'peanut' },
   // 準ずるもの（20品目・表示推奨）
-  { name: 'アーモンド',       display_name: 'アーモンド',       category: 'recommended', display_order: 10, emoji: '🌰' },
-  { name: 'あわび',           display_name: 'あわび',           category: 'recommended', display_order: 11, emoji: '🐚' },
-  { name: 'いか',             display_name: 'いか',             category: 'recommended', display_order: 12, emoji: '🦑' },
-  { name: 'いくら',           display_name: 'いくら',           category: 'recommended', display_order: 13, emoji: '🐡' },
-  { name: 'オレンジ',         display_name: 'オレンジ',         category: 'recommended', display_order: 14, emoji: '🍊' },
-  { name: 'キウイフルーツ',   display_name: 'キウイフルーツ',   category: 'recommended', display_order: 15, emoji: '🥝' },
-  { name: '牛肉',             display_name: '牛肉',             category: 'recommended', display_order: 16, emoji: '🐄' },
-  { name: 'ごま',             display_name: 'ごま',             category: 'recommended', display_order: 17, emoji: '🌱' },
-  { name: 'さけ',             display_name: 'さけ',             category: 'recommended', display_order: 18, emoji: '🍣' },
-  { name: 'さば',             display_name: 'さば',             category: 'recommended', display_order: 19, emoji: '🐟' },
-  { name: '大豆',             display_name: '大豆',             category: 'recommended', display_order: 20, emoji: '🫘' },
-  { name: '鶏肉',             display_name: '鶏肉',             category: 'recommended', display_order: 21, emoji: '🍗' },
-  { name: 'バナナ',           display_name: 'バナナ',           category: 'recommended', display_order: 22, emoji: '🍌' },
-  { name: 'ピスタチオ',       display_name: 'ピスタチオ',       category: 'recommended', display_order: 23, emoji: '🌰' },
-  { name: '豚肉',             display_name: '豚肉',             category: 'recommended', display_order: 24, emoji: '🐷' },
-  { name: 'マカダミアナッツ', display_name: 'マカダミアナッツ', category: 'recommended', display_order: 25, emoji: '🌰' },
-  { name: 'もも',             display_name: 'もも',             category: 'recommended', display_order: 26, emoji: '🍑' },
-  { name: 'りんご',           display_name: 'りんご',           category: 'recommended', display_order: 27, emoji: '🍎' },
-  { name: 'やまいも',         display_name: 'やまいも',         category: 'recommended', display_order: 28, emoji: '🍠' },
-  { name: 'ゼラチン',         display_name: 'ゼラチン',         category: 'recommended', display_order: 29, emoji: '🫙' },
+  { name: 'アーモンド',       display_name: 'アーモンド',       category: 'recommended', display_order: 10, emoji: 'almond' },
+  { name: 'あわび',           display_name: 'あわび',           category: 'recommended', display_order: 11, emoji: 'abalone' },
+  { name: 'いか',             display_name: 'いか',             category: 'recommended', display_order: 12, emoji: 'squid' },
+  { name: 'いくら',           display_name: 'いくら',           category: 'recommended', display_order: 13, emoji: 'salmon-roe' },
+  { name: 'オレンジ',         display_name: 'オレンジ',         category: 'recommended', display_order: 14, emoji: 'orange' },
+  { name: 'キウイフルーツ',   display_name: 'キウイフルーツ',   category: 'recommended', display_order: 15, emoji: 'kiwi' },
+  { name: '牛肉',             display_name: '牛肉',             category: 'recommended', display_order: 16, emoji: 'beef' },
+  { name: 'ごま',             display_name: 'ごま',             category: 'recommended', display_order: 17, emoji: 'sesame' },
+  { name: 'さけ',             display_name: 'さけ',             category: 'recommended', display_order: 18, emoji: 'salmon' },
+  { name: 'さば',             display_name: 'さば',             category: 'recommended', display_order: 19, emoji: 'mackerel' },
+  { name: '大豆',             display_name: '大豆',             category: 'recommended', display_order: 20, emoji: 'soybean' },
+  { name: '鶏肉',             display_name: '鶏肉',             category: 'recommended', display_order: 21, emoji: 'chicken' },
+  { name: 'バナナ',           display_name: 'バナナ',           category: 'recommended', display_order: 22, emoji: 'banana' },
+  { name: 'ピスタチオ',       display_name: 'ピスタチオ',       category: 'recommended', display_order: 23, emoji: 'pistachio' },
+  { name: '豚肉',             display_name: '豚肉',             category: 'recommended', display_order: 24, emoji: 'pork' },
+  { name: 'マカダミアナッツ', display_name: 'マカダミアナッツ', category: 'recommended', display_order: 25, emoji: 'macadamia' },
+  { name: 'もも',             display_name: 'もも',             category: 'recommended', display_order: 26, emoji: 'peach' },
+  { name: 'りんご',           display_name: 'りんご',           category: 'recommended', display_order: 27, emoji: 'apple' },
+  { name: 'やまいも',         display_name: 'やまいも',         category: 'recommended', display_order: 28, emoji: 'yam' },
+  { name: 'ゼラチン',         display_name: 'ゼラチン',         category: 'recommended', display_order: 29, emoji: 'gelatin' },
 ];
 
 // allergen_components 初期データ（database.md の SQL 初期データに準拠）
