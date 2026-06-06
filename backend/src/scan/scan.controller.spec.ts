@@ -12,6 +12,7 @@ import request from 'supertest';
 import { ScanController } from './scan.controller';
 import { ScanService } from './scan.service';
 import { DailyScanLimitGuard } from './daily-scan-limit.guard';
+import { UserDailyScansService } from '../users/user-daily-scans.service';
 import { ThrottlerExceptionFilter } from '../shared/throttler-exception.filter';
 import {
   THROTTLE_OCR_TTL,
@@ -75,6 +76,12 @@ const buildApp = async (
     controllers: [ScanController],
     providers: [
       { provide: ScanService, useValue: scanServiceMock },
+      {
+        provide: UserDailyScansService,
+        useValue: {
+          getRemainingScans: jest.fn().mockResolvedValue({ used: 3, limit: 10, remaining: 7 }),
+        },
+      },
       {
         provide: APP_GUARD,
         useFactory: (

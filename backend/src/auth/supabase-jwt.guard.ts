@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import * as crypto from 'crypto';
+import * as jwt from 'jsonwebtoken';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import type { SupabaseJwtPayload } from './types/supabase-jwt.types';
 
@@ -22,38 +22,16 @@ export class SupabaseJwtGuard implements CanActivate {
     if (!token) throw new UnauthorizedException();
 
     try {
-      const payload = this.verifyHs256(token);
+      const secret = process.env.SUPABASE_JWT_SECRET;
+      if (!secret) throw new Error('SUPABASE_JWT_SECRET not set');
+      const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as SupabaseJwtPayload;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      (request as Record<string, unknown>).user = payload;
+      (request as Record<string, unknown>).user = decoded;
       return true;
     } catch (err) {
       this.logger.warn('JWT verification failed', err instanceof Error ? err.message : String(err));
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Invalid token');
     }
-  }
-
-  private verifyHs256(token: string): SupabaseJwtPayload {
-    const secret = process.env.SUPABASE_JWT_SECRET;
-    if (!secret) throw new Error('SUPABASE_JWT_SECRET not set');
-
-    const parts = token.split('.');
-    if (parts.length !== 3) throw new Error('Invalid JWT format');
-    const [header, payload, signature] = parts;
-
-    const expectedSig = crypto
-      .createHmac('sha256', secret)
-      .update(`${header}.${payload}`)
-      .digest('base64url');
-
-    if (expectedSig !== signature) throw new Error('Invalid signature');
-
-    const decoded = JSON.parse(
-      Buffer.from(payload, 'base64url').toString('utf-8'),
-    ) as SupabaseJwtPayload;
-    const now = Math.floor(Date.now() / 1000);
-    if (decoded.exp && decoded.exp < now) throw new Error('Token expired');
-
-    return decoded;
   }
 
   private extractToken(request: { headers?: { authorization?: string } }): string | null {

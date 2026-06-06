@@ -7,6 +7,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -15,8 +16,8 @@ import { ScanService } from './scan.service';
 import { BarcodeScandDto } from './dto/barcode-scan.dto';
 import { OcrScanDto } from './dto/ocr-scan.dto';
 import type { BarcodeScanResult, OcrScanResult, PresignedUrlResult } from './scan.service';
-import { Public } from '../auth/public.decorator';
 import { DailyScanLimitGuard } from './daily-scan-limit.guard';
+import { UserDailyScansService } from '../users/user-daily-scans.service';
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 import {
   THROTTLE_OCR_TTL,
@@ -29,7 +30,10 @@ type AuthRequest = Request & { user?: SupabaseJwtPayload };
 
 @Controller('scan')
 export class ScanController {
-  constructor(private readonly scanService: ScanService) {}
+  constructor(
+    private readonly scanService: ScanService,
+    private readonly userDailyScansService: UserDailyScansService,
+  ) {}
 
   /** GET /scan/presigned-url: S3 Presigned PUT URL を発行する。 */
   @UseGuards(DailyScanLimitGuard)
@@ -64,12 +68,22 @@ export class ScanController {
     return this.scanService.processOcr(dto.s3_key, userId, dto.lat, dto.lng, dto.allow_low_confidence);
   }
 
+  /** GET /scan/usage: 今日の残りスキャン数を返す。Bearer Token 必須。 */
+  @Get('usage')
+  async getScanUsage(
+    @Req() req: AuthRequest,
+  ): Promise<{ used: number; limit: number; remaining: number }> {
+    const userId = req.user?.sub;
+    if (!userId) throw new UnauthorizedException();
+    return this.userDailyScansService.getRemainingScans(userId);
+  }
+
   /**
    * POST /scan/ocr-stream: OCR + アレルギー判定を SSE でストリーミング返却する。
    * raw_text が確定するたびに raw_text イベントを送信し、完了後に result イベントを送信する。
    * ⚠️ Lambda 環境では Response Streaming が必要（ローカル開発では通常の SSE で動作する）。
    */
-  @Public()
+  @UseGuards(DailyScanLimitGuard)
   @Post('ocr-stream')
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
   async ocrStream(

@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'crypto'; // presigned URL の s3_key 生成にのみ使用
 import type { ProductAllergens } from '../shared/types/db.types';
 import type { OpenFoodFactsProductFields } from '../shared/types/open-food-facts.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
@@ -256,24 +256,23 @@ export class ScanService {
     }
     // 候補 0 件 または 2 件以上: location: null で保存（2件以上はユーザー選択後に PATCH）
 
-    await this.scanHistoryRepository.create({
-      userId: userId ?? randomUUID(),
-      productId: product.id,
-      productName: geminiResult.product_name ?? null,
-      judgment,
-      detected: allDetected,
-      location,
-      thumbnailUrl: null,
-    });
+    // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
+    if (userId) {
+      await this.scanHistoryRepository.create({
+        userId,
+        productId: product.id,
+        productName: geminiResult.product_name ?? null,
+        judgment,
+        detected: allDetected,
+        location,
+        thumbnailUrl: null,
+      });
+      await this.userDailyScansService.incrementScanCount(userId);
+    }
 
     this.logger.log(
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
     );
-
-    // スキャン回数のインクリメント（食品ラベルが確認された場合のみ）
-    if (userId) {
-      await this.userDailyScansService.incrementScanCount(userId);
-    }
 
     // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
     if (storeCandidates.length >= 2) {
@@ -362,15 +361,18 @@ export class ScanService {
       location = { store_name: storeCandidates[0].name, lat, lng };
     }
 
-    await this.scanHistoryRepository.create({
-      userId: userId ?? randomUUID(),
-      productId: product.id,
-      productName: geminiResult.product_name ?? null,
-      judgment,
-      detected: allDetected,
-      location,
-      thumbnailUrl: null,
-    });
+    // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
+    if (userId) {
+      await this.scanHistoryRepository.create({
+        userId,
+        productId: product.id,
+        productName: geminiResult.product_name ?? null,
+        judgment,
+        detected: allDetected,
+        location,
+        thumbnailUrl: null,
+      });
+    }
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
 

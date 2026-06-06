@@ -19,6 +19,19 @@ export type OcrStreamEvent =
   | { type: 'error'; code: string; message: string }
   | { type: 'result'; data: OcrApiResponse }
 
+/** GET /scan/usage のレスポンス型。 */
+export type ScanUsageResponse = {
+  used: number
+  limit: number
+  remaining: number
+}
+
+/** GET /scan/usage: 今日の残りスキャン数を取得する。Bearer Token 必須。 */
+export const getScanUsage = async (): Promise<ScanUsageResponse> => {
+  const res = await apiFetch('/scan/usage')
+  return res.json() as Promise<ScanUsageResponse>
+}
+
 export const getPresignedUrl = async (): Promise<PresignedUrlResponse> => {
   const res = await apiFetch('/scan/presigned-url', { headers: {} })
   return res.json() as Promise<PresignedUrlResponse>

@@ -94,7 +94,7 @@ model ScanHistory {
   //       手動SQL: CREATE INDEX scan_histories_store_idx ON scan_histories((location->>'store_name'), scanned_at DESC);
   thumbnailUrl  String?  @map("thumbnail_url")
   ocrImageUrl   String?  @map("ocr_image_url")
-  isPublic      Boolean  @default(true) @map("is_public")
+  isPublic      Boolean  @default(false) @map("is_public")
   memo          String?
   scannedAt     DateTime @default(now()) @map("scanned_at")
 

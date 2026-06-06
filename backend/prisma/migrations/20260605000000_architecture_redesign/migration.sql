@@ -56,7 +56,7 @@ ALTER TABLE "users" DROP COLUMN IF EXISTS "last_used_at";
 
 -- AlterTable: scan_histories - add ocr_image_url, is_public
 ALTER TABLE "scan_histories" ADD COLUMN "ocr_image_url" TEXT;
-ALTER TABLE "scan_histories" ADD COLUMN "is_public" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "scan_histories" ADD COLUMN "is_public" BOOLEAN NOT NULL DEFAULT false;
 
 -- DropTable: backup_codes (Supabase Auth で代替)
 DROP TABLE IF EXISTS "backup_codes";

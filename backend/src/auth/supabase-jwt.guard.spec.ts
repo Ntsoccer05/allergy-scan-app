@@ -1,4 +1,4 @@
-import * as crypto from 'crypto';
+import * as jwt from 'jsonwebtoken';
 import { Test } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
@@ -7,13 +7,14 @@ import type { SupabaseJwtPayload } from './types/supabase-jwt.types';
 
 const TEST_JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
 
-// テスト用に簡単な JWT を生成するヘルパー
-function createTestToken(payload: Partial<SupabaseJwtPayload>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+// テスト用に jsonwebtoken で JWT を生成するヘルパー
+function createTestToken(payload: Partial<SupabaseJwtPayload>, options?: jwt.SignOptions): string {
   const now = Math.floor(Date.now() / 1000);
-  const body = Buffer.from(JSON.stringify({ iat: now, exp: now + 3600, ...payload })).toString('base64url');
-  const sig = crypto.createHmac('sha256', TEST_JWT_SECRET).update(`${header}.${body}`).digest('base64url');
-  return `${header}.${body}.${sig}`;
+  return jwt.sign(
+    { iat: now, ...payload },
+    TEST_JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: 3600, ...options },
+  );
 }
 
 // ExecutionContext はインターフェースのため完全実装が必要。テストでは最小限のモックで代替する。
@@ -75,9 +76,9 @@ describe('SupabaseJwtGuard', () => {
       email: 'test@example.com',
       role: 'authenticated',
       app_metadata: { provider: 'email', providers: ['email'] },
-      exp: Math.floor(Date.now() / 1000) - 3600, // 1時間前に期限切れ
     };
-    const token = createTestToken(payload);
+    // expiresIn: -1 で即時期限切れトークンを生成する
+    const token = createTestToken(payload, { expiresIn: -1 });
     const ctx = buildContext(`Bearer ${token}`);
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });

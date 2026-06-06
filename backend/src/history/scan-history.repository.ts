@@ -34,6 +34,19 @@ export type ScanHistoryRecord = {
   scannedAt: Date;
 };
 
+/**
+ * 公開履歴のレスポンス型。
+ * 個人情報（userId・detected・location の lat/lng・memo）を除外した安全な型。
+ */
+export type PublicHistoryRecord = {
+  id: string;
+  productName: string | null;
+  judgment: string;
+  thumbnailUrl: string | null;
+  storeName: string | null;
+  scannedAt: Date;
+};
+
 /** findByUser のオプション型。 */
 export type FindByUserOptions = {
   before?: Date;
@@ -212,50 +225,47 @@ export class ScanHistoryRepository {
   }
 
   /**
-   * isPublic: true のスキャン履歴をカーソルページネーションで取得する。
+   * isPublic: true かつ judgment = 'ok' のスキャン履歴をカーソルページネーションで取得する。
    * 認証不要のパブリック履歴一覧に使用する。
+   * ⚠️ 安全設計: userId・detected・location の lat/lng・memo は返却しない（個人情報漏洩防止）。
+   * ⚠️ anti_patterns.md #4: OK 判定のみ公開可能（NG・一部含む は公開不可）。
    */
-  async findPublicHistory(limit: number, before?: Date): Promise<ScanHistoryRecord[]> {
+  async findPublicHistory(limit: number, before?: Date): Promise<PublicHistoryRecord[]> {
     const records = await this.prisma.scanHistory.findMany({
       where: {
         isPublic: true,
+        judgment: 'ok',
         ...(before ? { scannedAt: { lt: before } } : {}),
       },
       orderBy: { scannedAt: 'desc' },
       take: limit,
       select: {
         id: true,
-        userId: true,
-        productId: true,
         productName: true,
         judgment: true,
-        detected: true,
-        location: true,
         thumbnailUrl: true,
-        memo: true,
+        location: true,
         scannedAt: true,
       },
     });
     return records.map((record) => ({
       id: record.id,
-      userId: record.userId,
-      productId: record.productId,
       productName: record.productName,
       judgment: record.judgment,
-      detected: (record.detected as unknown as string[]) ?? [],
-      location: (record.location as unknown as ScanHistoryLocation) ?? null,
       thumbnailUrl: record.thumbnailUrl,
-      memo: record.memo,
+      // location JSONB から store_name のみ抽出する。lat/lng は返却しない
+      storeName: (record.location as unknown as ScanHistoryLocation | null)?.store_name ?? null,
       scannedAt: record.scannedAt,
     }));
   }
 
-  /** isPublic: true の履歴件数と最終スキャン日時を返す（ダイジェスト用）。 */
+  /** isPublic: true かつ judgment = 'ok' の履歴件数と最終スキャン日時を返す（ダイジェスト用）。 */
   async getPublicHistoryDigest(): Promise<{ count: number; last_updated_at: Date | null }> {
+    const where = { isPublic: true, judgment: 'ok' } as const;
     const [count, latest] = await Promise.all([
-      this.prisma.scanHistory.count({ where: { isPublic: true } }),
+      this.prisma.scanHistory.count({ where }),
       this.prisma.scanHistory.findFirst({
-        where: { isPublic: true },
+        where,
         orderBy: { scannedAt: 'desc' },
         select: { scannedAt: true },
       }),

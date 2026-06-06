@@ -34,6 +34,12 @@ export class UserDailyScansService {
   }
 
   private todayString(): string {
-    return new Date().toISOString().slice(0, 10);
+    // JST（Asia/Tokyo）基準で今日の日付を YYYY-MM-DD 形式で返す
+    return new Date().toLocaleDateString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).replace(/\//g, '-');
   }
 }

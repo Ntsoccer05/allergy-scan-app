@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ScanHistoryRepository } from './scan-history.repository';
-import type { ScanHistoryRecord } from './scan-history.repository';
+import type { ScanHistoryRecord, PublicHistoryRecord } from './scan-history.repository';
 import type { ScanHistoryLocation } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
@@ -15,6 +15,12 @@ import { PatchHistoryDto } from './dto/patch-history.dto';
 /** GET /history のレスポンス型。 */
 export type HistoryListResult = {
   items: ScanHistoryRecord[];
+  next_before: string | null;
+};
+
+/** GET /public/history のレスポンス型（個人情報を除外）。 */
+export type PublicHistoryListResult = {
+  items: PublicHistoryRecord[];
   next_before: string | null;
 };
 
@@ -155,9 +161,10 @@ export class HistoryService {
 
   /**
    * 公開スキャン履歴をカーソルページネーションで取得する。
-   * isPublic: true のレコードのみ返す。認証不要。
+   * isPublic: true かつ judgment = 'ok' のレコードのみ返す。認証不要。
+   * ⚠️ 安全設計: 個人情報（userId・detected・lat/lng・memo）を含まない PublicHistoryRecord を返す。
    */
-  async getPublicHistory(limit: number, before?: Date): Promise<HistoryListResult> {
+  async getPublicHistory(limit: number, before?: Date): Promise<PublicHistoryListResult> {
     const items = await this.scanHistoryRepository.findPublicHistory(limit + 1, before);
     const hasMore = items.length > limit;
     const pageItems = hasMore ? items.slice(0, limit) : items;
