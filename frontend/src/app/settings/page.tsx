@@ -35,7 +35,7 @@ const AllergenToggleRow = ({ item, enabled, onToggle }: AllergenToggleRowProps) 
             src={`/icons/allergens/${item.emoji}.svg`}
             alt=""
             aria-hidden="true"
-            className="w-6 h-6 object-contain"
+            className="w-10 h-10 object-contain flex-shrink-0"
           />
         )}
         <span className="text-sm font-medium text-gray-800">
@@ -69,9 +69,6 @@ type AllergenSectionProps = {
   t: TranslateFn
 }
 
-/** localStorage に保存するアコーディオン状態のキー（recommended カテゴリのみ） */
-const ACCORDION_STORAGE_KEY = 'allergen_accordion_recommended'
-
 const AllergenSection = ({
   group,
   allergies,
@@ -79,21 +76,24 @@ const AllergenSection = ({
   onToggleCaution,
   t,
 }: AllergenSectionProps) => {
-  const isRecommended = group.category === 'recommended'
+  const isMandatory = group.category === 'mandatory'
+  const storageKey = `allergen_accordion_${group.category}`
 
-  // recommended はデフォルト展開。localStorage で状態を永続化する。
+  // mandatory は常に展開。それ以外は localStorage 永続化 + 初回はグループ内に有効設定があれば開く。
   const [isExpanded, setIsExpanded] = useState(() => {
-    if (!isRecommended) return true
+    if (isMandatory) return true
     if (typeof window === 'undefined') return true
-    const stored = localStorage.getItem(ACCORDION_STORAGE_KEY)
-    return stored === null ? true : stored === 'true'
+    const stored = localStorage.getItem(storageKey)
+    if (stored !== null) return stored === 'true'
+    // 初回（localStorage 未設定）: 1 つでも有効設定があれば開く
+    return group.items.some((item) => allergies[item.name]?.enabled === true)
   })
 
   const handleToggle = () => {
     setIsExpanded((prev) => {
       const next = !prev
       if (typeof window !== 'undefined') {
-        localStorage.setItem(ACCORDION_STORAGE_KEY, String(next))
+        localStorage.setItem(storageKey, String(next))
       }
       return next
     })
@@ -101,7 +101,13 @@ const AllergenSection = ({
 
   return (
     <section className="mb-4">
-      {isRecommended ? (
+      {isMandatory ? (
+        <div className="mb-2 px-0.5">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            {t(`allergens.category.${group.category}`)}
+          </h2>
+        </div>
+      ) : (
         <button
           type="button"
           onClick={handleToggle}
@@ -129,12 +135,6 @@ const AllergenSection = ({
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
-      ) : (
-        <div className="mb-2 px-0.5">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-            {t(`allergens.category.${group.category}`)}
-          </h2>
-        </div>
       )}
 
       {isExpanded && (
