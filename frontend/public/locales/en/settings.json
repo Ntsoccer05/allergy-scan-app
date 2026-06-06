@@ -66,6 +66,9 @@
     }
   },
   "plan": "Current Plan",
+  "planUpgrade": "Change Plan",
+  "planUpgradeComingSoon": "Plan upgrade is coming soon. Please contact support for inquiries.",
+  "planUpgradeContact": "Contact Support",
   "dailyLimit": "Daily scan limit: {limit}",
   "changePassword": {
     "title": "Change Password",

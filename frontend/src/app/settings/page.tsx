@@ -321,11 +321,27 @@ export default function SettingsPage() {
       {/* サブスクリプション情報 */}
       {userSettings?.subscription && (
         <section className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 mb-8">
-          <h2 className="text-base font-bold text-gray-800 mb-2">{t('plan')}</h2>
-          <p className="text-sm text-gray-700">{userSettings.subscription.plan_name}</p>
-          <p className="text-xs text-gray-500 mt-1">
-            {t('dailyLimit', { limit: userSettings.subscription.daily_scan_limit })}
-          </p>
+          <h2 className="text-base font-bold text-gray-800 mb-3">{t('plan')}</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-700">
+                {userSettings.subscription.plan_name}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {t('dailyLimit', { limit: userSettings.subscription.daily_scan_limit })}
+              </p>
+            </div>
+            {/* ⚠️ alert() は Stripe 連携実装時にモーダルまたは Stripe Checkout リンクに差し替える */}
+            <button
+              type="button"
+              onClick={() => alert(t('planUpgradeComingSoon'))}
+              className="shrink-0 ml-4 px-4 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium
+                border border-blue-200 hover:bg-blue-100 transition-colors
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              {t('planUpgrade')}
+            </button>
+          </div>
         </section>
       )}
 

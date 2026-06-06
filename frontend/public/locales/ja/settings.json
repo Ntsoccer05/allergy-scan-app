@@ -66,6 +66,9 @@
     }
   },
   "plan": "現在のプラン",
+  "planUpgrade": "プランを変更する",
+  "planUpgradeComingSoon": "プラン変更機能は近日公開予定です。ご要望はサポートまでお問い合わせください。",
+  "planUpgradeContact": "お問い合わせ",
   "dailyLimit": "1日のスキャン上限: {limit}回",
   "changePassword": {
     "title": "パスワード変更",
