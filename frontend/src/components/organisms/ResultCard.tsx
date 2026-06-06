@@ -121,7 +121,7 @@ export const ResultCard = ({
   onStoreSelect,
 }: ResultCardProps) => {
   const [rawTextOpen, setRawTextOpen] = useState(false)
-  const t = useTranslations('result')
+  const t = useTranslations('scan.result')
 
   /**
    * Web Share API に渡す共有コンテンツを構築する。

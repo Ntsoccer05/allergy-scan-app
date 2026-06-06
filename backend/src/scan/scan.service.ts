@@ -116,6 +116,7 @@ export class ScanService {
         result,
         CACHE_TTL_MEMORY_SEC * 1000,
       );
+      if (userId) await this.userDailyScansService.incrementScanCount(userId);
       return result;
     }
 
@@ -139,10 +140,11 @@ export class ScanService {
         result,
         CACHE_TTL_MEMORY_SEC * 1000,
       );
+      if (userId) await this.userDailyScansService.incrementScanCount(userId);
       return result;
     }
 
-    // Step 4: 全ミス
+    // Step 4: 全ミス（found:false は OCR フォールバックへ。OCR 側でカウントする）
     this.logger.log(`No result found for JAN: ${janCode}`);
     return { found: false, from_cache: false };
   }
@@ -372,6 +374,7 @@ export class ScanService {
         location,
         thumbnailUrl: null,
       });
+      await this.userDailyScansService.incrementScanCount(userId);
     }
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);

@@ -15,7 +15,7 @@ export default function ScanPage() {
   useOnboardingGuard()
   const t = useTranslations('scan')
   const { user } = useAuthContext()
-  const scanUsage = useScanUsage(user?.id)
+  const { scanUsage, refreshScanUsage } = useScanUsage(user?.id)
 
   const {
     scanState,
@@ -38,6 +38,12 @@ export default function ScanPage() {
     return () => stopScan()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // スキャン完了後にカウントを再取得する
+  useEffect(() => {
+    if (scanState === 'result') refreshScanUsage()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanState])
 
   // 結果画面
   if (scanState === 'result' && result !== null) {

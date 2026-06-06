@@ -1,12 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getScanUsage } from '@/lib/api/scan.api'
 
 type ScanUsage = { used: number; limit: number } | null
 
-export const useScanUsage = (userId: string | undefined): ScanUsage => {
+type UseScanUsageReturn = {
+  scanUsage: ScanUsage
+  refreshScanUsage: () => void
+}
+
+export const useScanUsage = (userId: string | undefined): UseScanUsageReturn => {
   const [scanUsage, setScanUsage] = useState<ScanUsage>(null)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     if (!userId) return
@@ -15,7 +21,9 @@ export const useScanUsage = (userId: string | undefined): ScanUsage => {
     }).catch(() => {
       // 取得失敗時はバッジを非表示にする（スキャン自体は継続可能）
     })
-  }, [userId])
+  }, [userId, tick])
 
-  return scanUsage
+  const refreshScanUsage = useCallback(() => setTick((n) => n + 1), [])
+
+  return { scanUsage, refreshScanUsage }
 }
