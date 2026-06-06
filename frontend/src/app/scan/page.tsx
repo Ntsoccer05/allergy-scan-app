@@ -21,7 +21,6 @@ export default function ScanPage() {
     scanState,
     error,
     result,
-    previewDataUrl,
     storeCandidates,
     onStoreSelect,
     videoRef,
@@ -29,7 +28,6 @@ export default function ScanPage() {
     stopScan,
     reset,
     handleCapture,
-    confirmAndScan,
     toggleFacingMode,
     uploadAndScanImage,
   } = useScan()
@@ -40,36 +38,6 @@ export default function ScanPage() {
     return () => stopScan()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // プレビュー画面
-  if (scanState === 'preview' && previewDataUrl) {
-    return (
-      <AppLayout>
-        <div className="flex flex-col items-center gap-4 p-4">
-          <h2 className="font-bold">{t('preview.title')}</h2>
-          <img src={previewDataUrl} alt="preview" className="max-w-sm rounded-lg shadow" />
-          <div className="flex gap-4">
-            <button
-              onClick={reset}
-              className="rounded-lg border px-6 py-3 text-sm font-medium hover:bg-accent"
-            >
-              {t('preview.retake')}
-            </button>
-            <button
-              onClick={() => { void confirmAndScan() }}
-              className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground"
-            >
-              {t('preview.confirm')}
-            </button>
-          </div>
-          {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
-          <p className="text-center text-xs text-muted-foreground">
-            {t('caution')}
-          </p>
-        </div>
-      </AppLayout>
-    )
-  }
 
   // 結果画面
   if (scanState === 'result' && result !== null) {

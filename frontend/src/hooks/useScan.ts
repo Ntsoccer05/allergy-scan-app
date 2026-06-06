@@ -78,16 +78,13 @@ type UseScanReturn = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
-  previewDataUrl: string | null
   storeCandidates: StoreCandidate[]
   videoRef: React.RefObject<HTMLVideoElement | null>
   startScan: () => Promise<void>
   stopScan: () => void
   reset: () => void
-  /** タップ撮影: 現在フレームをキャプチャして preview 状態に遷移する */
+  /** タップ撮影: 現在フレームをキャプチャして即座に OCR フローに進む */
   handleCapture: () => void
-  /** プレビュー確定: preview 状態から OCR フローに進む */
-  confirmAndScan: () => Promise<void>
   manualCapture: () => Promise<void>
   uploadAndScanImage: (file: File) => Promise<void>
   zoomLevel: number
@@ -351,64 +348,19 @@ export const useScan = (): UseScanReturn => {
   }, [captureFrame, runOcrFlow])
 
   /**
-   * タップ撮影: 現在フレームをキャプチャして preview 状態に遷移する。
-   * idle 状態でのみ有効。
+   * タップ撮影: 現在フレームをキャプチャして即座に OCR フローに進む。
+   * idle 状態でのみ有効。確認画面なし。
    */
   const handleCapture = useCallback((): void => {
     if (isProcessingRef.current) return
     if (stateRef.current !== 'idle') return
     const frame = captureFrame()
     if (!frame) return
-    // TODO: ImageData → data URL 変換して PREVIEW アクションを発火する
-    const canvas = document.createElement('canvas')
-    canvas.width = frame.width
-    canvas.height = frame.height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.putImageData(frame, 0, 0)
-    const dataUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
-    dispatch({ type: 'PREVIEW', imageDataUrl: dataUrl })
-  }, [captureFrame])
-
-  /**
-   * プレビュー確定: preview 状態から OCR フローに進む。
-   * previewDataUrl を ImageData に変換して runOcrFlow に渡す。
-   */
-  const confirmAndScan = useCallback(async (): Promise<void> => {
-    // TODO: state.previewDataUrl から ImageData を復元して runOcrFlow を呼ぶ
-    if (isProcessingRef.current) return
-    if (stateRef.current !== 'preview') return
     isProcessingRef.current = true
-    dispatch({ type: 'PROCESSING' })
-    try {
-      // previewDataUrl は handleCapture 時に canvas.toDataURL で生成済み
-      // 再度 ImageData に変換して runOcrFlow へ渡す
-      // （runOcrFlow が ImageData を受け取る設計のため canvas 経由で変換する）
-      const img = new Image()
-      const previewUrl = state.previewDataUrl
-      if (!previewUrl) {
-        dispatch({ type: 'ERROR', error: 'api_error' })
-        return
-      }
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error('image load failed'))
-        img.src = previewUrl
-      })
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('canvas context unavailable')
-      ctx.drawImage(img, 0, 0)
-      const imageData = ctx.getImageData(0, 0, img.width, img.height)
-      await runOcrFlow(imageData)
-    } catch {
-      dispatch({ type: 'ERROR', error: 'api_error' })
-    } finally {
+    void runOcrFlow(frame).finally(() => {
       isProcessingRef.current = false
-    }
-  }, [runOcrFlow, state.previewDataUrl])
+    })
+  }, [captureFrame, runOcrFlow])
 
   /**
    * ギャラリー / ファイルシステムから選択した画像を OCR 解析する。
@@ -469,14 +421,12 @@ export const useScan = (): UseScanReturn => {
     scanState: state.scanState,
     error: state.error,
     result: state.result,
-    previewDataUrl: state.previewDataUrl,
     storeCandidates: state.storeCandidates,
     videoRef,
     startScan,
     stopScan,
     reset,
     handleCapture,
-    confirmAndScan,
     manualCapture,
     uploadAndScanImage,
     zoomLevel,
