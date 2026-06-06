@@ -60,6 +60,7 @@ const FALLBACK_RESPONSE: GeminiOcrResponse = {
   price: null,
   price_with_tax: null,
   price_confidence: null,
+  product_name: null,
 };
 
 @Injectable()
@@ -88,6 +89,8 @@ export class GeminiClient {
           thinkingConfig: { thinkingBudget: 0 },
           // JSON mode: コードブロックなしで純粋な JSON を返す（regex抽出不要・確実なパース）
           responseMimeType: 'application/json',
+          // temperature: 0 で決定論的出力（同じ画像・プロンプトで一貫した結果を返す）
+          temperature: 0,
         },
       });
       const imageSizeKB = Math.round((imageBase64.length * 3) / 4 / 1024);
@@ -217,6 +220,8 @@ export class GeminiClient {
           ? obj['price_with_tax']
           : null,
       price_confidence: this.toPriceConfidence(obj['price_confidence']),
+      product_name:
+        typeof obj['product_name'] === 'string' ? obj['product_name'] : null,
     };
   }
 
