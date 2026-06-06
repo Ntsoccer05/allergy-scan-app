@@ -123,7 +123,12 @@ export default function ScanPage() {
             </div>
           )}
 
-          <div className="flex flex-col items-center gap-3 pb-8">
+          {/* 下部: 注意文 + 撮影ボタン */}
+          <div className="flex flex-col items-center gap-3 pb-4">
+            {/* ⚠️ 安全設計: オーバーレイ内に配置して常時視認可能にする（省略禁止） */}
+            <p className="rounded-lg bg-black/50 px-3 py-1.5 text-center text-xs text-white backdrop-blur-sm">
+              {t('caution')}
+            </p>
             {/* タップ撮影ボタン */}
             <button
               onClick={handleCapture}
@@ -136,11 +141,6 @@ export default function ScanPage() {
           </div>
         </div>
       </div>
-
-      {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
-      <p className="p-2 text-center text-xs text-muted-foreground">
-        {t('caution')}
-      </p>
     </AppLayout>
   )
 }
