@@ -188,3 +188,27 @@ NG 判定時は「このアプリの判定は参考情報です。アナフィ�
 ```
 
 **理由**: アプリは日本語/英語の多言語対応を予定している。最初からi18nキーで書かないと後で全コンポーネントを書き直す大工事になる（`coding_rules.md` の i18n セクション参照）。
+
+---
+
+## セキュリティ
+
+### 18. リダイレクト先を URL クエリパラメータで受け取る（オープンリダイレクト）
+
+```typescript
+// ❌ クエリパラメータで遷移先を制御 → 外部サイトへ誘導可能
+const redirect = searchParams.get('redirect') ?? '/scan'
+router.push(redirect)
+
+// ❌ OAuth コールバックにリダイレクト先を埋め込む
+redirectTo: `${origin}/auth/callback?redirect=${redirect}`
+
+// ✅ 認証後は常に固定パスへ
+router.push('/scan')
+redirectTo: `${origin}/auth/callback`
+```
+
+**理由**: `?redirect=https://evil.com` のような URL でフィッシングサイトへ誘導される（CWE-601）。
+認証後の遷移先はアプリ内の固定パスのみ許容し、外部制御を一切受け付けない。
+
+**適用箇所**: `proxy.ts`（ミドルウェア）、`auth/callback/route.ts`、`login/page.tsx`の全ての認証フロー。

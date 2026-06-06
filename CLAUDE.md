@@ -63,6 +63,72 @@ Week3：履歴機能（DB→API→フロント）
 Week4：設定・オンボーディング
 ```
 
+## Chrome 実機テスト必須（ハーネス設計）
+
+型チェック・ユニットテストだけでは検出できない「認証フロー・画面遷移・API通信・UI表示」のバグを防ぐため、
+**UI 変更・API 変更・認証変更を含む実装はすべて Chrome 実機チェックをコミット前に必ず行う。**
+
+### 実機チェック手順
+
+1. **開発環境の起動確認**（MCP chrome-devtools を使用）
+   ```
+   mcp__chrome-devtools__navigate_page: http://localhost:3000
+   ```
+
+2. **認証フロー検証**（認証関連の変更時は必須）
+   - ログインページが表示されること
+   - メールアドレス + パスワードでログインできること
+   - ログイン後 `/scan` にリダイレクトされること（クエリパラメータなし）
+   - 未ログイン時に保護ルートへアクセスすると `/login` にリダイレクトされること
+
+3. **オンボーディングフロー検証**（初回ユーザー向け画面変更時）
+   - Step1（ようこそ）→ Step2（アレルギー選択）→ Step3（一部含む設定）→ Step4（免責同意）の順で進めること
+   - アレルゲンアイコンが SVG 画像として表示されること（スラッグ文字列でないこと）
+   - 「同意して始める」でオンボーディング完了し `/scan` へ遷移すること
+
+4. **スキャン画面検証**（scan 機能変更時）
+   - カメラが起動すること
+   - 撮影ボタンでプレビュー表示に遷移すること
+   - 結果カードに免責メッセージが表示されること
+
+5. **履歴画面検証**（history 機能変更時）
+   - 「自分のスキャン」タブに履歴が表示されること
+   - 「みんなのスキャン」タブに他ユーザーのスキャンが表示されること
+   - 編集・削除が正常に動作すること
+
+6. **設定画面検証**（settings 変更時）
+   - アレルゲン一覧が SVG アイコン付きで表示されること
+   - トグルが正常に動作すること
+
+7. **ネットワークエラー確認**
+   ```
+   mcp__chrome-devtools__list_network_requests / get_network_request
+   ```
+   - 401/403/500 のエラーがないこと
+   - 意図しない API コールがないこと
+
+8. **コンソールエラー確認**
+   ```
+   mcp__chrome-devtools__list_console_messages
+   ```
+   - ERROR レベルのメッセージがないこと
+
+### Chrome チェックを省略できない条件
+
+以下の変更を含む場合は Chrome 実機チェックなしでのコミット禁止:
+- 認証ガード・ミドルウェア変更
+- ルーティング・リダイレクト変更
+- API クライアント・エンドポイント変更
+- UI コンポーネント変更（表示系バグは型チェックで検出不可）
+- Cookie / JWT / セッション関連変更
+
+### セキュリティ制約
+
+- **リダイレクトクエリパラメータ禁止**: `?redirect=` `?callbackUrl=` `?returnTo=` 等のクエリで遷移先を外部から制御しない（オープンリダイレクト脆弱性）
+- 認証後の遷移先は常に `/scan` 固定
+
+---
+
 ## 絶対に守る設計原則
 
 ### OCR安全設計（命に関わる）
@@ -102,7 +168,7 @@ Week4：設定・オンボーディング
 
 詳細は `architecture.md` および `docs/design/api.md` を参照。
 
-**認証方式**: Supabase Auth JWT Bearer Token。`apiFetch` が `Authorization: Bearer <token>` を自動付与。`@Public()` デコレータで認証バイパス。
+**認証方式（現行）**: Cookie ベース認証（HttpOnly Cookie）。`@Public()` デコレータで認証バイパス。`/admin/*` は Supabase Auth `app_metadata.role === 'admin'` を追加チェック。Phase 1（pending）で JWT Bearer Token に統一予定。
 
 ```
 POST /users/me/init          Supabase JWT 初回ユーザー登録（Bearer Token 必須）
@@ -122,7 +188,7 @@ GET  /allergens              アレルギーマスター取得
 GET  /admin/users            ユーザー一覧（admin 専用）
 GET  /admin/stats            統計情報（admin 専用）
 PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
-POST /webhooks/stripe        Stripe Webhook 受信（署名検証 TODO）
+POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
 ## タスク・要求の起票
@@ -166,7 +232,7 @@ Claude Code の `Skill` ツールで呼び出す。セッション開始時に `
 - OCR安全設計・Geminiプロンプト: `docs/design/ocr.md`
 - DB設計・テーブル定義・初期データ: `docs/design/database.md`
   （allergens / allergen_components / products / scan_histories
-   / users / backup_codes / judgment_reports）
+   / users / plans / user_subscriptions / user_daily_scans / stripe_customers）
 - APIエンドポイント設計: `docs/design/api.md`
 - 履歴・設定・オンボーディング・SNS共有・引き継ぎ・i18n: `docs/design/screens.md`
 - 法務・免責・プライバシー: `docs/design/legal.md`

@@ -47,7 +47,7 @@ beforeEach(() => {
   jest.useFakeTimers()
   mockGetAllergens.mockResolvedValue(makeAllergenGroups())
   mockGetUser.mockResolvedValue(makeUser())
-  mockUpdateUser.mockResolvedValue(makeUser())
+  mockUpdateUser.mockResolvedValue(undefined)
 })
 
 afterEach(() => {

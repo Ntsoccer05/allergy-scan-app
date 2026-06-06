@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
@@ -14,8 +14,6 @@ import { initUser } from '@/lib/api/users.api'
 export default function LoginPage() {
   const t = useTranslations('auth')
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirect = searchParams.get('redirect') ?? '/scan'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -35,7 +33,8 @@ export default function LoginPage() {
         return
       }
       await initUser()
-      router.push(redirect)
+      // open redirect 防止: 認証後は常に /scan へ固定リダイレクト
+      router.push('/scan')
     } catch {
       setError(t('error.unknown'))
     } finally {
@@ -44,9 +43,10 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = async () => {
+    // open redirect 防止: callback は /scan 固定（redirectTo クエリパラメータは使わない）
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback?redirect=${redirect}` },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
   }
 
