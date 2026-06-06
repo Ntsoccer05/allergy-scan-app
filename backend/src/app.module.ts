@@ -12,6 +12,7 @@ import { AllergensModule } from './allergens/allergens.module';
 import { ThrottlerExceptionFilter } from './shared/throttler-exception.filter';
 import { AuthModule } from './auth/auth.module';
 import { SupabaseJwtGuard } from './auth/supabase-jwt.guard';
+import { AdminModule } from './admin/admin.module';
 import {
   THROTTLE_DEFAULT_TTL_MS,
   THROTTLE_DEFAULT_LIMIT,
@@ -32,6 +33,7 @@ import {
     ProductsModule,
     AllergensModule,
     AuthModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
