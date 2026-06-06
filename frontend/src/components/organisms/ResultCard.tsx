@@ -380,17 +380,6 @@ export const ResultCard = ({
                   className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-0.5">{t('productInfo.memo')}</label>
-                <textarea
-                  value={editMemo}
-                  onChange={(e) => setEditMemo(e.target.value)}
-                  onBlur={() => onPatchHistory?.({ memo: editMemo.trim() || null })}
-                  placeholder={t('productInfo.memoPlaceholder')}
-                  rows={2}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400 resize-none"
-                />
-              </div>
             </div>
           )}
         </div>
@@ -488,6 +477,19 @@ export const ResultCard = ({
             <span className="sr-only">{raw_text}</span>
           </div>
         )}
+
+        {/* 備考欄（原材料の下・免責表示の上） */}
+        <div>
+          <label className="block text-xs text-gray-500 mb-0.5">{t('productInfo.memo')}</label>
+          <textarea
+            value={editMemo}
+            onChange={(e) => setEditMemo(e.target.value)}
+            onBlur={() => onPatchHistory?.({ memo: editMemo.trim() || null })}
+            placeholder={t('productInfo.memoPlaceholder')}
+            rows={2}
+            className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400 resize-none"
+          />
+        </div>
 
         {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
