@@ -19,10 +19,15 @@ export class S3Client {
     // AWS SDK v3 はデフォルトで CRC32 チェックサムを Presigned URL に埋め込む。
     // ブラウザの fetch PUT はそのヘッダーを送らないため 403 になる。
     // WHEN_REQUIRED に設定することでチェックサム自動付与を無効化する。
+    //
+    // AWS_ENDPOINT_URL が設定されている場合は MinIO 等のローカル互換ストレージに向ける。
+    // 本番（S3）では未設定のままにする。
+    const endpoint = process.env.AWS_ENDPOINT_URL;
     this.client = new AwsS3Client({
       region,
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
+      ...(endpoint && { endpoint, forcePathStyle: true }),
     });
   }
 
