@@ -2,9 +2,9 @@ Start the local dev environment for allergy-scan-app.
 
 Run the following steps in order:
 
-1. Start the PostgreSQL container and wait until healthy:
+1. Start PostgreSQL and Garage (S3) containers and wait until healthy:
    ```
-   docker compose up db -d --wait
+   docker compose up db garage -d --wait
    ```
 
 2. Start the NestJS backend in the background (port 3001):
