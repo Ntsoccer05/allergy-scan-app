@@ -46,10 +46,10 @@ export class UsersService {
     }
   }
 
-  async updateUser(userId: string, allergies?: UserAllergies, locale?: string): Promise<void> {
+  async updateUser(userId: string, allergies?: UserAllergies, locale?: string, onboardingDone?: boolean): Promise<void> {
     const user = await this.usersRepository.findById(userId)
     if (!user) throw new NotFoundException('ユーザーが見つかりません')
-    await this.usersRepository.update(userId, { allergies, locale })
+    await this.usersRepository.update(userId, { allergies, locale, onboardingDone })
   }
 
   async deleteUser(userId: string): Promise<void> {

@@ -66,7 +66,13 @@ const AllergenToggleItem = ({
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         {emoji && (
-          <span className="text-lg" aria-hidden="true">{emoji}</span>
+          // emoji フィールドは SVG アイコンのスラッグ名（例: "egg"）
+          <img
+            src={`/icons/allergens/${emoji}.svg`}
+            alt=""
+            aria-hidden="true"
+            className="w-6 h-6 object-contain"
+          />
         )}
         <span className="text-sm font-medium text-gray-800">{displayName}</span>
       </div>

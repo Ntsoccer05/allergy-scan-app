@@ -15,6 +15,8 @@ import { UsersService } from './users.service'
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types'
 import type { UserAllergies } from '../shared/types/db.types'
 
+import { IsBoolean } from 'class-validator'
+
 class UpdateUserDto {
   @IsOptional()
   @IsObject()
@@ -23,6 +25,10 @@ class UpdateUserDto {
   @IsOptional()
   @IsString()
   locale?: string
+
+  @IsOptional()
+  @IsBoolean()
+  onboarding_done?: boolean
 }
 
 type AuthRequest = Request & { user: SupabaseJwtPayload }
@@ -45,7 +51,7 @@ export class UsersController {
   @Put()
   @HttpCode(HttpStatus.NO_CONTENT)
   async updateUser(@Req() req: AuthRequest, @Body() dto: UpdateUserDto) {
-    await this.usersService.updateUser(req.user.sub, dto.allergies, dto.locale)
+    await this.usersService.updateUser(req.user.sub, dto.allergies, dto.locale, dto.onboarding_done)
   }
 
   @Delete()

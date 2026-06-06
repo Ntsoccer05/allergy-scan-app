@@ -30,9 +30,13 @@ const AllergenToggleRow = ({ item, enabled, onToggle }: AllergenToggleRowProps) 
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         {item.emoji && (
-          <span className="text-lg" aria-hidden="true">
-            {item.emoji}
-          </span>
+          // emoji フィールドは SVG アイコンのスラッグ名（例: "egg"）
+          <img
+            src={`/icons/allergens/${item.emoji}.svg`}
+            alt=""
+            aria-hidden="true"
+            className="w-6 h-6 object-contain"
+          />
         )}
         <span className="text-sm font-medium text-gray-800">
           {item.display_name}

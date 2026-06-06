@@ -187,6 +187,17 @@ export class ProductRepository {
   }
 
   /**
+   * products.product_name を更新する。
+   * 履歴編集で手動入力された商品名を products にも反映させるために使用する。
+   */
+  async updateProductName(productId: string, productName: string): Promise<void> {
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { productName },
+    });
+  }
+
+  /**
    * label_hash で惣菜商品を UPSERT する（patterns.md パターン3）。
    * 既存レコードがある場合は scan_count +1 と expires_at の再計算を行う。
    */

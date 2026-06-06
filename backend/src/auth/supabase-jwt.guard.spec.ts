@@ -1,24 +1,17 @@
-import * as jwt from 'jsonwebtoken';
 import { Test } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { SupabaseJwtGuard } from './supabase-jwt.guard';
-import type { SupabaseJwtPayload } from './types/supabase-jwt.types';
 
-const TEST_JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
+// Supabase auth.getUser のモック
+const mockGetUser = jest.fn();
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    auth: { getUser: mockGetUser },
+  })),
+}));
 
-// テスト用に jsonwebtoken で JWT を生成するヘルパー
-function createTestToken(payload: Partial<SupabaseJwtPayload>, options?: jwt.SignOptions): string {
-  const now = Math.floor(Date.now() / 1000);
-  return jwt.sign(
-    { iat: now, ...payload },
-    TEST_JWT_SECRET,
-    { algorithm: 'HS256', expiresIn: 3600, ...options },
-  );
-}
-
-// ExecutionContext はインターフェースのため完全実装が必要。テストでは最小限のモックで代替する。
-const buildContext = (authorization?: string, isPublicOverride?: boolean): ExecutionContext => {
+const buildContext = (authorization?: string): ExecutionContext => {
   const request = { headers: { authorization }, user: undefined as unknown };
   return {
     switchToHttp: () => ({ getRequest: () => request, getResponse: () => ({}), getNext: () => ({}) }),
@@ -37,7 +30,10 @@ describe('SupabaseJwtGuard', () => {
   let guard: SupabaseJwtGuard;
 
   beforeEach(async () => {
-    process.env.SUPABASE_JWT_SECRET = TEST_JWT_SECRET;
+    process.env.SUPABASE_URL = 'http://localhost:54321';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    mockGetUser.mockReset();
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         SupabaseJwtGuard,
@@ -47,46 +43,58 @@ describe('SupabaseJwtGuard', () => {
     guard = moduleRef.get(SupabaseJwtGuard);
   });
 
-  it('should pass with valid JWT and set request.user', () => {
-    const payload: Partial<SupabaseJwtPayload> = {
+  it('valid な JWT → canActivate が true を返し request.user をセットする', async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: 'user-uuid',
+          email: 'test@example.com',
+          role: 'authenticated',
+          app_metadata: { provider: 'email' },
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+
+    const ctx = buildContext('Bearer valid-token');
+    const result = await guard.canActivate(ctx);
+    expect(result).toBe(true);
+    expect((ctx as unknown as { _request: { user: { sub: string } } })._request.user).toMatchObject({
       sub: 'user-uuid',
-      email: 'test@example.com',
-      role: 'authenticated',
-      app_metadata: { provider: 'email', providers: ['email'] },
-    };
-    const token = createTestToken(payload);
-    const ctx = buildContext(`Bearer ${token}`);
-    expect(guard.canActivate(ctx)).toBe(true);
-    expect((ctx as unknown as { _request: { user: unknown } })._request.user).toMatchObject({ sub: 'user-uuid' });
+    });
   });
 
-  it('should throw 401 when no Authorization header', () => {
+  it('Authorization ヘッダーなし → 401 を throw する', async () => {
     const ctx = buildContext(undefined);
-    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should throw 401 when token is invalid', () => {
+  it('Supabase がエラーを返す（無効なトークン）→ 401 を throw する', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: new Error('Invalid JWT'),
+    });
+
     const ctx = buildContext('Bearer invalid-token');
-    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should throw 401 when token is expired', () => {
-    const payload: Partial<SupabaseJwtPayload> = {
-      sub: 'user-uuid',
-      email: 'test@example.com',
-      role: 'authenticated',
-      app_metadata: { provider: 'email', providers: ['email'] },
-    };
-    // expiresIn: -1 で即時期限切れトークンを生成する
-    const token = createTestToken(payload, { expiresIn: -1 });
-    const ctx = buildContext(`Bearer ${token}`);
-    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+  it('Supabase が user: null を返す → 401 を throw する', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
+
+    const ctx = buildContext('Bearer some-token');
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should skip guard when @Public() is set', () => {
+  it('@Public() がセットされている場合 → token なしでも true を返す', async () => {
     const mockReflector = { getAllAndOverride: jest.fn().mockReturnValue(true) };
     const publicGuard = new SupabaseJwtGuard(mockReflector as unknown as Reflector);
     const ctx = buildContext(undefined);
-    expect(publicGuard.canActivate(ctx)).toBe(true);
+    const result = await publicGuard.canActivate(ctx);
+    expect(result).toBe(true);
   });
 });

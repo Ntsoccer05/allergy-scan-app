@@ -13,20 +13,28 @@ describe('UsersRepository', () => {
   let prisma: {
     user: {
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       upsert: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
     };
+    $executeRawUnsafe: jest.Mock;
   };
 
   beforeEach(async () => {
     prisma = {
       user: {
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          allergies: mockAllergies,
+          locale: 'en',
+        }),
         upsert: jest.fn().mockResolvedValue(undefined),
         update: jest.fn(),
         delete: jest.fn().mockResolvedValue(undefined),
       },
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
     };
 
     const module = await Test.createTestingModule({
@@ -74,8 +82,8 @@ describe('UsersRepository', () => {
   });
 
   describe('update', () => {
-    it('allergies と locale を渡すと Prisma update に正しいデータが含まれる', async () => {
-      prisma.user.update.mockResolvedValue({
+    it('allergies と locale を渡すと $executeRawUnsafe が呼ばれ、更新後のユーザーを返す', async () => {
+      prisma.user.findUniqueOrThrow.mockResolvedValue({
         id: 'user-1',
         allergies: mockAllergies,
         locale: 'en',
@@ -86,34 +94,29 @@ describe('UsersRepository', () => {
         locale: 'en',
       });
 
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        data: { allergies: mockAllergies, locale: 'en' },
-        select: {
-          id: true,
-          allergies: true,
-          locale: true,
-        },
-      });
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE users SET'),
+        'user-1',
+        JSON.stringify(mockAllergies),
+        'en',
+      );
       expect(result.locale).toBe('en');
       expect(result.allergies).toEqual(mockAllergies);
     });
 
-    it('allergies のみ渡した場合 locale が data に含まれない', async () => {
-      prisma.user.update.mockResolvedValue({
-        id: 'user-1',
-        allergies: mockAllergies,
-        locale: 'ja',
-      });
-
+    it('allergies のみ渡した場合 locale が SQL に含まれない', async () => {
       await repository.update('user-1', { allergies: mockAllergies });
 
-      const updateCalls = prisma.user.update.mock.calls as Array<
-        [{ data: Record<string, unknown> }]
-      >;
-      const callArg = updateCalls[0][0];
-      expect(callArg.data).not.toHaveProperty('locale');
-      expect(callArg.data.allergies).toEqual(mockAllergies);
+      const sqlArg = prisma.$executeRawUnsafe.mock.calls[0][0] as string;
+      expect(sqlArg).toContain('allergies');
+      expect(sqlArg).not.toContain('locale');
+    });
+
+    it('onboardingDone を渡すと onboarding_done が SQL に含まれる', async () => {
+      await repository.update('user-1', { onboardingDone: true });
+
+      const sqlArg = prisma.$executeRawUnsafe.mock.calls[0][0] as string;
+      expect(sqlArg).toContain('onboarding_done');
     });
   });
 });

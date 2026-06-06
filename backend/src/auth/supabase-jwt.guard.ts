@@ -1,16 +1,25 @@
 import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import * as jwt from 'jsonwebtoken';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import type { SupabaseJwtPayload } from './types/supabase-jwt.types';
 
 @Injectable()
 export class SupabaseJwtGuard implements CanActivate {
   private readonly logger = new Logger(SupabaseJwtGuard.name);
+  private readonly supabase: SupabaseClient | null = null;
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {
+    const url = process.env.SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && serviceKey) {
+      this.supabase = createClient(url, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+    }
+  }
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -21,15 +30,31 @@ export class SupabaseJwtGuard implements CanActivate {
     const token = this.extractToken(request as { headers?: { authorization?: string } });
     if (!token) throw new UnauthorizedException();
 
+    if (!this.supabase) {
+      this.logger.error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set');
+      throw new UnauthorizedException('Auth not configured');
+    }
+
     try {
-      const secret = process.env.SUPABASE_JWT_SECRET;
-      if (!secret) throw new Error('SUPABASE_JWT_SECRET not set');
-      const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as SupabaseJwtPayload;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      (request as Record<string, unknown>).user = decoded;
+      const { data: { user }, error } = await this.supabase.auth.getUser(token);
+      if (error || !user) {
+        this.logger.warn('JWT verification failed', error?.message ?? 'no user');
+        throw new UnauthorizedException('Invalid token');
+      }
+      const payload: SupabaseJwtPayload = {
+        sub: user.id,
+        email: user.email,
+        role: user.role ?? 'authenticated',
+        app_metadata: user.app_metadata as SupabaseJwtPayload['app_metadata'],
+        user_metadata: user.user_metadata,
+        iat: 0,
+        exp: 0,
+      };
+      (request as Record<string, unknown>).user = payload;
       return true;
     } catch (err) {
-      this.logger.warn('JWT verification failed', err instanceof Error ? err.message : String(err));
+      if (err instanceof UnauthorizedException) throw err;
+      this.logger.warn('JWT verification error', err instanceof Error ? err.message : String(err));
       throw new UnauthorizedException('Invalid token');
     }
   }

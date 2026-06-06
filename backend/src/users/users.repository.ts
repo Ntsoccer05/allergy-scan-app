@@ -11,6 +11,7 @@ export type UserRecord = {
 export type UpdateUserInput = {
   allergies?: UserAllergies;
   locale?: string;
+  onboardingDone?: boolean;
 };
 
 @Injectable()
@@ -69,17 +70,29 @@ export class UsersRepository {
   }
 
   async update(userId: string, input: UpdateUserInput): Promise<UserRecord> {
-    const data: Record<string, unknown> = {};
+    const sets: string[] = ['updated_at = NOW()'];
+    const values: unknown[] = [userId];
+
     if (input.allergies !== undefined) {
-      data.allergies = input.allergies;
+      sets.push(`allergies = $${sets.length + 1}::jsonb`);
+      values.push(JSON.stringify(input.allergies));
     }
     if (input.locale !== undefined) {
-      data.locale = input.locale;
+      sets.push(`locale = $${sets.length + 1}`);
+      values.push(input.locale);
+    }
+    if (input.onboardingDone !== undefined) {
+      sets.push(`onboarding_done = $${sets.length + 1}`);
+      values.push(input.onboardingDone);
     }
 
-    const user = await this.prisma.user.update({
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $1`,
+      ...values,
+    );
+
+    const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      data,
       select: { id: true, allergies: true, locale: true },
     });
     return {

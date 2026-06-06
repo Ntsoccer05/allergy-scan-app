@@ -7,7 +7,7 @@ type InitUserResponse = {
 }
 
 export const initUser = async (): Promise<InitUserResponse> => {
-  const res = await apiFetch('/users/init', {
+  const res = await apiFetch('/users/me/init', {
     method: 'POST',
     headers: {},
   })
@@ -21,12 +21,11 @@ export const getUser = async (): Promise<UserProfile> => {
   return res.json() as Promise<UserProfile>
 }
 
-export const updateUser = async (body: UpdateUserBody): Promise<UserProfile> => {
-  const res = await apiFetch('/users/me', {
+export const updateUser = async (body: UpdateUserBody): Promise<void> => {
+  await apiFetch('/users/me', {
     method: 'PUT',
     body: JSON.stringify(body),
   })
-  return res.json() as Promise<UserProfile>
 }
 
 export const deleteUser = async (): Promise<void> => {

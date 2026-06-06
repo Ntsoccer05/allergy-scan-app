@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type {
   AllergenGroup,
@@ -43,38 +43,32 @@ export const useOnboarding = (): UseOnboardingReturn => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // GET /allergens の二重呼び出し防止（React StrictMode 対策）
-  const hasInitialized = useRef(false)
-
   useEffect(() => {
-    if (hasInitialized.current) return
-    hasInitialized.current = true
-
-    let isMounted = true
+    let ignore = false
 
     const initialize = async () => {
       try {
         // POST /users/init は layout.tsx の UserInitializer が全ページ共通で担う。
         // ここで呼ぶと /onboarding アクセス時に二重発行になるため委譲する。
         const groups = await getAllergens()
-        if (!isMounted) return
+        if (ignore) return
         // mandatory / recommended カテゴリーのみ表示対象
         const onboardingGroups = groups.filter(
           (g) => g.category === 'mandatory' || g.category === 'recommended',
         )
         setAllergenGroups(onboardingGroups)
       } catch {
-        if (!isMounted) return
+        if (ignore) return
         setError('initFailed')
       } finally {
-        if (isMounted) setIsLoading(false)
+        if (!ignore) setIsLoading(false)
       }
     }
 
     void initialize()
 
     return () => {
-      isMounted = false
+      ignore = true
     }
   }, [])
 

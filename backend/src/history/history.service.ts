@@ -11,6 +11,7 @@ import type { ScanHistoryLocation } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
+import { ProductRepository } from '../products/product.repository';
 
 /** GET /history のレスポンス型。 */
 export type HistoryListResult = {
@@ -31,7 +32,10 @@ const HISTORY_PAGE_LIMIT = 20;
 export class HistoryService {
   private readonly logger = new Logger(HistoryService.name);
 
-  constructor(private readonly scanHistoryRepository: ScanHistoryRepository) {}
+  constructor(
+    private readonly scanHistoryRepository: ScanHistoryRepository,
+    private readonly productRepository: ProductRepository,
+  ) {}
 
   /**
    * ユーザーのスキャン履歴をカーソルページネーションで取得する（patterns.md パターン4）。
@@ -132,6 +136,11 @@ export class HistoryService {
     // location フィールドが指定された場合は location も更新する（後方互換）
     if (data.location !== undefined) {
       await this.scanHistoryRepository.updateLocation(id, data.location);
+    }
+
+    // 商品名が手動入力された場合、products テーブルにも伝播させて「みんなのスキャン」に反映する
+    if (data.product_name && record.productId) {
+      await this.productRepository.updateProductName(record.productId, data.product_name);
     }
 
     this.logger.log(`履歴更新: historyId=${id}, userId=${userId}`);

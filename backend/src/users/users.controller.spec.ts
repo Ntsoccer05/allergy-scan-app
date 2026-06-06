@@ -65,7 +65,7 @@ describe('UsersController', () => {
     it('should call updateUser with sub and dto', async () => {
       mockService.updateUser.mockResolvedValue(undefined)
       await controller.updateUser(makeAuthReq() as any, { locale: 'en' })
-      expect(mockService.updateUser).toHaveBeenCalledWith('user-uuid', undefined, 'en')
+      expect(mockService.updateUser).toHaveBeenCalledWith('user-uuid', undefined, 'en', undefined)
     })
   })
 
