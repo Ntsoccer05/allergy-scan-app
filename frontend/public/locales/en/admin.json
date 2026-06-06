@@ -1,0 +1,34 @@
+{
+  "layout": {
+    "title": "Admin",
+    "backToApp": "← Back to App",
+    "nav": {
+      "stats": "Stats",
+      "users": "Users"
+    }
+  },
+  "stats": {
+    "pageTitle": "Statistics",
+    "cards": {
+      "totalUsers": "Total Users",
+      "totalScans": "Total Scans",
+      "todayScans": "Today's Scans",
+      "premiumUsers": "Premium Users"
+    }
+  },
+  "users": {
+    "pageTitle": "User Management",
+    "table": {
+      "id": "ID",
+      "createdAt": "Created At",
+      "plan": "Plan",
+      "actions": "Actions"
+    },
+    "actions": {
+      "upgradeToPremium": "Change to Premium",
+      "downgradeToFree": "Change to Free"
+    },
+    "loadMore": "Load more",
+    "loading": "Loading..."
+  }
+}
