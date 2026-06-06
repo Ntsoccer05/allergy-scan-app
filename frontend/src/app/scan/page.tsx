@@ -51,12 +51,23 @@ export default function ScanPage() {
     return (
       <AppLayout>
         <div className="relative h-[calc(100dvh-4rem)] lg:h-screen">
+          {/* スキャン画像をカメラフレームと同じ位置に全面表示 */}
+          {capturedImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={capturedImageUrl}
+              alt=""
+              aria-hidden="true"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-gray-900" />
+          )}
           <ResultCard
             result={result}
             onReset={reset}
             storeCandidates={storeCandidates}
             onStoreSelect={onStoreSelect}
-            capturedImageUrl={capturedImageUrl ?? undefined}
           />
         </div>
       </AppLayout>
