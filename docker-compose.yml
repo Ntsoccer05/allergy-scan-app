@@ -45,5 +45,18 @@ services:
     env_file:
       - ./frontend/.env
 
+  garage:
+    image: dxflrs/garage:v1.0.0
+    container_name: allergy_scan_garage
+    ports:
+      - '3900:3900'   # S3 API
+      - '3901:3901'   # RPC（内部通信）
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+
 volumes:
   postgres_data:
+  garage_meta:
+  garage_data:
