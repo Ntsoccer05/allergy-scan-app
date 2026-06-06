@@ -7,17 +7,23 @@ Run the following steps in order:
    docker compose up db garage -d --wait
    ```
 
-2. Start the NestJS backend in the background (port 3001):
+2. Start Supabase local instance:
+   ```
+   supabase start
+   ```
+   This may take a while on first run. Wait until it finishes and prints the API URL / anon key.
+
+3. Start the NestJS backend in the background (port 3001):
    ```
    pnpm --filter backend start:dev
    ```
 
-3. Start the Next.js frontend in the background (port 3000):
+4. Start the Next.js frontend in the background (port 3000):
    ```
    pnpm --filter frontend dev
    ```
 
-4. Wait 15 seconds, then verify both servers are responding:
+5. Wait 15 seconds, then verify both servers are responding:
    - backend: `curl -s http://localhost:3001/allergens`  → expect JSON array
    - frontend: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000` → expect 200 or 307
 

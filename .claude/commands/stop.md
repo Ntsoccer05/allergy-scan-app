@@ -5,7 +5,12 @@ Stop the local dev environment for allergy-scan-app.
    docker compose stop db garage
    ```
 
-2. Kill any running NestJS (port 3001) and Next.js (port 3000) dev processes:
+2. Stop Supabase local instance:
+   ```
+   supabase stop
+   ```
+
+3. Kill any running NestJS (port 3001) and Next.js (port 3000) dev processes:
    ```
    npx kill-port 3001 3000
    ```
