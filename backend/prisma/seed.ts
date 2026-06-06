@@ -44,6 +44,14 @@ const ALLERGENS_SEED: Array<{
   { name: 'りんご',           display_name: 'りんご',           category: 'recommended', display_order: 27, emoji: 'apple' },
   { name: 'やまいも',         display_name: 'やまいも',         category: 'recommended', display_order: 28, emoji: 'yam' },
   { name: 'ゼラチン',         display_name: 'ゼラチン',         category: 'recommended', display_order: 29, emoji: 'gelatin' },
+  // 依存性への配慮（addiction）
+  { name: 'アルコール',       display_name: 'アルコール',       category: 'addiction',   display_order: 30, emoji: 'alcohol' },
+  { name: 'カフェイン',       display_name: 'カフェイン',       category: 'addiction',   display_order: 31, emoji: 'caffeine' },
+  { name: '糖質',             display_name: '糖質',             category: 'addiction',   display_order: 32, emoji: 'carbs' },
+  // 肌への配慮（skin）
+  { name: '食品添加物',       display_name: '食品添加物',       category: 'skin',        display_order: 33, emoji: 'additive' },
+  { name: 'トランス脂肪酸',   display_name: 'トランス脂肪酸',   category: 'skin',        display_order: 34, emoji: 'trans-fat' },
+  { name: '砂糖',             display_name: '砂糖',             category: 'skin',        display_order: 35, emoji: 'sugar' },
 ];
 
 // allergen_components 初期データ（database.md の SQL 初期データに準拠）
