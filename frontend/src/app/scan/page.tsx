@@ -22,6 +22,7 @@ export default function ScanPage() {
     error,
     result,
     storeCandidates,
+    capturedImageUrl,
     onStoreSelect,
     videoRef,
     startScan,
@@ -55,6 +56,7 @@ export default function ScanPage() {
             onReset={reset}
             storeCandidates={storeCandidates}
             onStoreSelect={onStoreSelect}
+            capturedImageUrl={capturedImageUrl ?? undefined}
           />
         </div>
       </AppLayout>

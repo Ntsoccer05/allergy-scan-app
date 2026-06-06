@@ -73,7 +73,7 @@ describe('scanReducer', () => {
 
   it('START_CAMERA → idle with error/result cleared', () => {
     const state = scanReducer(
-      { scanState: 'error', error: 'api_error', result: null, previewDataUrl: null, storeCandidates: [] },
+      { scanState: 'error', error: 'api_error', result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null },
       { type: 'START_CAMERA' },
     )
     expect(state.scanState).toBe('idle')
@@ -82,7 +82,7 @@ describe('scanReducer', () => {
 
   it('PREVIEW → preview state with imageDataUrl', () => {
     const state = scanReducer(
-      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [] },
+      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null },
       { type: 'PREVIEW', imageDataUrl: 'data:image/jpeg;base64,...' },
     )
     expect(state.scanState).toBe('preview')
@@ -91,7 +91,7 @@ describe('scanReducer', () => {
 
   it('ERROR daily_limit_exceeded → error state', () => {
     const state = scanReducer(
-      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [] },
+      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null },
       { type: 'ERROR', error: 'daily_limit_exceeded' }
     )
     expect(state.scanState).toBe('error')
@@ -166,6 +166,7 @@ describe('scanReducer', () => {
       },
       previewDataUrl: null,
       storeCandidates: [],
+      capturedImageUrl: null,
     }
     const state = scanReducer(resultState, { type: 'RESET' })
     expect(state).toEqual(initialState)
@@ -178,6 +179,7 @@ describe('scanReducer', () => {
       result: null,
       previewDataUrl: null,
       storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
+      capturedImageUrl: null,
     }
     const state = scanReducer(stateWithCandidates, { type: 'STORE_SELECTED' })
     expect(state.storeCandidates).toHaveLength(0)
@@ -229,6 +231,7 @@ describe('scanReducer', () => {
       result: null,
       previewDataUrl: null,
       storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
+      capturedImageUrl: null,
     }
     const state = scanReducer(stateWithCandidates, { type: 'START_CAMERA' })
     expect(state.storeCandidates).toHaveLength(0)

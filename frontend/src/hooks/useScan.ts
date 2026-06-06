@@ -18,7 +18,7 @@ import { useScanApi } from './useScanApi'
 export type Action =
   | { type: 'START_CAMERA' }
   | { type: 'PREVIEW'; imageDataUrl: string }
-  | { type: 'PROCESSING' }
+  | { type: 'PROCESSING'; capturedImageUrl?: string }
   | { type: 'RESULT'; payload: ScanResult }
   | { type: 'ERROR'; error: ScanError }
   | { type: 'RESET' }
@@ -30,6 +30,7 @@ export type State = {
   result: ScanResult | null
   previewDataUrl: string | null
   storeCandidates: StoreCandidate[]
+  capturedImageUrl: string | null
 }
 
 export const initialState: State = {
@@ -38,6 +39,7 @@ export const initialState: State = {
   result: null,
   previewDataUrl: null,
   storeCandidates: [],
+  capturedImageUrl: null,
 }
 
 export const scanReducer = (state: State, action: Action): State => {
@@ -49,7 +51,12 @@ export const scanReducer = (state: State, action: Action): State => {
       return { ...state, scanState: 'preview', previewDataUrl: action.imageDataUrl, error: null }
 
     case 'PROCESSING':
-      return { ...state, scanState: 'processing', previewDataUrl: null }
+      return {
+        ...state,
+        scanState: 'processing',
+        previewDataUrl: null,
+        capturedImageUrl: action.capturedImageUrl !== undefined ? action.capturedImageUrl : state.capturedImageUrl,
+      }
 
     case 'RESULT': {
       const storeCandidates = action.payload.type === 'ocr' ? (action.payload.storeCandidates ?? []) : []
@@ -79,6 +86,7 @@ type UseScanReturn = {
   error: ScanError | null
   result: ScanResult | null
   storeCandidates: StoreCandidate[]
+  capturedImageUrl: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
   startScan: () => Promise<void>
   stopScan: () => void
@@ -181,6 +189,10 @@ export const useScan = (): UseScanReturn => {
 
         // グレースケール・コントラスト強調・シャープニングを適用（反射・ぼけ対策）
         preprocessFrame(ctx, targetW, targetH)
+
+        // 結果表示用にスキャン画像を保持する（前処理後の状態）
+        const capturedImageUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
+        dispatch({ type: 'PROCESSING', capturedImageUrl })
 
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob((b) => {
@@ -422,6 +434,7 @@ export const useScan = (): UseScanReturn => {
     error: state.error,
     result: state.result,
     storeCandidates: state.storeCandidates,
+    capturedImageUrl: state.capturedImageUrl,
     videoRef,
     startScan,
     stopScan,

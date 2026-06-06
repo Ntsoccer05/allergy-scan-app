@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import type { AllergenResult, HighlightItem, Judgment, ScanResult, StoreCandidate } from '@/app/scan/scan.types'
 import {
@@ -17,7 +17,10 @@ type ResultCardProps = {
   onReset: () => void
   storeCandidates?: StoreCandidate[]
   onStoreSelect?: (candidate: StoreCandidate | null) => void
+  capturedImageUrl?: string
 }
+
+type SheetState = 'collapsed' | 'normal' | 'expanded'
 
 /** Android 判定（navigator.userAgent チェック）。iOS では navigator.vibrate を呼ばない */
 const isAndroid = (): boolean =>
@@ -119,9 +122,42 @@ export const ResultCard = ({
   onReset,
   storeCandidates = [],
   onStoreSelect,
+  capturedImageUrl,
 }: ResultCardProps) => {
-  const [rawTextOpen, setRawTextOpen] = useState(false)
+  // アコーディオンはデフォルト展開
+  const [rawTextOpen, setRawTextOpen] = useState(true)
   const t = useTranslations('scan.result')
+
+  // ドラッグ拡縮シートの状態（Rules of Hooks: early return より前に宣言）
+  const [sheetState, setSheetState] = useState<SheetState>('normal')
+  const dragStartY = useRef<number | null>(null)
+
+  const sheetHeightClass: Record<SheetState, string> = {
+    collapsed: 'h-14',
+    normal: 'h-[55vh]',
+    expanded: 'h-full',
+  }
+
+  const handleDragStart = (clientY: number): void => {
+    dragStartY.current = clientY
+  }
+
+  const handleDragEnd = (clientY: number): void => {
+    if (dragStartY.current === null) return
+    const delta = dragStartY.current - clientY  // 正 = 上スワイプ
+    if (delta > 60) setSheetState((s) => s === 'collapsed' ? 'normal' : 'expanded')
+    else if (delta < -60) setSheetState((s) => s === 'expanded' ? 'normal' : 'collapsed')
+    dragStartY.current = null
+  }
+
+  const dragEvents = {
+    onTouchStart: (e: React.TouchEvent): void => handleDragStart(e.touches[0].clientY),
+    onTouchEnd: (e: React.TouchEvent): void => handleDragEnd(e.changedTouches[0].clientY),
+    onMouseDown: (e: React.MouseEvent): void => {
+      handleDragStart(e.clientY)
+      window.addEventListener('mouseup', (me: MouseEvent) => handleDragEnd(me.clientY), { once: true })
+    },
+  }
 
   /**
    * Web Share API に渡す共有コンテンツを構築する。
@@ -147,36 +183,46 @@ export const ResultCard = ({
     '判定不能': t('judgment.unknown'),
   }
 
+  // collapsed 状態でもヘッダーに表示するため early return より前に計算する
+  const judgment = deriveJudgment(result)
+
   // low_confidence は専用 UI を返す
   if (result.type === 'low_confidence') {
     return (
       <div
-        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
+        className={`absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
+          flex flex-col overflow-hidden transition-[height] duration-300 ease-in-out
+          ${sheetHeightClass[sheetState]}`}
         role="region"
         aria-label={t('regionLabel')}
       >
-        <div className="flex justify-center pt-2 pb-1">
+        <div
+          {...dragEvents}
+          className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
-        <div className="px-4 pb-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          <p className="text-base font-bold text-amber-700">{t('lowConfidenceTitle')}</p>
-          <p className="text-sm text-gray-600">{t('lowConfidenceMessage')}</p>
-          {result.raw_text ? (
-            <p className="text-xs text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap">
-              {result.raw_text}
-            </p>
-          ) : null}
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-            <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+        {sheetState !== 'collapsed' && (
+          <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
+            <p className="text-base font-bold text-amber-700">{t('lowConfidenceTitle')}</p>
+            <p className="text-sm text-gray-600">{t('lowConfidenceMessage')}</p>
+            {result.raw_text ? (
+              <p className="text-xs text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap">
+                {result.raw_text}
+              </p>
+            ) : null}
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+              <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onReset}
+              className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+            >
+              {t('scanAgain')}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onReset}
-            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
-          >
-            {t('scanAgain')}
-          </button>
-        </div>
+        )}
       </div>
     )
   }
@@ -188,32 +234,38 @@ export const ResultCard = ({
   if (isUnreadable) {
     return (
       <div
-        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
+        className={`absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
+          flex flex-col overflow-hidden transition-[height] duration-300 ease-in-out
+          ${sheetHeightClass[sheetState]}`}
         role="region"
         aria-label={t('regionLabel')}
       >
-        <div className="flex justify-center pt-2 pb-1">
+        <div
+          {...dragEvents}
+          className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
-        <div className="px-4 pb-6 space-y-4">
-          <p className="text-base font-bold text-red-700">{t('unreadableTitle')}</p>
-          <p className="text-sm text-gray-600">{t('unreadableMessage')}</p>
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-            <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+        {sheetState !== 'collapsed' && (
+          <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
+            <p className="text-base font-bold text-red-700">{t('unreadableTitle')}</p>
+            <p className="text-sm text-gray-600">{t('unreadableMessage')}</p>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+              <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onReset}
+              className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+            >
+              {t('scanAgain')}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onReset}
-            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
-          >
-            {t('scanAgain')}
-          </button>
-        </div>
+        )}
       </div>
     )
   }
 
-  const judgment = deriveJudgment(result)
   const isNg = isNgJudgment(judgment)
   const canShare = judgment === 'なし'
   const supportsShare = supportsWebShare()
@@ -223,7 +275,6 @@ export const ResultCard = ({
   const highlights =
     result.type === 'ocr' ? result.data.highlights : []
 
-  // バーコードスキャン時は detected を直接使う
   const barcodeDected =
     result.type === 'barcode' ? (result.data.detected ?? []) : []
 
@@ -246,7 +297,6 @@ export const ResultCard = ({
     try {
       await navigator.share(shareContent)
     } catch (err) {
-      // ユーザーによるキャンセル（AbortError）は無視する
       if (err instanceof Error && err.name !== 'AbortError') {
         console.error('Web Share API error:', err)
       }
@@ -255,193 +305,212 @@ export const ResultCard = ({
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
-        translate-y-0 transition-transform duration-300"
+      className={`absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
+        flex flex-col overflow-hidden transition-[height] duration-300 ease-in-out
+        ${sheetHeightClass[sheetState]}`}
       role="region"
       aria-label={t('regionLabel')}
     >
-      {/* ドラッグハンドル */}
-      <div className="flex justify-center pt-2 pb-1">
-        <div className="w-10 h-1 bg-gray-300 rounded-full" />
-      </div>
-
-      <div className="px-4 pb-6 space-y-4 max-h-[70vh] overflow-y-auto">
-        {/* 商品名 */}
-        {productName && (
-          <p className="text-base font-semibold text-gray-800">
-            <span className="text-xs font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
-            {productName}
-          </p>
-        )}
-
-        {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
-        {ocrPrice !== null && (
-          <p className="text-sm text-gray-700">
-            <span className="text-xs font-normal text-gray-500 mr-1">{t('priceLabel')}</span>
-            {t('priceValue', { price: ocrPrice })}
-          </p>
-        )}
-
-        {/* 判定サマリ */}
+      {/* 常時表示ヘッダー: ドラッグハンドル + 判定サマリ（collapsed でも見える） */}
+      <div
+        {...dragEvents}
+        className="shrink-0 cursor-grab active:cursor-grabbing touch-none select-none"
+      >
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
         {judgment !== null && (
-          <div className="flex items-center gap-2 text-lg font-bold">
+          <div className="px-4 pb-2 flex items-center gap-2 text-lg font-bold">
             <span>{JUDGMENT_EMOJI[judgment]}</span>
             <span>{judgmentLabel[judgment]}</span>
           </div>
         )}
+      </div>
 
-        {/* OCR: 全アレルギー判定結果（NG・注意 / 注意喚起 をセクション分割） */}
-        {result.type === 'ocr' && (
-          <>
-            {result.data.results.length === 0 ? (
-              <p className="text-sm text-gray-500">{t('noAllergenSetting')}</p>
-            ) : (() => {
-              // judgment === 'なし' はノイズになるため非表示。含む/一部含む/判定不能のみ表示する
-              const ngItems = result.data.results.filter(
-                r => r.judgment !== 'なし' && r.detection_type !== 'may_contain'
-              )
-              const mayContainItems = result.data.results.filter(
-                r => r.judgment !== 'なし' && r.detection_type === 'may_contain'
-              )
-              return (
-                <div className="space-y-4" aria-label={t('allergenListLabel')}>
-                  {judgment === 'なし' && (
-                    <p className="text-sm font-medium text-green-700">{t('overallOk')}</p>
-                  )}
-                  {ngItems.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-red-700 border-b border-red-100 pb-1">
-                        {t('sectionNg')}
-                      </p>
-                      {ngItems.map((item) => (
-                        <AllergenRow key={item.allergen} item={item} />
-                      ))}
-                    </div>
-                  )}
-                  {mayContainItems.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-orange-600 border-b border-orange-100 pb-1">
-                        {t('sectionMayContain')}
-                      </p>
-                      {mayContainItems.map((item) => (
-                        <AllergenRow key={item.allergen} item={item} />
-                      ))}
-                    </div>
-                  )}
+      {/* スクロール可能なコンテンツ（collapsed 時は非表示） */}
+      {sheetState !== 'collapsed' && (
+        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
+          {/* スキャンした画像サムネイル */}
+          {capturedImageUrl && (
+            <div className="rounded-lg overflow-hidden bg-gray-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={capturedImageUrl}
+                alt=""
+                aria-hidden="true"
+                className="w-full max-h-40 object-contain"
+              />
+            </div>
+          )}
+
+          {/* 商品名 */}
+          {productName && (
+            <p className="text-base font-semibold text-gray-800">
+              <span className="text-xs font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
+              {productName}
+            </p>
+          )}
+
+          {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
+          {ocrPrice !== null && (
+            <p className="text-sm text-gray-700">
+              <span className="text-xs font-normal text-gray-500 mr-1">{t('priceLabel')}</span>
+              {t('priceValue', { price: ocrPrice })}
+            </p>
+          )}
+
+          {/* OCR: 全アレルギー判定結果（NG・注意 / 注意喚起 をセクション分割） */}
+          {result.type === 'ocr' && (
+            <>
+              {result.data.results.length === 0 ? (
+                <p className="text-sm text-gray-500">{t('noAllergenSetting')}</p>
+              ) : (() => {
+                const ngItems = result.data.results.filter(
+                  r => r.judgment !== 'なし' && r.detection_type !== 'may_contain'
+                )
+                const mayContainItems = result.data.results.filter(
+                  r => r.judgment !== 'なし' && r.detection_type === 'may_contain'
+                )
+                return (
+                  <div className="space-y-4" aria-label={t('allergenListLabel')}>
+                    {judgment === 'なし' && (
+                      <p className="text-sm font-medium text-green-700">{t('overallOk')}</p>
+                    )}
+                    {ngItems.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-red-700 border-b border-red-100 pb-1">
+                          {t('sectionNg')}
+                        </p>
+                        {ngItems.map((item) => (
+                          <AllergenRow key={item.allergen} item={item} />
+                        ))}
+                      </div>
+                    )}
+                    {mayContainItems.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-orange-600 border-b border-orange-100 pb-1">
+                          {t('sectionMayContain')}
+                        </p>
+                        {mayContainItems.map((item) => (
+                          <AllergenRow key={item.allergen} item={item} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* 信頼度警告 */}
+              {result.data.confidence === 'low' && (
+                <p className="text-xs text-red-700 bg-red-50 rounded p-2 font-medium">
+                  {t('confidenceLow')}
+                </p>
+              )}
+              {result.data.confidence === 'medium' && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
+                  {t('confidenceMedium')}
+                </p>
+              )}
+            </>
+          )}
+
+          {/* バーコードスキャン: detected 一覧 */}
+          {result.type === 'barcode' && barcodeDected.length > 0 && (
+            <div className="space-y-1">
+              {barcodeDected.map((item) => (
+                <div key={item} className="flex items-center gap-2 text-sm">
+                  <span>🔴</span>
+                  <span className="text-gray-700">{item}</span>
                 </div>
-              )
-            })()}
+              ))}
+            </div>
+          )}
 
-            {/* 信頼度警告 */}
-            {result.data.confidence === 'low' && (
-              <p className="text-xs text-red-700 bg-red-50 rounded p-2 font-medium">
-                {t('confidenceLow')}
-              </p>
-            )}
-            {result.data.confidence === 'medium' && (
-              <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
-                {t('confidenceMedium')}
-              </p>
-            )}
-          </>
-        )}
+          {/* raw_text 展開表示（implementation_rules.md §2: 省略禁止）*/}
+          {raw_text !== undefined && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setRawTextOpen((prev) => !prev)}
+                className="text-sm text-blue-600 underline text-left"
+                aria-expanded={rawTextOpen}
+              >
+                {rawTextOpen ? t('rawTextCollapse') : t('rawTextExpand')}
+              </button>
+              {rawTextOpen && (
+                <HighlightedText rawText={raw_text} highlights={highlights} />
+              )}
+              {/* アクセシビリティ: 展開前でも DOM 内に存在させる（スクリーンリーダー対応） */}
+              <span className="sr-only">{raw_text}</span>
+            </div>
+          )}
 
-        {/* バーコードスキャン: detected 一覧 */}
-        {result.type === 'barcode' && barcodeDected.length > 0 && (
-          <div className="space-y-1">
-            {barcodeDected.map((item) => (
-              <div key={item} className="flex items-center gap-2 text-sm">
-                <span>🔴</span>
-                <span className="text-gray-700">{item}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* raw_text 展開表示（implementation_rules.md §2: 省略禁止） */}
-        {raw_text !== undefined && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setRawTextOpen((prev) => !prev)}
-              className="text-sm text-blue-600 underline text-left"
-              aria-expanded={rawTextOpen}
-            >
-              {rawTextOpen ? t('rawTextCollapse') : t('rawTextExpand')}
-            </button>
-            {rawTextOpen && (
-              <HighlightedText rawText={raw_text} highlights={highlights} />
-            )}
-            {/* アクセシビリティ: 展開前でも DOM 内に存在させる（スクリーンリーダー対応） */}
-            <span className="sr-only">{raw_text}</span>
-          </div>
-        )}
-
-        {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-          <p className="text-xs text-amber-800 font-medium">
-            {t('caution')}
-          </p>
-        </div>
-
-        {/* ⚠️ 安全設計: NG 判定時は追加免責表示（省略禁止） */}
-        {isNg && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-            <p className="text-xs text-red-800">
-              {t('ngDisclaimer')}
+          {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <p className="text-xs text-amber-800 font-medium">
+              {t('caution')}
             </p>
           </div>
-        )}
 
-        {/* SNS 共有ボタン（OK 判定 + Web Share API 対応環境のみ表示 — anti_patterns.md #4 遵守） */}
-        {canShare && supportsShare && (
-          <button
-            type="button"
-            onClick={handleShare}
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
-              bg-black text-white text-sm font-medium"
-          >
-            {t('share.button')}
-          </button>
-        )}
+          {/* ⚠️ 安全設計: NG 判定時は追加免責表示（省略禁止） */}
+          {isNg && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+              <p className="text-xs text-red-800">
+                {t('ngDisclaimer')}
+              </p>
+            </div>
+          )}
 
-        {/* 店舗選択 UI（storeCandidates が 2 件以上のときのみ表示） */}
-        {storeCandidates.length >= 2 && onStoreSelect && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">{t('selectStore')}</p>
-            {storeCandidates.map((candidate) => (
-              <button
-                key={candidate.placeId}
-                type="button"
-                onClick={() => onStoreSelect(candidate)}
-                className="w-full py-2 px-3 rounded-lg border border-blue-200 bg-blue-50
-                  text-sm text-blue-800 text-left"
-              >
-                {candidate.name}
-              </button>
-            ))}
+          {/* SNS 共有ボタン（OK 判定 + Web Share API 対応環境のみ表示 — anti_patterns.md #4 遵守） */}
+          {canShare && supportsShare && (
             <button
               type="button"
-              onClick={() => onStoreSelect(null)}
-              className="w-full py-2 rounded-lg border border-gray-200 text-sm text-gray-500"
+              onClick={handleShare}
+              className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
+                bg-black text-white text-sm font-medium"
             >
-              {t('storeUnknown')}
+              {t('share.button')}
             </button>
-          </div>
-        )}
+          )}
 
-        {/* 閉じるボタン */}
-        <button
-          type="button"
-          onClick={() => {
-            vibrateIfAndroid(30)
-            onReset()
-          }}
-          className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
-        >
-          {t('scanAgain')}
-        </button>
-      </div>
+          {/* 店舗選択 UI（storeCandidates が 2 件以上のときのみ表示） */}
+          {storeCandidates.length >= 2 && onStoreSelect && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">{t('selectStore')}</p>
+              {storeCandidates.map((candidate) => (
+                <button
+                  key={candidate.placeId}
+                  type="button"
+                  onClick={() => onStoreSelect(candidate)}
+                  className="w-full py-2 px-3 rounded-lg border border-blue-200 bg-blue-50
+                    text-sm text-blue-800 text-left"
+                >
+                  {candidate.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => onStoreSelect(null)}
+                className="w-full py-2 rounded-lg border border-gray-200 text-sm text-gray-500"
+              >
+                {t('storeUnknown')}
+              </button>
+            </div>
+          )}
+
+          {/* 閉じるボタン */}
+          <button
+            type="button"
+            onClick={() => {
+              vibrateIfAndroid(30)
+              onReset()
+            }}
+            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+          >
+            {t('scanAgain')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
