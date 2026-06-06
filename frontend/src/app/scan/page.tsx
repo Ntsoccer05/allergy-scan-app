@@ -31,6 +31,7 @@ export default function ScanPage() {
     handleCapture,
     confirmAndScan,
     toggleFacingMode,
+    uploadAndScanImage,
   } = useScan()
 
   // 初回マウント時にカメラを起動し、アンマウント時に停止する
@@ -123,21 +124,44 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* 下部: 注意文 + 撮影ボタン */}
+          {/* 下部: 注意文 + 撮影ボタン + アップロードボタン */}
           <div className="flex flex-col items-center gap-3 pb-4">
             {/* ⚠️ 安全設計: オーバーレイ内に配置して常時視認可能にする（省略禁止） */}
             <p className="rounded-lg bg-black/50 px-3 py-1.5 text-center text-xs text-white backdrop-blur-sm">
               {t('caution')}
             </p>
-            {/* タップ撮影ボタン */}
-            <button
-              onClick={handleCapture}
-              disabled={scanState === 'processing'}
-              aria-label={t('capture')}
-              className="h-20 w-20 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm transition-opacity disabled:opacity-50"
-            >
-              <span className="text-2xl">📷</span>
-            </button>
+            <div className="flex items-center gap-6">
+              {/* タップ撮影ボタン */}
+              <button
+                onClick={handleCapture}
+                disabled={scanState === 'processing'}
+                aria-label={t('capture')}
+                className="h-20 w-20 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm transition-opacity disabled:opacity-50"
+              >
+                <span className="text-2xl">📷</span>
+              </button>
+              {/* ファイルアップロードボタン */}
+              <label
+                aria-label={t('camera.uploadButton')}
+                className={`flex flex-col items-center gap-1 cursor-pointer rounded-2xl bg-black/40 px-4 py-3 text-white backdrop-blur-sm transition-opacity
+                  ${scanState === 'processing' ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <span className="text-2xl">🖼️</span>
+                <span className="text-xs font-medium">{t('camera.uploadButton')}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={scanState === 'processing'}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void uploadAndScanImage(file)
+                    // 同じファイルを再選択できるようにリセット
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            </div>
           </div>
         </div>
       </div>
