@@ -1,0 +1,1 @@
+export const ADMIN_USERS_DEFAULT_LIMIT = 20

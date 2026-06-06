@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common'
 import { AdminGuard } from '../auth/admin.guard'
 import { AdminService } from './admin.service'
+import { ADMIN_USERS_DEFAULT_LIMIT } from './admin.constants'
 import type { Request } from 'express'
 import { IsString } from 'class-validator'
 
@@ -29,7 +30,7 @@ export class AdminController {
   @Get('users')
   async getUsers(@Req() _req: Request, @Query() query: { limit?: string; cursor?: string }) {
     return this.adminService.getUsers({
-      limit: query.limit ? parseInt(query.limit, 10) : 20,
+      limit: query.limit ? parseInt(query.limit, 10) : ADMIN_USERS_DEFAULT_LIMIT,
       cursor: query.cursor,
     })
   }
