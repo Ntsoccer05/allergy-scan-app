@@ -57,7 +57,16 @@
     "productNameLabel": "Product:",
     "priceLabel": "Est. price:",
     "priceValue": "¥{price}",
-    "regionLabel": "Scan result"
+    "regionLabel": "Scan result",
+    "productInfo": {
+      "title": "Product Info",
+      "productName": "Product name",
+      "productNamePlaceholder": "Enter product name",
+      "storeName": "Store name",
+      "storeNamePlaceholder": "Enter store name",
+      "memo": "Notes",
+      "memoPlaceholder": "Add notes"
+    }
   },
   "camera": {
     "switchCamera": "Switch Camera",

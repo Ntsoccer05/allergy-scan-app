@@ -24,6 +24,7 @@ export default function ScanPage() {
     storeCandidates,
     capturedImageUrl,
     onStoreSelect,
+    onPatchHistory,
     videoRef,
     startScan,
     stopScan,
@@ -68,6 +69,7 @@ export default function ScanPage() {
             onReset={reset}
             storeCandidates={storeCandidates}
             onStoreSelect={onStoreSelect}
+            onPatchHistory={onPatchHistory}
           />
         </div>
       </AppLayout>

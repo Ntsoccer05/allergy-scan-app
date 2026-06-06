@@ -57,7 +57,16 @@
     "productNameLabel": "商品名:",
     "priceLabel": "参考価格:",
     "priceValue": "¥{price}",
-    "regionLabel": "スキャン結果"
+    "regionLabel": "スキャン結果",
+    "productInfo": {
+      "title": "商品情報",
+      "productName": "商品名",
+      "productNamePlaceholder": "商品名を入力",
+      "storeName": "店舗名",
+      "storeNamePlaceholder": "店舗名を入力",
+      "memo": "備考",
+      "memoPlaceholder": "メモを入力"
+    }
   },
   "camera": {
     "switchCamera": "カメラ切り替え",

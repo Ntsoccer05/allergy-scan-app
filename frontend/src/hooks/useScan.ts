@@ -101,6 +101,7 @@ type UseScanReturn = {
   facingMode: 'environment' | 'user'
   toggleFacingMode: () => void
   onStoreSelect: (candidate: StoreCandidate | null) => void
+  onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null }) => void
 }
 
 /** ScanResult から POST /history のリクエストボディを構築する。 */
@@ -149,7 +150,7 @@ export const useScan = (): UseScanReturn => {
   const [state, dispatch] = useReducer(scanReducer, initialState)
   const { videoRef, captureFrame, startCamera, stopCamera, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useCamera()
   const { detectFromImageData } = useBarcode()
-  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation } =
+  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation, patchHistoryFields } =
     useScanApi()
 
   const intervalRef = useRef<number | null>(null)
@@ -422,6 +423,15 @@ export const useScan = (): UseScanReturn => {
     [patchLocation],
   )
 
+  const onPatchHistory = useCallback(
+    (data: { product_name?: string | null; store_name?: string | null; memo?: string | null }): void => {
+      const historyId = scanHistoryIdRef.current
+      if (!historyId) return
+      void patchHistoryFields(historyId, data)
+    },
+    [patchHistoryFields],
+  )
+
   // アンマウント時にクリーンアップ
   useEffect(() => {
     return () => {
@@ -448,5 +458,6 @@ export const useScan = (): UseScanReturn => {
     facingMode,
     toggleFacingMode,
     onStoreSelect,
+    onPatchHistory,
   }
 }

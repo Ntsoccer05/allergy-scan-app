@@ -17,6 +17,7 @@ type ResultCardProps = {
   onReset: () => void
   storeCandidates?: StoreCandidate[]
   onStoreSelect?: (candidate: StoreCandidate | null) => void
+  onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null }) => void
 }
 
 const MIN_HEIGHT = 64
@@ -125,6 +126,7 @@ export const ResultCard = ({
   onReset,
   storeCandidates = [],
   onStoreSelect,
+  onPatchHistory,
 }: ResultCardProps) => {
   // アコーディオンはデフォルト展開
   const [rawTextOpen, setRawTextOpen] = useState(true)
@@ -134,6 +136,15 @@ export const ResultCard = ({
   const [panelHeight, setPanelHeight] = useState<number | null>(null)
   const dragStartY = useRef(0)
   const dragStartHeight = useRef(0)
+
+  // 商品情報アコーディオン（Rules of Hooks: early return より前に宣言）
+  const productNameFromOcr =
+    result.type === 'barcode' ? (result.data.product_name ?? null) :
+    result.type === 'ocr' ? (result.data.product_name ?? null) : null
+  const [editProductName, setEditProductName] = useState(productNameFromOcr ?? '')
+  const [editStoreName, setEditStoreName] = useState('')
+  const [editMemo, setEditMemo] = useState('')
+  const [productInfoOpen, setProductInfoOpen] = useState(productNameFromOcr !== null)
 
   useEffect(() => {
     setPanelHeight(getDefaultHeight())
@@ -161,6 +172,15 @@ export const ResultCard = ({
     window.addEventListener('touchmove', onTouchMove)
     window.addEventListener('mouseup', onEnd, { once: true })
     window.addEventListener('touchend', onEnd, { once: true })
+  }
+
+  /** 店舗選択時: 店舗名を編集フィールドに反映してアコーディオンを開く */
+  const handleStoreSelect = (candidate: StoreCandidate | null): void => {
+    if (candidate) {
+      setEditStoreName(candidate.name)
+      setProductInfoOpen(true)
+    }
+    onStoreSelect?.(candidate)
   }
 
   /**
@@ -281,13 +301,6 @@ export const ResultCard = ({
   const barcodeDected =
     result.type === 'barcode' ? (result.data.detected ?? []) : []
 
-  const productName =
-    result.type === 'barcode'
-      ? result.data.product_name
-      : result.type === 'ocr'
-        ? (result.data.product_name ?? null)
-        : undefined
-
   const ocrPrice =
     result.type === 'ocr' && result.data.price_confidence === 'high'
       ? (result.data.price_with_tax ?? result.data.price)
@@ -332,13 +345,55 @@ export const ResultCard = ({
 
       {/* スクロール可能なコンテンツ（overflow-hidden により高さでクリップ） */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
-        {/* 商品名 */}
-        {productName && (
-          <p className="text-base lg:text-lg font-semibold text-gray-800">
-            <span className="text-xs sm:text-sm font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
-            {productName}
-          </p>
-        )}
+        {/* 商品情報アコーディオン（商品名・店舗名・備考） */}
+        <div className="border border-gray-200 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setProductInfoOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-gray-700"
+            aria-expanded={productInfoOpen}
+          >
+            <span>{t('productInfo.title')}</span>
+            <span className={`text-gray-400 transition-transform duration-150 inline-block ${productInfoOpen ? 'rotate-180' : ''}`}>▾</span>
+          </button>
+          {productInfoOpen && (
+            <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+              <div>
+                <label className="block text-xs text-gray-500 mb-0.5">{t('productInfo.productName')}</label>
+                <input
+                  type="text"
+                  value={editProductName}
+                  onChange={(e) => setEditProductName(e.target.value)}
+                  onBlur={() => onPatchHistory?.({ product_name: editProductName.trim() || null })}
+                  placeholder={t('productInfo.productNamePlaceholder')}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-0.5">{t('productInfo.storeName')}</label>
+                <input
+                  type="text"
+                  value={editStoreName}
+                  onChange={(e) => setEditStoreName(e.target.value)}
+                  onBlur={() => onPatchHistory?.({ store_name: editStoreName.trim() || null })}
+                  placeholder={t('productInfo.storeNamePlaceholder')}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-0.5">{t('productInfo.memo')}</label>
+                <textarea
+                  value={editMemo}
+                  onChange={(e) => setEditMemo(e.target.value)}
+                  onBlur={() => onPatchHistory?.({ memo: editMemo.trim() || null })}
+                  placeholder={t('productInfo.memoPlaceholder')}
+                  rows={2}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400 resize-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
         {ocrPrice !== null && (
@@ -463,14 +518,14 @@ export const ResultCard = ({
         )}
 
         {/* 店舗選択 UI（storeCandidates が 2 件以上のときのみ表示） */}
-        {storeCandidates.length >= 2 && onStoreSelect && (
+        {storeCandidates.length >= 2 && (
           <div className="space-y-2">
             <p className="text-sm lg:text-base font-medium text-gray-700">{t('selectStore')}</p>
             {storeCandidates.map((candidate) => (
               <button
                 key={candidate.placeId}
                 type="button"
-                onClick={() => onStoreSelect(candidate)}
+                onClick={() => handleStoreSelect(candidate)}
                 className="w-full py-2.5 px-3 rounded-lg border border-blue-200 bg-blue-50
                   text-sm lg:text-base text-blue-800 text-left"
               >
@@ -479,7 +534,7 @@ export const ResultCard = ({
             ))}
             <button
               type="button"
-              onClick={() => onStoreSelect(null)}
+              onClick={() => handleStoreSelect(null)}
               className="w-full py-2.5 rounded-lg border border-gray-200 text-sm lg:text-base text-gray-500"
             >
               {t('storeUnknown')}
