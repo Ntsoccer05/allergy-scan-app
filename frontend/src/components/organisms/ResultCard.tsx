@@ -74,7 +74,7 @@ const HighlightedText = ({
 }) => {
   const parts = splitByHighlights(rawText, highlights)
   return (
-    <p className="mt-2 text-xs text-gray-600 bg-gray-50 rounded p-2 whitespace-pre-wrap">
+    <p className="mt-2 text-sm lg:text-base text-gray-600 bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">
       {parts.map((part, i) =>
         part.highlight ? (
           <mark key={i} className={HIGHLIGHT_CLASS[part.judgment]}>
@@ -96,8 +96,8 @@ const HighlightedText = ({
 const AllergenRow = ({ item }: { item: AllergenResult }) => {
   const displayLabel = DETECTION_DISPLAY[item.detection_type]
   return (
-    <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2 space-y-1">
-      <div className="flex items-center gap-2 text-sm font-medium">
+    <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2 space-y-1.5">
+      <div className="flex items-center gap-2 text-sm lg:text-base font-medium">
         <span>{displayLabel}</span>
         <span className="text-gray-800">{item.allergen}</span>
       </div>
@@ -106,7 +106,7 @@ const AllergenRow = ({ item }: { item: AllergenResult }) => {
           {item.detected.map((d) => (
             <span
               key={d}
-              className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-700"
+              className="text-xs sm:text-sm bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700"
             >
               {d}
             </span>
@@ -114,7 +114,7 @@ const AllergenRow = ({ item }: { item: AllergenResult }) => {
         </div>
       )}
       {item.reason && (
-        <p className="text-xs text-gray-500">{item.reason}</p>
+        <p className="text-xs sm:text-sm text-gray-500">{item.reason}</p>
       )}
     </div>
   )
@@ -210,20 +210,20 @@ export const ResultCard = ({
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
-          <p className="text-base font-bold text-amber-700">{t('lowConfidenceTitle')}</p>
-          <p className="text-sm text-gray-600">{t('lowConfidenceMessage')}</p>
+          <p className="text-base lg:text-lg font-bold text-amber-700">{t('lowConfidenceTitle')}</p>
+          <p className="text-sm lg:text-base text-gray-600">{t('lowConfidenceMessage')}</p>
           {result.raw_text ? (
-            <p className="text-xs text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap">
+            <p className="text-sm lg:text-base text-gray-700 bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">
               {result.raw_text}
             </p>
           ) : null}
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-            <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
+            <p className="text-sm lg:text-base text-amber-800 font-medium">{t('caution')}</p>
           </div>
           <button
             type="button"
             onClick={onReset}
-            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+            className="w-full py-2.5 rounded-lg border border-gray-300 text-sm lg:text-base text-gray-600"
           >
             {t('scanAgain')}
           </button>
@@ -252,15 +252,15 @@ export const ResultCard = ({
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
-          <p className="text-base font-bold text-red-700">{t('unreadableTitle')}</p>
-          <p className="text-sm text-gray-600">{t('unreadableMessage')}</p>
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-            <p className="text-xs text-amber-800 font-medium">{t('caution')}</p>
+          <p className="text-base lg:text-lg font-bold text-red-700">{t('unreadableTitle')}</p>
+          <p className="text-sm lg:text-base text-gray-600">{t('unreadableMessage')}</p>
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
+            <p className="text-sm lg:text-base text-amber-800 font-medium">{t('caution')}</p>
           </div>
           <button
             type="button"
             onClick={onReset}
-            className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+            className="w-full py-2.5 rounded-lg border border-gray-300 text-sm lg:text-base text-gray-600"
           >
             {t('scanAgain')}
           </button>
@@ -334,16 +334,16 @@ export const ResultCard = ({
       <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
         {/* 商品名 */}
         {productName && (
-          <p className="text-base font-semibold text-gray-800">
-            <span className="text-xs font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
+          <p className="text-base lg:text-lg font-semibold text-gray-800">
+            <span className="text-xs sm:text-sm font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
             {productName}
           </p>
         )}
 
         {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
         {ocrPrice !== null && (
-          <p className="text-sm text-gray-700">
-            <span className="text-xs font-normal text-gray-500 mr-1">{t('priceLabel')}</span>
+          <p className="text-sm lg:text-base text-gray-700">
+            <span className="text-xs sm:text-sm font-normal text-gray-500 mr-1">{t('priceLabel')}</span>
             {t('priceValue', { price: ocrPrice })}
           </p>
         )}
@@ -352,7 +352,7 @@ export const ResultCard = ({
         {result.type === 'ocr' && (
           <>
             {result.data.results.length === 0 ? (
-              <p className="text-sm text-gray-500">{t('noAllergenSetting')}</p>
+              <p className="text-sm lg:text-base text-gray-500">{t('noAllergenSetting')}</p>
             ) : (() => {
               const ngItems = result.data.results.filter(
                 r => r.judgment !== 'なし' && r.detection_type !== 'may_contain'
@@ -363,11 +363,11 @@ export const ResultCard = ({
               return (
                 <div className="space-y-4" aria-label={t('allergenListLabel')}>
                   {judgment === 'なし' && (
-                    <p className="text-sm font-medium text-green-700">{t('overallOk')}</p>
+                    <p className="text-sm lg:text-base font-medium text-green-700">{t('overallOk')}</p>
                   )}
                   {ngItems.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs font-bold text-red-700 border-b border-red-100 pb-1">
+                      <p className="text-sm font-bold text-red-700 border-b border-red-100 pb-1">
                         {t('sectionNg')}
                       </p>
                       {ngItems.map((item) => (
@@ -377,7 +377,7 @@ export const ResultCard = ({
                   )}
                   {mayContainItems.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs font-bold text-orange-600 border-b border-orange-100 pb-1">
+                      <p className="text-sm font-bold text-orange-600 border-b border-orange-100 pb-1">
                         {t('sectionMayContain')}
                       </p>
                       {mayContainItems.map((item) => (
@@ -391,12 +391,12 @@ export const ResultCard = ({
 
             {/* 信頼度警告 */}
             {result.data.confidence === 'low' && (
-              <p className="text-xs text-red-700 bg-red-50 rounded p-2 font-medium">
+              <p className="text-sm lg:text-base text-red-700 bg-red-50 rounded p-3 font-medium">
                 {t('confidenceLow')}
               </p>
             )}
             {result.data.confidence === 'medium' && (
-              <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
+              <p className="text-sm lg:text-base text-amber-600 bg-amber-50 rounded p-3">
                 {t('confidenceMedium')}
               </p>
             )}
@@ -405,9 +405,9 @@ export const ResultCard = ({
 
         {/* バーコードスキャン: detected 一覧 */}
         {result.type === 'barcode' && barcodeDected.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {barcodeDected.map((item) => (
-              <div key={item} className="flex items-center gap-2 text-sm">
+              <div key={item} className="flex items-center gap-2 text-sm lg:text-base">
                 <span>🔴</span>
                 <span className="text-gray-700">{item}</span>
               </div>
@@ -421,7 +421,7 @@ export const ResultCard = ({
             <button
               type="button"
               onClick={() => setRawTextOpen((prev) => !prev)}
-              className="text-sm text-blue-600 underline text-left"
+              className="text-sm lg:text-base text-blue-600 underline text-left"
               aria-expanded={rawTextOpen}
             >
               {rawTextOpen ? t('rawTextCollapse') : t('rawTextExpand')}
@@ -435,16 +435,16 @@ export const ResultCard = ({
         )}
 
         {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-          <p className="text-xs text-amber-800 font-medium">
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
+          <p className="text-sm lg:text-base text-amber-800 font-medium">
             {t('caution')}
           </p>
         </div>
 
         {/* ⚠️ 安全設計: NG 判定時は追加免責表示（省略禁止） */}
         {isNg && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-            <p className="text-xs text-red-800">
+          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5">
+            <p className="text-sm lg:text-base text-red-800">
               {t('ngDisclaimer')}
             </p>
           </div>
@@ -465,14 +465,14 @@ export const ResultCard = ({
         {/* 店舗選択 UI（storeCandidates が 2 件以上のときのみ表示） */}
         {storeCandidates.length >= 2 && onStoreSelect && (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">{t('selectStore')}</p>
+            <p className="text-sm lg:text-base font-medium text-gray-700">{t('selectStore')}</p>
             {storeCandidates.map((candidate) => (
               <button
                 key={candidate.placeId}
                 type="button"
                 onClick={() => onStoreSelect(candidate)}
-                className="w-full py-2 px-3 rounded-lg border border-blue-200 bg-blue-50
-                  text-sm text-blue-800 text-left"
+                className="w-full py-2.5 px-3 rounded-lg border border-blue-200 bg-blue-50
+                  text-sm lg:text-base text-blue-800 text-left"
               >
                 {candidate.name}
               </button>
@@ -480,7 +480,7 @@ export const ResultCard = ({
             <button
               type="button"
               onClick={() => onStoreSelect(null)}
-              className="w-full py-2 rounded-lg border border-gray-200 text-sm text-gray-500"
+              className="w-full py-2.5 rounded-lg border border-gray-200 text-sm lg:text-base text-gray-500"
             >
               {t('storeUnknown')}
             </button>
@@ -494,7 +494,7 @@ export const ResultCard = ({
             vibrateIfAndroid(30)
             onReset()
           }}
-          className="w-full py-2 rounded-lg border border-gray-300 text-sm text-gray-600"
+          className="w-full py-2.5 rounded-lg border border-gray-300 text-sm lg:text-base text-gray-600"
         >
           {t('scanAgain')}
         </button>
