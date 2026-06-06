@@ -95,7 +95,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen max-w-120 lg:max-w-3xl mx-auto px-4 pb-20 lg:pb-8 pt-6">
+    <main className="flex flex-col min-h-screen max-w-120 lg:max-w-5xl mx-auto px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-4">{t('title')}</h1>
 
       {/* みんな/自分 タブ（R1・R10） */}
@@ -150,7 +150,7 @@ export default function HistoryPage() {
                   {t('empty')}
                 </p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   {myItems.map((item) => (
                     <li key={item.id}>
                       <HistoryCard
@@ -196,7 +196,7 @@ export default function HistoryPage() {
                   {t('othersEmpty')}
                 </p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   {othersItems.map((item) => (
                     <li key={item.id}>
                       {/* 期限切れタグ（R6・R8） */}
