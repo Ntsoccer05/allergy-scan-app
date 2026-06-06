@@ -40,7 +40,39 @@ pnpm --filter frontend typecheck && pnpm --filter backend typecheck
 
 **テストがパスする場合:** Step 2 に進む。
 
-### Step 2: ドキュメントを更新する
+### Step 2: Chrome 実機チェック（対象変更がある場合）
+
+**以下のいずれかに該当する変更を含む場合は必須。該当しない場合はスキップ可。**
+
+まず変更カテゴリを確認する:
+```bash
+git diff origin/main --name-only
+```
+
+| 変更カテゴリ | 該当するファイルパターン |
+|---|---|
+| 認証ガード・ミドルウェア | `*guard*`, `*middleware*`, `proxy.ts` |
+| ルーティング・リダイレクト | `*/app/**`, `route.ts` |
+| API クライアント | `*/lib/api/**`, `*/hooks/use*Api*` |
+| UI コンポーネント | `*.tsx`, `*.css` |
+| Cookie / JWT / セッション | `*auth*`, `*session*`, `*supabase*` |
+| i18n キー | `*/locales/**` |
+
+**該当する変更がある場合:** `.claude/rules/chrome_testing.md` を読み、手順に従って Chrome 実機チェックを実施する。
+
+開発サーバーが未起動の場合は `/start` で起動してから実施すること。
+
+**チェック失敗（4xx/5xx・コンソールエラーあり）の場合:**
+```
+Chrome 実機チェックで問題を検出しました:
+[問題の詳細]
+修正してから Step 1 に戻ります。
+```
+止まる。Step 3 に進まない。
+
+---
+
+### Step 3: ドキュメントを更新する
 
 実装内容に基づいて、変更が必要なドキュメントを確認・更新する。
 
@@ -67,7 +99,7 @@ git add docs/ .claude/rules/ CLAUDE.md
 git commit -m "docs: update documentation for <feature>"
 ```
 
-### Step 3: 最終コードレビューを実施する
+### Step 4: 最終コードレビューを実施する
 
 実装全体のコードレビューをサブエージェントで実施する。
 
@@ -86,7 +118,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 **Important な問題:** 修正してから次のステップへ。
 **Minor な問題:** 記録して後で対応（ブロックしない）。
 
-### Step 4: 選択肢を提示する
+### Step 5: 選択肢を提示する
 
 ```
 実装が完了しました。どうしますか？
@@ -99,7 +131,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 
 **注意:** ブランチの作成・マージはユーザーが自分で行う。
 
-### Step 5: 選択を実行する
+### Step 6: 選択を実行する
 
 #### 選択肢 1: プッシュして PR を作成
 

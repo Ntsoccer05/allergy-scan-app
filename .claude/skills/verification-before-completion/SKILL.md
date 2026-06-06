@@ -48,6 +48,27 @@ description: Use when about to claim work is complete, fixed, or passing, before
 | リグレッションテストが機能 | レッド-グリーンサイクルを確認 | テストが一度パス |
 | エージェントが完了 | VCS diff が変更を示す | エージェントが「成功」と報告 |
 | 要件を満たした | 行ごとのチェックリスト | テストがパス |
+| UI が正しく表示される | Chrome スクリーンショット確認済み | 型チェック・ユニットテスト |
+| 認証フローが動作する | Chrome でのログイン実行（4xx/5xxなし） | guard の単体テスト |
+| API 通信が成功する | Chrome ネットワークログ（エラーなし） | APIクライアントのユニットテスト |
+
+## UI・認証変更時の Chrome 実機チェック
+
+**以下の変更を含む場合、Chrome 実機チェックなしに「動作する」と主張してはならない:**
+- UI コンポーネント（`*.tsx`、`*.css`）の変更
+- 認証ガード・ミドルウェア（`*guard*`、`proxy.ts`）の変更
+- ルーティング・リダイレクト（`route.ts`、`*/app/**`）の変更
+- API クライアント（`*/lib/api/**`）の変更
+- Cookie / JWT / セッション（`*auth*`、`*supabase*`）の変更
+
+**ゲート関数（Chrome チェック版）:**
+```
+1. 特定: どの画面・フローが影響を受けるか
+2. 読む: .claude/rules/chrome_testing.md を読む
+3. 実行: 該当するチェック項目を mcp__chrome-devtools__* で実施
+4. 確認: スクリーンショット・ネットワークログ・コンソールログで証拠を得る
+5. 主張: 証拠をもとに「Chrome 実機チェック完了」と述べる
+```
 
 ## Red Flags — STOP
 
@@ -59,6 +80,7 @@ description: Use when about to claim work is complete, fixed, or passing, before
 - 「今回だけ」と考えている
 - 疲れていて、作業を終わらせたい
 - **検証を実行せずに成功を示唆するいかなる表現も**
+- **UI/認証/APIの変更で Chrome 実機チェックをスキップしてコミット/完了を主張する**
 
 ## 言い訳防止
 

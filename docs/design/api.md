@@ -20,10 +20,12 @@ GET  /allergens              アレルギーマスター取得（設定画面用
 GET  /admin/users            ユーザー一覧（admin 専用・カーソルページネーション）
 GET  /admin/stats            統計情報（admin 専用）
 PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
-POST /webhooks/stripe        Stripe Webhook 受信（署名検証 TODO）
+POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
-**認証方式**: Supabase Auth による JWT Bearer Token。フロントエンドは `Authorization: Bearer <token>` ヘッダーを付与する（`apiFetch` ラッパーが自動付与）。`@Public()` デコレータで認証をバイパスするエンドポイントを指定。`/admin/*` は `AdminGuard` が `app_metadata.role === 'admin'` を追加チェック。
+**認証方式（現行）**: Cookie ベース認証（HttpOnly Cookie）。フロントエンドはクッキーを自動送信する。`@Public()` デコレータで認証バイパス。`/admin/*` は `AdminGuard` が Supabase Auth `app_metadata.role === 'admin'` を追加チェック。
+
+> ⚠️ Phase 1（pending）で Supabase Auth JWT Bearer Token に統一予定。移行後は `Authorization: Bearer <token>` ヘッダーを `apiFetch` ラッパーが自動付与する。
 
 ---
 

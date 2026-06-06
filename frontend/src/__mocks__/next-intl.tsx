@@ -39,6 +39,13 @@ export const useTranslations = (namespace?: string) => {
   const resolvedBase: Messages =
     base !== null && typeof base === 'object' ? (base as Messages) : {}
 
-  const t = (key: string): string => resolvePath(resolvedBase, key)
+  const t = (key: string, params?: Record<string, unknown>): string => {
+    const template = resolvePath(resolvedBase, key)
+    if (!params) return template
+    // ICU Message Format の単純な変数補間（{varName} を値で置換）
+    return template.replace(/\{(\w+)\}/g, (_, k: string) =>
+      k in params ? String(params[k]) : `{${k}}`,
+    )
+  }
   return t
 }

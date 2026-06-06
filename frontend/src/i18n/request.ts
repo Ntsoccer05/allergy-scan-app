@@ -38,7 +38,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
   return {
     locale,
     messages: {
-      ...scanMessages,
+      scan: scanMessages,
       common: commonMessages,
       settings: settingsMessages,
       onboarding: onboardingMessages,

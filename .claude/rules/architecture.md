@@ -93,10 +93,9 @@ Repository  (DB アクセスのみ)
 Page / Screen コンポーネント
     ↓ (データ取得・状態管理は Hook 経由)
 Custom Hooks
-    useScan          メインフック（状態統合）
+    useScan          メインフック（状態統合・タップ撮影フロー）
     useCamera        カメラ制御
     useBarcode       バーコード検出（ZXing.js）
-    useFrameCheck    フレーム品質チェック（Canvas API）
     useScanApi       API通信
     ↓
 API クライアント関数（fetch ラッパー）
@@ -134,7 +133,9 @@ PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
 POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
-**認証方式**: Supabase Auth JWT Bearer Token。フロントエンドは `apiFetch` 経由で `Authorization: Bearer <token>` を自動付与（`supabase.auth.getSession()` で取得）。グローバルに `SupabaseJwtGuard` が適用され、`@Public()` デコレータでバイパス。`/admin/*` は `AdminGuard` が `app_metadata.role === 'admin'` を追加チェック。
+**認証方式（現行）**: Cookie ベース認証（`HttpOnly Cookie` の `COOKIE_NAME`）。`req.cookies?.[COOKIE_NAME]` で `userId` を取得。`/admin/*` は `AdminGuard` が Supabase Auth の `app_metadata.role === 'admin'` を追加チェック。`@Public()` デコレータで認証バイパス。
+
+> ⚠️ Phase 1（pending）で Supabase Auth JWT Bearer Token に統一予定。移行後は `SupabaseJwtGuard` がグローバル適用され、フロントエンドは `apiFetch` 経由で `Authorization: Bearer <token>` を自動付与する。
 
 フロントエンドは上記エンドポイントのみを使う。DB に直接アクセスしない。
 スキーマ詳細 → `docs/design/api.md`
@@ -154,7 +155,7 @@ POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 allergens（マスター）
     └─ category: 'mandatory' | 'recommended' | 'addiction' | 'skin'
-    └─ judgment_type: 'allergy' | 'caution'
+    └─ judgment_type: 'allergy' | 'caution'  ※ Week4 実装予定・現在は category から導出
     └─ name (FK) → allergen_components.allergen_name
 
 products
@@ -167,14 +168,22 @@ scan_histories
 users
     └─ allergies (JSONB キーは allergens.name と完全一致)
     └─ locale: VARCHAR（'ja' | 'en'）
+    └─ subscriptions → user_subscriptions
+    └─ dailyScans    → user_daily_scans
+    └─ stripeCustomer → stripe_customers
 
-backup_codes
+plans
+    └─ subscriptions → user_subscriptions
+
+user_subscriptions
+    └─ user_id (FK) → users.id
+    └─ plan_id (FK) → plans.id
+
+user_daily_scans
     └─ user_id (FK) → users.id
 
-judgment_reports
-    └─ user_id → users.id
-    └─ product_id (FK) → products.id
-    └─ scan_history_id (FK) → scan_histories.id
+stripe_customers
+    └─ user_id (FK) → users.id
 ```
 
 SQL 定義・初期データ → `docs/design/database.md`

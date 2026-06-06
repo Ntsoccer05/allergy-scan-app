@@ -1,9 +1,25 @@
-<?xml version="1.0" encoding="UTF-8"?><svg id="_レイヤー_2" xmlns="http://www.w3.org/2000/svg" width="130" height="88" viewBox="0 0 130 88"><defs><style>.cls-1{fill:none;}.cls-1,.cls-2,.cls-3,.cls-4,.cls-5{stroke-width:0px;}.cls-2{fill:#3a6878;}.cls-3{fill:#c8dfe8;}.cls-4{fill:#231815;}.cls-5{fill:#e8f4f8;}</style></defs><g id="_レイヤー_1-2">
-<!-- 尾びれ --><path class="cls-2" d="M98,28 L118,18 L114,38 L118,54 L98,48 Q104,38 98,28Z"/>
-<!-- 胴体上半分（青） --><path class="cls-2" d="M18,44 Q20,14 65,12 Q100,12 108,32 L108,44 Q96,28 65,24 Q30,24 18,44Z"/>
-<!-- 胴体下半分（白） --><path class="cls-5" d="M18,44 Q20,72 65,74 Q100,74 108,58 L108,44 Q96,60 65,64 Q30,64 18,44Z"/>
-<!-- 腹の光沢 --><path class="cls-3" d="M28,44 Q30,60 65,62 Q96,60 104,50 Q100,58 65,60 Q32,58 28,44Z"/>
-<!-- 背中の縞模様 --><path class="cls-4" d="M42,22 Q46,20 50,22 Q48,30 44,32 Q40,30 42,22Z"/><path class="cls-4" d="M56,18 Q60,16 64,18 Q62,26 58,28 Q54,26 56,18Z"/><path class="cls-4" d="M70,16 Q74,15 78,17 Q76,25 72,26 Q68,24 70,16Z"/><path class="cls-4" d="M84,18 Q88,17 92,20 Q90,28 86,29 Q82,27 84,18Z"/>
-<!-- 目 --><circle class="cls-4" cx="24" cy="42" r="3.5"/>
-<!-- 胸びれ --><path class="cls-3" d="M38,44 Q42,58 36,62 Q30,58 38,44Z"/>
-<rect class="cls-1" width="130" height="88"/></g></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 88">
+  <!-- 尾びれ -->
+  <path d="M8,28 L26,44 L8,60 Q17,44 8,28Z" fill="#2a5e70"/>
+  <!-- 胴体（青緑） -->
+  <ellipse cx="68" cy="44" rx="46" ry="22" fill="#3d7888"/>
+  <!-- 腹部（銀白） -->
+  <path d="M24,50 Q55,66 112,54 Q108,66 68,70 Q30,68 22,54Z" fill="#dceef4"/>
+  <!-- 腹の光沢 -->
+  <path d="M30,54 Q60,66 106,56 Q102,64 65,68 Q34,66 26,58Z" fill="#f0f8fa"/>
+  <!-- 背びれ -->
+  <path d="M52,22 Q65,10 80,22 Z" fill="#1e4e5e"/>
+  <!-- 胸びれ -->
+  <path d="M80,56 Q98,70 86,76 Q72,66 80,56Z" fill="#5a9aaa"/>
+  <!-- 縞模様（短く抑える） -->
+  <path d="M40,30 Q52,26 58,34" stroke="#1a3040" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M54,24 Q66,20 72,28" stroke="#1a3040" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M68,21 Q80,18 86,26" stroke="#1a3040" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M82,21 Q94,19 100,27" stroke="#1a3040" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- 目 -->
+  <circle cx="108" cy="40" r="6" fill="#111111"/>
+  <circle cx="110" cy="38" r="2.2" fill="white"/>
+  <!-- 口 -->
+  <path d="M116,42 Q120,44 116,48" stroke="#1e4e5e" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

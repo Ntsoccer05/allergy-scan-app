@@ -46,17 +46,29 @@ services:
       - ./frontend/.env
 
   garage:
-    image: dxflrs/garage:v1.0.0
+    image: dxflrs/garage:v2.3.0
     container_name: allergy_scan_garage
     ports:
       - '3900:3900'   # S3 API
       - '3901:3901'   # RPC（内部通信）
+      - '3903:3903'   # Admin API（garage-webui 用）
     volumes:
       - ./docker/garage.toml:/etc/garage.toml:ro
-      - garage_meta:/var/lib/garage/meta
-      - garage_data:/var/lib/garage/data
+      - ./docker/garage/meta:/var/lib/garage/meta
+      - ./docker/garage/data:/var/lib/garage/data
+    restart: unless-stopped
+
+  garage-webui:
+    image: khairul169/garage-webui:latest
+    container_name: allergy_scan_garage_webui
+    ports:
+      - '3909:3909'
+    environment:
+      API_BASE_URL: 'http://garage:3903'
+      S3_ENDPOINT_URL: 'http://garage:3900'
+      API_TOKEN: 'dev-admin-token'
+    depends_on:
+      - garage
 
 volumes:
   postgres_data:
-  garage_meta:
-  garage_data:

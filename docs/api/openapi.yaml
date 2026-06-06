@@ -1,12 +1,15 @@
 openapi: 3.0.3
 info:
   title: Allergy Scan API
-  version: 1.0.0
+  version: 2.0.0
   description: |
     アレルギースキャンアプリのバックエンド API。
     NestJS on AWS Lambda で実装。
 
-    > このファイルは正典（source of truth）。API 変更時は Generator が spec-docs-syncer 経由で更新する。
+    > このファイルは正典（source of truth）。API 変更時は必ずこのファイルを更新すること。
+
+    **認証方式（現行）**: Cookie ベース認証（HttpOnly Cookie `user_id`）。
+    Phase 1（pending）で Supabase Auth JWT Bearer Token に統一予定。
 
 servers:
   - url: https://api.example.com
@@ -21,65 +24,69 @@ tags:
     description: スキャン（バーコード・OCR）
   - name: history
     description: スキャン履歴
+  - name: public
+    description: 認証不要の公開エンドポイント
   - name: users
     description: ユーザー設定
+  - name: admin
+    description: 管理者専用（app_metadata.role === "admin"）
+  - name: webhooks
+    description: 外部サービス Webhook
 
 paths:
-  /users/init:
+  /users/me/init:
     post:
       tags: [users]
-      summary: 初回 Cookie 発行・ユーザー作成
+      summary: 初回ユーザー登録
       description: |
-        Cookie が未設定の場合は UUID を生成して users テーブルに INSERT し Cookie を発行する。
-        既存 Cookie がある場合はそのまま onboarding_done を返す。
+        Supabase JWT を検証し、users テーブルに初回 INSERT する。
+        既存ユーザーの場合は 200 を返す（冪等）。
+        Bearer Token 必須。
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          description: 既存ユーザー（Cookie あり）
+          description: 既存ユーザー
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/InitResponse"
               example:
                 created: false
-                onboarding_done: true
         "201":
-          description: 新規ユーザー作成・Cookie 発行
+          description: 新規ユーザー作成
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/InitResponse"
               example:
                 created: true
-                onboarding_done: false
-
-  /users/backup-code:
-    post:
-      tags: [users]
-      summary: バックアップコード発行
-      description: |
-        デバイス引き継ぎ用コードを発行する。Cookie 認証必須。
-        既存の未使用コードは失効させてから新コードを発行する。
-        有効期限: 7日。フォーマット: ALRG-XXXX-XXXX（文字セットから O/0/I/1 を除外）。
-      security:
-        - cookieAuth: []
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BackupCodeResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /users/restore:
-    post:
+  /users/me:
+    get:
       tags: [users]
-      summary: バックアップコードでデバイス引き継ぎ
+      summary: ユーザー設定取得
+      description: TTL 5分でキャッシュ。スキャン開始時に呼び出し Gemini プロンプト動的生成に使用。
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    put:
+      tags: [users]
+      summary: アレルギー設定更新
       description: |
-        バックアップコードを照合して scan_histories・allergies を新デバイスに移行する。
-        レートリミット: 60秒5回（ブルートフォース防止）。
-        処理はトランザクション内で実行。
+        enabled を true にした瞬間、partialAlert も自動で true になる。
+        enabled を false にした瞬間、partialAlert も自動で false になる。
       security:
         - cookieAuth: []
       requestBody:
@@ -87,44 +94,30 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RestoreRequest"
-      responses:
-        "200":
-          description: 引き継ぎ成功
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RestoreResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "429":
-          description: Too Many Requests（レートリミット）
-
-  /products/others:
-    get:
-      tags: [scan]
-      summary: みんなのスキャン一覧
-      description: |
-        リクエストユーザーがスキャンしていない商品一覧をカーソルページネーションで返す。
-        Cookie 認証必須。ユーザーのアレルギー設定に基づいた judgment を付与する。
-      security:
-        - cookieAuth: []
-      parameters:
-        - name: cursor
-          in: query
-          description: 前ページの最後の updated_at（ISO 8601）
-          schema:
-            type: string
-            format: date-time
+              $ref: "#/components/schemas/AllergySettingsUpdate"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OthersProductListResponse"
+                $ref: "#/components/schemas/UserSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags: [users]
+      summary: ユーザーデータ削除
+      description: |
+        要配慮個人情報（アレルギー設定・スキャン履歴）を全削除。
+        個人情報保護法上、ユーザーからの削除要求に対応するため必須。
+      security:
+        - cookieAuth: []
+      responses:
+        "204":
+          description: No Content
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -166,6 +159,8 @@ paths:
       description: |
         クライアントが直接 S3 に画像をアップロードするための URL を発行する。
         Lambda の 6MB ペイロード制限を回避するため、画像は Lambda 経由で受け取らない。
+      security:
+        - cookieAuth: []
       responses:
         "200":
           description: OK
@@ -173,6 +168,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PresignedUrlResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /scan/barcode:
     post:
@@ -183,7 +180,9 @@ paths:
         1. NestJS メモリキャッシュ確認（TTL: 60秒）
         2. DB の expires_at 確認（有効期限内なら即返却）
         3. Open Food Facts API 照合
-        4. ミスなら `found: false` を返却（クライアントが OCR に自動切り替え）
+        4. ミスなら `found: false` を返却（クライアントが OCR に切り替え）
+      security:
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -199,6 +198,10 @@ paths:
                 $ref: "#/components/schemas/BarcodeScanResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /scan/ocr:
     post:
@@ -206,14 +209,17 @@ paths:
       summary: OCR + アレルギー判定
       description: |
         フロー:
-        1. S3 から画像取得
-        2. ユーザーの有効アレルギーを取得
-        3. allergen_components から成分リストを動的生成
-        4. Gemini Flash API に送信
-        5. incomplete: true → 400 返却
-        6. confidence: low → 422 返却（再スキャン誘導）
-        7. products テーブルに UPSERT（scan_count +1、expires_at 再計算）
-        8. scan_histories に記録
+        1. 日次スキャン上限チェック（user_daily_scans）
+        2. S3 から画像取得
+        3. ユーザーの有効アレルギーを取得
+        4. allergen_components から成分リストを動的生成
+        5. Gemini Flash API に送信
+        6. incomplete: true → 400 返却
+        7. confidence: low → 422 返却（再スキャン誘導）
+        8. products テーブルに UPSERT（scan_count +1、expires_at 再計算）
+        9. scan_histories に記録
+      security:
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -236,6 +242,8 @@ paths:
               example:
                 message: ラベル全体が映るように離してください
                 code: INCOMPLETE_IMAGE
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "422":
           description: confidence が low（近づけて再スキャン）
           content:
@@ -245,12 +253,16 @@ paths:
               example:
                 message: もう少し近づけて再スキャンしてください
                 code: LOW_CONFIDENCE
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /history:
     get:
       tags: [history]
       summary: スキャン履歴一覧
       description: カーソルベースページネーション。20件ずつ返す。
+      security:
+        - cookieAuth: []
       parameters:
         - name: filter
           in: query
@@ -277,10 +289,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HistoryListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
     post:
       tags: [history]
       summary: スキャン履歴保存
+      security:
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -296,13 +312,15 @@ paths:
                 $ref: "#/components/schemas/ScanHistory"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /history/{id}:
     patch:
       tags: [history]
-      summary: スキャン履歴の location 更新
+      summary: スキャン履歴編集
       description: |
-        店舗候補が 2 件以上の場合にユーザーが選択した店舗を後から設定するエンドポイント。
+        product_name / store_name / memo / is_public を更新できる。
         Cookie の userId と history.user_id が一致しない場合は 403 を返す。
       security:
         - cookieAuth: []
@@ -341,50 +359,200 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /users/me:
+    delete:
+      tags: [history]
+      summary: スキャン履歴削除
+      description: |
+        指定した履歴を削除する。
+        Cookie の userId と history.user_id が一致しない場合は 403 を返す。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: No Content
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden（他ユーザーの履歴への操作）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/history:
     get:
-      tags: [users]
-      summary: ユーザー設定取得
-      description: TTL 5分でキャッシュ。スキャン開始時に呼び出し Gemini プロンプト動的生成に使用。
+      tags: [public]
+      summary: みんなのスキャン一覧
+      description: |
+        全ユーザーの is_public=true の履歴をカーソルページネーションで返す。
+        認証不要。
+      parameters:
+        - name: cursor
+          in: query
+          description: 前ページの最後の scanned_at（ISO 8601）
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserSettings"
+                $ref: "#/components/schemas/PublicHistoryListResponse"
 
-    put:
-      tags: [users]
-      summary: アレルギー設定更新
+  /public/history/digest:
+    get:
+      tags: [public]
+      summary: みんなのスキャン新着件数
       description: |
-        enabled を true にした瞬間、partialAlert も自動で true になる。
-        enabled を false にした瞬間、partialAlert も自動で false になる。
+        ポーリング用。指定カーソル以降の is_public=true 件数を返す。
+        認証不要。
+      parameters:
+        - name: since
+          in: query
+          description: この scanned_at 以降の件数を返す（ISO 8601）
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DigestResponse"
+
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: ユーザー一覧
+      description: admin 専用。カーソルページネーション。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/stats:
+    get:
+      tags: [admin]
+      summary: 統計情報
+      description: admin 専用。DAU・スキャン数・プラン別ユーザー数等。
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/users/{id}/plan:
+    patch:
+      tags: [admin]
+      summary: ユーザーのプラン手動変更
+      description: admin 専用。user_subscriptions を直接更新する。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AllergySettingsUpdate"
+              $ref: "#/components/schemas/AdminPatchPlanRequest"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserSettings"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+                $ref: "#/components/schemas/AdminPatchPlanResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-    delete:
-      tags: [users]
-      summary: ユーザーデータ削除
+  /webhooks/stripe:
+    post:
+      tags: [webhooks]
+      summary: Stripe Webhook 受信
       description: |
-        要配慮個人情報（アレルギー設定・スキャン履歴）を全削除。
-        個人情報保護法上、ユーザーからの削除要求に対応するため必須。
+        Stripe からのイベントを受信する。署名検証あり。
+        認証不要（@Public）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
-        "204":
-          description: No Content
+        "200":
+          description: OK
+        "400":
+          description: 署名検証失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -394,7 +562,7 @@ components:
       properties:
         category:
           type: string
-          enum: [mandatory, recommended]
+          enum: [mandatory, recommended, addiction, skin]
         label:
           type: string
           example: "特定原材料（9品目・表示義務あり）"
@@ -460,7 +628,7 @@ components:
           $ref: "#/components/schemas/ProductAllergens"
           nullable: true
         judgment:
-          $ref: "#/components/schemas/Judgment"
+          $ref: "#/components/schemas/JudgmentShort"
           nullable: true
         detected:
           type: array
@@ -531,7 +699,11 @@ components:
           type: string
           enum: [high, low]
           nullable: true
-          description: 価格の読み取り信頼度（high のみ表示）
+          description: 価格の読み取り信頼度（high のみ UI 表示）
+        product_name:
+          type: string
+          nullable: true
+          description: ラベルから読み取った商品名
 
     AllergenResult:
       type: object
@@ -589,7 +761,7 @@ components:
 
     ScanHistory:
       type: object
-      required: [id, product_name, judgment, scanned_at]
+      required: [id, judgment, scanned_at]
       properties:
         id:
           type: string
@@ -611,6 +783,18 @@ components:
           format: uri
           nullable: true
           description: 惣菜のみ（S3 URL）
+        ocr_image_url:
+          type: string
+          nullable: true
+          description: OCR スキャン画像 S3 キー（変更不可・原本）
+        is_public:
+          type: boolean
+          description: みんなの履歴に公開するか
+          default: false
+        memo:
+          type: string
+          nullable: true
+          description: ユーザーメモ
         price:
           type: number
           nullable: true
@@ -620,7 +804,7 @@ components:
 
     HistorySaveRequest:
       type: object
-      required: [product_id, judgment]
+      required: [judgment]
       properties:
         product_id:
           type: string
@@ -642,21 +826,78 @@ components:
           type: string
           format: uri
           nullable: true
+        ocr_image_url:
+          type: string
+          nullable: true
 
     PatchHistoryRequest:
       type: object
-      required: [location]
+      description: 少なくとも1フィールドを含むこと
       properties:
-        location:
-          $ref: "#/components/schemas/Location"
+        product_name:
+          type: string
+          nullable: true
+        store_name:
+          type: string
+          nullable: true
+          description: location.store_name を上書きする
+        memo:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
 
-    UserSettings:
+    PublicHistoryListResponse:
       type: object
-      required: [id, allergies, locale, onboarding_done]
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicHistoryItem"
+        nextCursor:
+          type: string
+          format: date-time
+          nullable: true
+
+    PublicHistoryItem:
+      type: object
+      required: [id, judgment, scanned_at]
       properties:
         id:
           type: string
-          description: デバイス ID
+          format: uuid
+        product_name:
+          type: string
+          nullable: true
+        judgment:
+          $ref: "#/components/schemas/JudgmentShort"
+        detected:
+          type: array
+          items:
+            type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        scanned_at:
+          type: string
+          format: date-time
+
+    DigestResponse:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          description: since 以降の新着件数
+
+    UserSettings:
+      type: object
+      required: [id, allergies, locale]
+      properties:
+        id:
+          type: string
+          description: ユーザー ID（Supabase Auth UUID）
         allergies:
           type: object
           description: キーは allergens.name と完全一致
@@ -673,9 +914,18 @@ components:
           type: string
           enum: [ja, en]
           description: ユーザーの言語設定
-        onboarding_done:
-          type: boolean
-          description: オンボーディング完了フラグ
+        plan:
+          type: string
+          description: 現在のプラン名（free / premium 等）
+          example: free
+        daily_scan_limit:
+          type: integer
+          description: 日次スキャン上限回数
+          example: 20
+        daily_scan_count:
+          type: integer
+          description: 今日のスキャン済み回数
+          example: 5
 
     AllergySettingsUpdate:
       type: object
@@ -687,9 +937,74 @@ components:
         locale:
           type: string
           enum: [ja, en]
-        onboarding_done:
-          type: boolean
-          description: true のみ受け付ける（false への上書きはサーバー側で無視される）
+
+    AdminUserListResponse:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserItem"
+        nextCursor:
+          type: string
+          format: date-time
+          nullable: true
+
+    AdminUserItem:
+      type: object
+      required: [id, created_at, plan]
+      properties:
+        id:
+          type: string
+          format: uuid
+        locale:
+          type: string
+          enum: [ja, en]
+        plan:
+          type: string
+          example: free
+        created_at:
+          type: string
+          format: date-time
+        total_scans:
+          type: integer
+          description: 累計スキャン数
+
+    AdminStats:
+      type: object
+      properties:
+        total_users:
+          type: integer
+        active_users_today:
+          type: integer
+        total_scans_today:
+          type: integer
+        users_by_plan:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            free: 980
+            premium: 20
+
+    AdminPatchPlanRequest:
+      type: object
+      required: [plan_name]
+      properties:
+        plan_name:
+          type: string
+          example: premium
+
+    AdminPatchPlanResponse:
+      type: object
+      required: [user_id, plan_name]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        plan_name:
+          type: string
 
     Location:
       type: object
@@ -718,82 +1033,11 @@ components:
 
     InitResponse:
       type: object
-      required: [created, onboarding_done]
+      required: [created]
       properties:
         created:
           type: boolean
           description: true = 新規ユーザー作成、false = 既存ユーザー
-        onboarding_done:
-          type: boolean
-
-    BackupCodeResponse:
-      type: object
-      required: [code, expires_at]
-      properties:
-        code:
-          type: string
-          pattern: '^ALRG-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
-          example: ALRG-4829-KXMZ
-        expires_at:
-          type: string
-          format: date-time
-          description: 有効期限（発行から7日後）
-
-    RestoreRequest:
-      type: object
-      required: [code]
-      properties:
-        code:
-          type: string
-          pattern: '^ALRG-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
-
-    RestoreResponse:
-      type: object
-      required: [success]
-      properties:
-        success:
-          type: boolean
-          example: true
-
-    OthersProductListResponse:
-      type: object
-      required: [items, next_cursor]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/OthersProductItem"
-        next_cursor:
-          type: string
-          format: date-time
-          nullable: true
-
-    OthersProductItem:
-      type: object
-      required: [id, allergens, judgment, detected, updated_at, is_expired]
-      properties:
-        id:
-          type: string
-          format: uuid
-        product_name:
-          type: string
-          nullable: true
-        allergens:
-          $ref: "#/components/schemas/ProductAllergens"
-        judgment:
-          $ref: "#/components/schemas/JudgmentShort"
-          description: ユーザーのアレルギー設定に基づいた総合判定
-        detected:
-          type: array
-          items:
-            type: string
-          description: ng/partial 時に検出されたアレルギー名
-        updated_at:
-          type: string
-          format: date-time
-        is_expired:
-          type: boolean
-          description: expires_at < NOW() の場合 true
 
     Judgment:
       type: string
@@ -813,6 +1057,12 @@ components:
       type: apiKey
       in: cookie
       name: user_id
+      description: 現行認証方式（Cookie ベース）。Phase 1 で JWT Bearer に移行予定。
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Phase 1 以降の認証方式（Supabase Auth JWT）。
 
   responses:
     BadRequest:
@@ -822,8 +1072,23 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     Unauthorized:
-      description: Unauthorized（Cookie なし）
+      description: Unauthorized（認証なし）
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden（権限なし）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Too Many Requests（日次スキャン上限または DDoS 制限）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: 本日のスキャン上限（20回）に達しました
+            code: DAILY_LIMIT_EXCEEDED
