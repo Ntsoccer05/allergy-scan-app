@@ -14,7 +14,11 @@
 | allergen_components | 派生成分・除外リストマスター |
 | products | 商品・アレルギー情報 |
 | scan_histories | スキャン履歴 |
-| users | ユーザー・アレルギー設定 |
+| users | ユーザー・アレルギー設定（Supabase Auth UID = id） |
+| plans | プラン定義（free / premium） |
+| user_subscriptions | ユーザーサブスクリプション |
+| user_daily_scans | ユーザー日次スキャン数 |
+| stripe_customers | Stripe 顧客情報 |
 
 ---
 
@@ -348,12 +352,16 @@ CREATE TABLE scan_histories (
   --   "lat": 35.658,
   --   "lng": 139.701
   -- }
-  thumbnail_url VARCHAR(500),           -- 惣菜のみ
+  thumbnail_url  VARCHAR(500),          -- 惣菜のみ S3 キー
+  ocr_image_url  VARCHAR(500),          -- OCR スキャン画像 S3 キー
+  is_public      BOOLEAN DEFAULT true,  -- みんなの履歴に公開するか
+  memo           TEXT,                  -- ユーザーメモ（最大500文字）
   scanned_at    TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX scan_histories_user_idx ON scan_histories(user_id, scanned_at DESC);
-CREATE INDEX scan_histories_store_idx ON scan_histories(store_name, scanned_at DESC);
+-- location JSONB 内の store_name を対象にした関数インデックス（migration SQL 手動編集）
+-- CREATE INDEX scan_histories_store_idx ON scan_histories((location->>'store_name'), scanned_at DESC);
 ```
 
 ---
@@ -362,7 +370,7 @@ CREATE INDEX scan_histories_store_idx ON scan_histories(store_name, scanned_at D
 
 ```sql
 CREATE TABLE users (
-  id           VARCHAR(255) PRIMARY KEY,  -- MVPはデバイスID（localStorage UUID）
+  id           VARCHAR(255) PRIMARY KEY,  -- Supabase Auth UID
   allergies    JSONB NOT NULL DEFAULT '{}',
   -- {
   --   "乳": { "enabled": true,  "partialAlert": true },
@@ -370,70 +378,76 @@ CREATE TABLE users (
   --   "小麦": { "enabled": false, "partialAlert": false }
   -- }
   -- ※キーはallergensテーブルのnameと対応
-  locale            VARCHAR(10) DEFAULT 'ja',      -- 多言語対応用（'ja' / 'en' 等）
-  onboarding_done   BOOLEAN DEFAULT false,          -- オンボーディング完了フラグ（server-side 永続化）
-  created_at        TIMESTAMP DEFAULT NOW(),
-  last_used_at      TIMESTAMP DEFAULT NOW()
+  locale       VARCHAR(10) DEFAULT 'ja',  -- 多言語対応用（'ja' / 'en' 等）
+  created_at   TIMESTAMP DEFAULT NOW(),
+  updated_at   TIMESTAMP DEFAULT NOW()
 );
 ```
 
 ---
 
-## backup_codesテーブル（デバイス引き継ぎ）
+## plansテーブル
 
 ```sql
-CREATE TABLE backup_codes (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      VARCHAR(255) NOT NULL REFERENCES users(id),
-  code         VARCHAR(12) NOT NULL UNIQUE,
-  -- 例：「ALRG-4829-KXMZ」形式（覚えやすい・入力しやすい）
-  is_used      BOOLEAN DEFAULT false,
-  used_at      TIMESTAMP,
-  expires_at   TIMESTAMP NOT NULL,  -- 発行から7日で失効
-  created_at   TIMESTAMP DEFAULT NOW()
+CREATE TABLE plans (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             VARCHAR(50) NOT NULL UNIQUE,  -- 'free' | 'premium'
+  display_name     VARCHAR(100) NOT NULL,
+  daily_scan_limit INT NOT NULL,                 -- 日次スキャン上限（free=50, premium=無制限等）
+  price_monthly_jpy INT DEFAULT 0,
+  price_yearly_jpy  INT DEFAULT 0,
+  is_active        BOOLEAN DEFAULT true,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## user_subscriptionsテーブル
+
+```sql
+CREATE TABLE user_subscriptions (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_id                UUID NOT NULL REFERENCES plans(id),
+  status                 VARCHAR(20) DEFAULT 'active',  -- 'active' | 'canceled' | 'past_due'
+  current_period_start   TIMESTAMP DEFAULT NOW(),
+  current_period_end     TIMESTAMP,
+  stripe_subscription_id VARCHAR(255),
+  created_at             TIMESTAMP DEFAULT NOW(),
+  updated_at             TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX backup_codes_code_idx ON backup_codes(code);
+CREATE INDEX user_subscriptions_user_idx ON user_subscriptions(user_id, status);
 ```
 
-### コード発行・引き継ぎフロー
+---
 
-```
-【発行】
-設定画面 → 「バックアップコードを発行」
-      ↓
-ランダム12文字のコード生成（例：ALRG-4829-KXMZ）
-      ↓
-backup_codesテーブルに保存（有効期限7日）
-      ↓
-ユーザーに表示・スクショ保存を促す
+## user_daily_scansテーブル
 
-【引き継ぎ（新デバイス）】
-初回起動時 → 「引き継ぎコードをお持ちの方」リンク
-      ↓
-コード入力（ALRG-XXXX-XXXX形式）
-      ↓
-backup_codesで照合
-  → 期限切れ or 使用済み → エラー「コードが無効です」
-  → 有効 → 旧user_idのデータを新デバイスIDに移行
-           is_used:true に更新
-      ↓
-アレルギー設定・スキャン履歴が引き継がれた状態でスタート
+```sql
+CREATE TABLE user_daily_scans (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scan_date  DATE NOT NULL,
+  scan_count INT DEFAULT 0,
+
+  UNIQUE(user_id, scan_date)
+);
 ```
 
-### コード設計のポイント
+---
 
-```
-形式：ALRG-XXXX-XXXX（英数字4文字×2ブロック）
-  → 紙にメモしやすい
-  → 誤入力しにくい（O/0, I/1 は使わない）
+## stripe_customersテーブル
 
-有効期限：7日
-  → 機種変更の直前に発行して使う想定
-  → 期限切れ前に再発行可能
-
-1コード1回のみ使用可能
-  → 使い回しによる乗っ取り防止
+```sql
+CREATE TABLE stripe_customers (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            VARCHAR(255) NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  stripe_customer_id VARCHAR(255) NOT NULL UNIQUE,
+  created_at         TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ---

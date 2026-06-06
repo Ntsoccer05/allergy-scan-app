@@ -102,20 +102,27 @@ Week4：設定・オンボーディング
 
 詳細は `architecture.md` および `docs/design/api.md` を参照。
 
+**認証方式**: Supabase Auth JWT Bearer Token。`apiFetch` が `Authorization: Bearer <token>` を自動付与。`@Public()` デコレータで認証バイパス。
+
 ```
-POST /users/init             初回 Cookie 発行・users INSERT（初回アクセス時）
-POST /users/backup-code      バックアップコード発行（Cookie 認証必須）
-POST /users/restore          バックアップコードによるデバイス引き継ぎ（レートリミット: 60秒5回）
-GET  /scan/presigned-url     S3 Presigned URL 発行
-POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルギー判定
-GET  /history                履歴一覧（カーソルページネーション）
-POST /history                履歴保存
-DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+POST /users/me/init          Supabase JWT 初回ユーザー登録（Bearer Token 必須）
 GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
 PUT  /users/me               アレルギー設定更新
+DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+GET  /scan/presigned-url     S3 Presigned URL 発行
+POST /scan/barcode           JANコード照合
+POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
+GET  /history                履歴一覧（カーソルページネーション）
+POST /history                履歴保存
+PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public）
+DELETE /history/:id          履歴削除
+GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
+GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用・認証不要）
 GET  /allergens              アレルギーマスター取得
-GET  /products/others        みんなのスキャン一覧（カーソルページネーション・Cookie 認証必須）
+GET  /admin/users            ユーザー一覧（admin 専用）
+GET  /admin/stats            統計情報（admin 専用）
+PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
+POST /webhooks/stripe        Stripe Webhook 受信（署名検証 TODO）
 ```
 
 ## タスク・要求の起票
