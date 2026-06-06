@@ -67,10 +67,12 @@
   },
   "plan": "Current Plan",
   "dailyLimit": "Daily scan limit: {limit}",
-  "changePassword": "Change Password",
-  "changePassword.newPasswordPlaceholder": "New password (min 6 characters)",
-  "changePassword.button": "Update Password",
-  "changePassword.success": "Password updated successfully",
+  "changePassword": {
+    "title": "Change Password",
+    "newPasswordPlaceholder": "New password (min 6 characters)",
+    "button": "Update Password",
+    "success": "Password updated successfully"
+  },
   "loading": "Loading...",
   "saving": "Saving...",
   "error": {

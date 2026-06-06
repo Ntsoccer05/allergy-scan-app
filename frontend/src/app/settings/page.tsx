@@ -427,7 +427,7 @@ export default function SettingsPage() {
         {isEmailProvider && (
           <section className="mb-8">
             <h2 className="text-base font-bold text-gray-800 mb-4">
-              {t('changePassword')}
+              {t('changePassword.title')}
             </h2>
             <div className="bg-white rounded-xl shadow-sm p-4">
               <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
