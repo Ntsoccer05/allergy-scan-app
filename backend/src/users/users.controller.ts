@@ -9,11 +9,16 @@ import {
   Put,
   Req,
 } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import type { Request } from 'express'
-import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator'
+import { IsBoolean, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator'
 import { UsersService } from './users.service'
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types'
 import type { UserAllergies } from '../shared/types/db.types'
+import {
+  THROTTLE_USERS_INIT_TTL,
+  THROTTLE_USERS_INIT_LIMIT,
+} from '../shared/throttler.constants'
 
 class UpdateUserDto {
   @IsOptional()
@@ -31,6 +36,7 @@ class UpdateUserDto {
 
 class RestoreFromCodeDto {
   @IsString()
+  @IsNotEmpty()
   code!: string
 }
 
@@ -42,6 +48,7 @@ export class UsersController {
 
   @Post('init')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: THROTTLE_USERS_INIT_TTL, limit: THROTTLE_USERS_INIT_LIMIT } })
   async initUser(@Req() req: AuthRequest) {
     return this.usersService.initUser(req.user.sub, req.user.email)
   }

@@ -84,30 +84,15 @@ export class UsersRepository {
   }
 
   async update(userId: string, input: UpdateUserInput): Promise<UserRecord> {
-    const sets: string[] = ['updated_at = NOW()'];
-    const values: unknown[] = [userId];
-
-    if (input.allergies !== undefined) {
-      sets.push(`allergies = $${sets.length + 1}::jsonb`);
-      values.push(JSON.stringify(input.allergies));
-    }
-    if (input.locale !== undefined) {
-      sets.push(`locale = $${sets.length + 1}`);
-      values.push(input.locale);
-    }
-    if (input.onboardingDone !== undefined) {
-      sets.push(`onboarding_done = $${sets.length + 1}`);
-      values.push(input.onboardingDone);
-    }
-
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $1`,
-      ...values,
-    );
-
-    const user = await this.prisma.user.findUniqueOrThrow({
+    const user = await this.prisma.user.update({
       where: { id: userId },
-      select: { id: true, allergies: true, locale: true },
+      data: {
+        ...(input.allergies !== undefined && { allergies: input.allergies as object }),
+        ...(input.locale !== undefined && { locale: input.locale }),
+        // ⚠️ 安全設計: onboarding_done は true への上書きのみ許可する。
+        // false への書き戻しはオンボーディング同意の取り消しになるため API 経由では禁止。
+        ...(input.onboardingDone === true && { onboardingDone: true }),
+      },
     });
     return {
       id: user.id,

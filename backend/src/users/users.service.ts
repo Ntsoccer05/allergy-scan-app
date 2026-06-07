@@ -89,7 +89,7 @@ export class UsersService {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: requestingUserId },
-        data: { allergies: JSON.stringify(sourceUser.allergies) },
+        data: { allergies: sourceUser.allergies as object },
       })
       await tx.backupCode.update({
         where: { id: record.id },

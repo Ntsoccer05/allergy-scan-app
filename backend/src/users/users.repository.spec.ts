@@ -35,7 +35,11 @@ describe('UsersRepository', () => {
           locale: 'en',
         }),
         upsert: jest.fn().mockResolvedValue(undefined),
-        update: jest.fn().mockResolvedValue(undefined),
+        update: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          allergies: mockAllergies,
+          locale: 'en',
+        }),
         delete: jest.fn().mockResolvedValue(undefined),
       },
       scanHistory: {
@@ -90,41 +94,43 @@ describe('UsersRepository', () => {
   });
 
   describe('update', () => {
-    it('allergies と locale を渡すと $executeRawUnsafe が呼ばれ、更新後のユーザーを返す', async () => {
-      prisma.user.findUniqueOrThrow.mockResolvedValue({
-        id: 'user-1',
-        allergies: mockAllergies,
-        locale: 'en',
-      });
-
+    it('allergies と locale を渡すと prisma.user.update が呼ばれ、更新後のユーザーを返す', async () => {
       const result = await repository.update('user-1', {
         allergies: mockAllergies,
         locale: 'en',
       });
 
-      expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE users SET'),
-        'user-1',
-        JSON.stringify(mockAllergies),
-        'en',
-      );
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          allergies: mockAllergies,
+          locale: 'en',
+        },
+      });
       expect(result.locale).toBe('en');
       expect(result.allergies).toEqual(mockAllergies);
     });
 
-    it('allergies のみ渡した場合 locale が SQL に含まれない', async () => {
+    it('allergies のみ渡した場合、data に allergies のみ含まれる', async () => {
       await repository.update('user-1', { allergies: mockAllergies });
 
-      const sqlArg = prisma.$executeRawUnsafe.mock.calls[0][0] as string;
-      expect(sqlArg).toContain('allergies');
-      expect(sqlArg).not.toContain('locale');
+      const callData = prisma.user.update.mock.calls[0][0].data;
+      expect(callData).toHaveProperty('allergies');
+      expect(callData).not.toHaveProperty('locale');
     });
 
-    it('onboardingDone を渡すと onboarding_done が SQL に含まれる', async () => {
+    it('onboardingDone: true を渡すと onboardingDone が data に含まれる', async () => {
       await repository.update('user-1', { onboardingDone: true });
 
-      const sqlArg = prisma.$executeRawUnsafe.mock.calls[0][0] as string;
-      expect(sqlArg).toContain('onboarding_done');
+      const callData = prisma.user.update.mock.calls[0][0].data;
+      expect(callData).toHaveProperty('onboardingDone', true);
+    });
+
+    it('onboardingDone: false を渡しても onboardingDone が data に含まれない（上書き禁止ガード）', async () => {
+      await repository.update('user-1', { onboardingDone: false });
+
+      const callData = prisma.user.update.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty('onboardingDone');
     });
   });
 
