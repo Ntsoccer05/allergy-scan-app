@@ -295,9 +295,15 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {isSaving && (
-        <p className="text-xs text-gray-400 mb-2 text-right">{t('saving')}</p>
-      )}
+      <p
+        className={`text-xs text-gray-400 mb-2 text-right transition-opacity duration-150 ${
+          isSaving ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        aria-live="polite"
+        aria-label={isSaving ? t('saving') : undefined}
+      >
+        {t('saving')}
+      </p>
 
       {/* アレルギー設定セクション: PC は 2 カラム（mandatory | recommended + others） */}
       <section className="mb-8">
@@ -347,13 +353,6 @@ export default function SettingsPage() {
 
       {/* お店予約用テキスト */}
       <ReservationTextSection
-        key={
-          allergenGroups
-            .flatMap((g) => g.items)
-            .filter((i) => allergies[i.name]?.enabled)
-            .map((i) => i.name)
-            .join(',') + locale
-        }
         allergies={allergies}
         allergenGroups={allergenGroups}
         locale={locale}
