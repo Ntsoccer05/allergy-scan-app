@@ -300,7 +300,6 @@ export default function SettingsPage() {
           isSaving ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         aria-live="polite"
-        aria-label={isSaving ? t('saving') : undefined}
       >
         {t('saving')}
       </p>
