@@ -169,14 +169,3 @@ export async function* postOcrStream(params: PostOcrParams): AsyncGenerator<OcrS
     reader.releaseLock()
   }
 }
-
-/**
- * Presigned PUT URL から query string を除いた公開 URL を生成する。
- * S3 バケットがパブリック読み取り可能な場合のみ有効。
- * 例: https://bucket.s3.amazonaws.com/key?X-Amz-... → https://bucket.s3.amazonaws.com/key
- */
-export const getPublicUrlFromPresigned = (presignedUrl: string): string => {
-  const url = new URL(presignedUrl)
-  url.search = ''
-  return url.toString()
-}

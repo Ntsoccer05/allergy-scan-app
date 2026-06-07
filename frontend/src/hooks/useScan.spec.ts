@@ -45,6 +45,14 @@ jest.mock('./useScanApi', () => ({
   }),
 }))
 
+jest.mock('@/lib/thumbnail', () => ({
+  generateThumbnail: jest.fn().mockResolvedValue(new Blob(['thumb'], { type: 'image/jpeg' })),
+}))
+
+jest.mock('@/lib/s3.utils', () => ({
+  getPublicUrlFromPresigned: jest.fn().mockReturnValue('https://s3.example.com/thumb.jpg'),
+}))
+
 // @tanstack/react-query の useQueryClient をモック（useScanApi の実装が使用）
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({

@@ -10,7 +10,7 @@ import {
   OCR_JPEG_QUALITY,
 } from '@/app/scan/scan.constants'
 import type { OcrApiResponse, OcrStreamEvent } from '@/lib/api/scan.api'
-import { getPublicUrlFromPresigned } from '@/lib/api/scan.api'
+import { getPublicUrlFromPresigned } from '@/lib/s3.utils'
 import { generateThumbnail } from '@/lib/thumbnail'
 import { preprocessFrame } from '@/lib/image-preprocess'
 import { useBarcode } from './useBarcode'
@@ -237,6 +237,7 @@ export const useScan = (): UseScanReturn => {
             lowConfidenceRawText = event.raw_text
           } else if (event.type === 'error') {
             if (event.code === 'INCOMPLETE_IMAGE') {
+              void thumbnailUrlPromise  // fire-and-forget; result discarded on incomplete scan
               dispatch({ type: 'ERROR', error: 'incomplete' })
               return
             }
@@ -247,6 +248,7 @@ export const useScan = (): UseScanReturn => {
         }
 
         if (lowConfidenceRawText !== null) {
+          void thumbnailUrlPromise  // fire-and-forget; result discarded on low_confidence
           dispatch({ type: 'RESULT', payload: { type: 'low_confidence', raw_text: lowConfidenceRawText } })
           return
         }
