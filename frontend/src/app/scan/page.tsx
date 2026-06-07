@@ -129,9 +129,10 @@ export default function ScanPage() {
                 onClick={handleCapture}
                 disabled={scanState === 'processing'}
                 aria-label={t('capture')}
-                className="h-20 w-20 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm transition-opacity disabled:opacity-50"
+                className="flex flex-col items-center gap-1 rounded-2xl bg-black/40 px-4 py-3 text-white backdrop-blur-sm transition-opacity disabled:opacity-50"
               >
                 <span className="text-2xl">📷</span>
+                <span className="text-xs font-medium">{t('camera.cameraButton')}</span>
               </button>
               {/* ファイルアップロードボタン */}
               <label

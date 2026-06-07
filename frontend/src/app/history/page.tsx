@@ -165,15 +165,17 @@ export default function HistoryPage() {
             {/* 選択モードバー */}
             {isSelectMode && (
               <>
-                <button type="button" onClick={handleCancelSelect} className="text-sm text-gray-600 shrink-0">
-                  ✕ {t('select.cancel')}
-                </button>
-                <span className="flex-1 text-center text-sm text-gray-700">
+                <div className="flex items-center gap-3 shrink-0">
+                  <button type="button" onClick={handleCancelSelect} className="text-sm text-gray-600">
+                    ✕ {t('select.cancel')}
+                  </button>
+                  <button type="button" onClick={handleSelectAll} className="text-sm text-blue-600">
+                    {t('select.selectAll')}
+                  </button>
+                </div>
+                <span className="flex-1 text-right text-sm text-gray-700">
                   {t('select.count', { count: selectedIds.size })}
                 </span>
-                <button type="button" onClick={handleSelectAll} className="text-sm text-blue-600 shrink-0">
-                  {t('select.selectAll')}
-                </button>
               </>
             )}
 

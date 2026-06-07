@@ -74,7 +74,8 @@
     "zoomLabel": "ズームレベル",
     "processingTitle": "撮影完了",
     "processingSubtitle": "解析中です。商品をカメラから離して大丈夫です。",
-    "uploadButton": "画像から解析"
+    "uploadButton": "画像ファイル選択",
+    "cameraButton": "撮影"
   },
   "tabs": {
     "camera": "カメラ",

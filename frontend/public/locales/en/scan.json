@@ -74,7 +74,8 @@
     "zoomLabel": "Zoom level",
     "processingTitle": "Photo captured",
     "processingSubtitle": "Analyzing... You can move the product away.",
-    "uploadButton": "Analyze from image"
+    "uploadButton": "Analyze from image",
+    "cameraButton": "Capture"
   },
   "tabs": {
     "camera": "Camera",
