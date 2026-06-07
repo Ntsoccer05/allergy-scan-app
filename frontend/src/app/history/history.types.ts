@@ -6,9 +6,9 @@ export type HistoryItem = {
   productName: string | null
   judgment: 'ng' | 'partial' | 'ok'
   detected: string[]
-  thumbnail_url: string | null
-  ocr_image_url: string | null
-  is_public: boolean
+  thumbnailUrl: string | null
+  ocrImageUrl: string | null
+  isPublic: boolean
   memo: string | null
   scannedAt: string
   location?: { store_name: string; lat: number; lng: number } | null

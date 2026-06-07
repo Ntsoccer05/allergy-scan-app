@@ -21,7 +21,7 @@ type HistoryCardProps = {
 
 export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete, isSelectMode, isSelected, onSelect }: HistoryCardProps) => {
   const t = useTranslations('history')
-  const { judgment, productName, detected, scannedAt, location, memo, thumbnail_url, is_public } = item
+  const { judgment, productName, detected, scannedAt, location, memo, thumbnailUrl, isPublic } = item
 
   const emoji = JUDGMENT_EMOJI[judgment]
   const formattedDate = new Date(scannedAt).toLocaleString('ja-JP', {
@@ -58,9 +58,10 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete, isSelectM
         )}
 
         {/* サムネイル */}
-        {thumbnail_url ? (
+        {thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={thumbnail_url}
+            src={thumbnailUrl}
             alt={productName ?? ''}
             className="h-16 w-16 rounded object-cover shrink-0"
           />
@@ -75,12 +76,12 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete, isSelectM
               {isOwner !== undefined && (
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full font-normal ${
-                    is_public
+                    isPublic
                       ? 'bg-green-100 text-green-700'
                       : 'bg-gray-100 text-gray-500'
                   }`}
                 >
-                  {is_public ? t('public_badge') : t('private_badge')}
+                  {isPublic ? t('public_badge') : t('private_badge')}
                 </span>
               )}
             </div>

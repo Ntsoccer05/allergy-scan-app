@@ -19,6 +19,7 @@ type ResultCardProps = {
   onStoreSelect?: (candidate: StoreCandidate | null) => void
   onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
   onRetakeThumbnail?: () => void
+  thumbnailUrl?: string | null
 }
 
 const MIN_HEIGHT = 64
@@ -129,6 +130,7 @@ export const ResultCard = ({
   onStoreSelect,
   onPatchHistory,
   onRetakeThumbnail,
+  thumbnailUrl,
 }: ResultCardProps) => {
   // アコーディオンはデフォルト展開
   const [rawTextOpen, setRawTextOpen] = useState(true)
@@ -493,17 +495,29 @@ export const ResultCard = ({
           />
         </div>
 
-        {/* サムネイル再撮影ボタン */}
+        {/* サムネイル表示 + 再撮影ボタン */}
         {onRetakeThumbnail && (
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">{t('productInfo.thumbnail')}</span>
-            <button
-              type="button"
-              onClick={onRetakeThumbnail}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              {t('productInfo.retakeThumbnail')}
-            </button>
+          <div className="flex items-center gap-3">
+            {thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={thumbnailUrl}
+                alt=""
+                className="h-16 w-16 rounded object-cover shrink-0"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded bg-gray-100 shrink-0" />
+            )}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">{t('productInfo.thumbnail')}</span>
+              <button
+                type="button"
+                onClick={onRetakeThumbnail}
+                className="text-sm text-blue-600 hover:text-blue-800 text-left"
+              >
+                {t('productInfo.retakeThumbnail')}
+              </button>
+            </div>
           </div>
         )}
 

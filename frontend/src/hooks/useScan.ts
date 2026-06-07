@@ -25,6 +25,7 @@ export type Action =
   | { type: 'ERROR'; error: ScanError }
   | { type: 'RESET' }
   | { type: 'STORE_SELECTED' }
+  | { type: 'SET_THUMBNAIL_URL'; url: string | null }
 
 export type State = {
   scanState: ScanState
@@ -33,6 +34,7 @@ export type State = {
   previewDataUrl: string | null
   storeCandidates: StoreCandidate[]
   capturedImageUrl: string | null
+  thumbnailUrl: string | null
 }
 
 export const initialState: State = {
@@ -42,6 +44,7 @@ export const initialState: State = {
   previewDataUrl: null,
   storeCandidates: [],
   capturedImageUrl: null,
+  thumbnailUrl: null,
 }
 
 export const scanReducer = (state: State, action: Action): State => {
@@ -71,6 +74,9 @@ export const scanReducer = (state: State, action: Action): State => {
     case 'STORE_SELECTED':
       return { ...state, storeCandidates: [] }
 
+    case 'SET_THUMBNAIL_URL':
+      return { ...state, thumbnailUrl: action.url }
+
     case 'RESET':
       return initialState
 
@@ -89,6 +95,7 @@ type UseScanReturn = {
   result: ScanResult | null
   storeCandidates: StoreCandidate[]
   capturedImageUrl: string | null
+  thumbnailUrl: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
   startScan: () => Promise<void>
   stopScan: () => void
@@ -275,6 +282,7 @@ export const useScan = (): UseScanReturn => {
         if (historyBody) {
           // Branch A (OCR) 完了後にサムネイル URL を取得（Branch B がまだ実行中なら await で待つ）
           const thumbnailUrl = await thumbnailUrlPromise
+          dispatch({ type: 'SET_THUMBNAIL_URL', url: thumbnailUrl })
           const saved = await saveHistory({
             ...historyBody,
             thumbnail_url: thumbnailUrl ?? undefined,
@@ -470,6 +478,7 @@ export const useScan = (): UseScanReturn => {
     result: state.result,
     storeCandidates: state.storeCandidates,
     capturedImageUrl: state.capturedImageUrl,
+    thumbnailUrl: state.thumbnailUrl,
     videoRef,
     startScan,
     stopScan,

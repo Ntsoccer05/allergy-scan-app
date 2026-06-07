@@ -20,8 +20,8 @@ type EditFormData = {
   product_name: string
   store_name: string
   memo: string
-  is_public: boolean
-  thumbnail_url: string | null
+  isPublic: boolean
+  thumbnailUrl: string | null
 }
 
 export default function HistoryPage() {
@@ -35,8 +35,8 @@ export default function HistoryPage() {
     product_name: '',
     store_name: '',
     memo: '',
-    is_public: false,
-    thumbnail_url: null,
+    isPublic: false,
+    thumbnailUrl: null,
   })
   const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false)
@@ -70,14 +70,14 @@ export default function HistoryPage() {
       product_name: item.productName ?? '',
       store_name: item.location?.store_name ?? '',
       memo: item.memo ?? '',
-      is_public: item.is_public,
-      thumbnail_url: item.thumbnail_url,
+      isPublic: item.isPublic,
+      thumbnailUrl: item.thumbnailUrl,
     })
   }
 
   const handleEditClose = () => {
     setEditingItem(null)
-    setEditForm({ product_name: '', store_name: '', memo: '', is_public: false, thumbnail_url: null })
+    setEditForm({ product_name: '', store_name: '', memo: '', isPublic: false, thumbnailUrl: null })
   }
 
   const handleEditSave = () => {
@@ -88,8 +88,8 @@ export default function HistoryPage() {
         product_name: editForm.product_name || null,
         store_name: editForm.store_name || null,
         memo: editForm.memo || null,
-        is_public: editForm.is_public,
-        thumbnail_url: editForm.thumbnail_url,
+        is_public: editForm.isPublic,
+        thumbnail_url: editForm.thumbnailUrl,
       },
       { onSuccess: handleEditClose },
     )
@@ -303,9 +303,9 @@ export default function HistoryPage() {
                           productName: item.product_name,
                           judgment: item.judgment,
                           detected: item.detected,
-                          thumbnail_url: null,
-                          ocr_image_url: null,
-                          is_public: true,
+                          thumbnailUrl: null,
+                          ocrImageUrl: null,
+                          isPublic: true,
                           memo: null,
                           scannedAt: item.updated_at,
                         }}
@@ -335,7 +335,7 @@ export default function HistoryPage() {
       {showThumbnailCamera && (
         <ThumbnailCameraModal
           onCapture={(url) => {
-            setEditForm((prev) => ({ ...prev, thumbnail_url: url }))
+            setEditForm((prev) => ({ ...prev, thumbnailUrl: url }))
             setShowThumbnailCamera(false)
           }}
           onClose={() => setShowThumbnailCamera(false)}
@@ -412,9 +412,9 @@ export default function HistoryPage() {
                 <input
                   id="edit-is-public"
                   type="checkbox"
-                  checked={editForm.is_public}
+                  checked={editForm.isPublic}
                   onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, is_public: e.target.checked }))
+                    setEditForm((prev) => ({ ...prev, isPublic: e.target.checked }))
                   }
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
@@ -432,10 +432,10 @@ export default function HistoryPage() {
                   {t('editModal.thumbnail')}
                 </label>
                 <div className="flex items-center gap-3">
-                  {editForm.thumbnail_url ? (
+                  {editForm.thumbnailUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={editForm.thumbnail_url}
+                      src={editForm.thumbnailUrl}
                       alt=""
                       className="h-16 w-16 rounded object-cover shrink-0"
                     />

@@ -94,9 +94,10 @@ export const ThumbnailCameraModal = ({ onCapture, onClose }: Props) => {
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-full bg-black/40 px-4 py-2 text-sm text-white backdrop-blur-sm whitespace-nowrap"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-lg text-white backdrop-blur-sm"
+            aria-label={tHistory('editModal.cancel')}
           >
-            {tHistory('editModal.cancel')}
+            ✕
           </button>
         </div>
 

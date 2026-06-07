@@ -25,6 +25,7 @@ export default function ScanPage() {
     result,
     storeCandidates,
     capturedImageUrl,
+    thumbnailUrl,
     onStoreSelect,
     onPatchHistory,
     videoRef,
@@ -73,6 +74,7 @@ export default function ScanPage() {
             onStoreSelect={onStoreSelect}
             onPatchHistory={onPatchHistory}
             onRetakeThumbnail={() => setShowThumbnailCamera(true)}
+            thumbnailUrl={thumbnailUrl}
           />
           {showThumbnailCamera && (
             <ThumbnailCameraModal

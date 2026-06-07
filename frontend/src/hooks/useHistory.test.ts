@@ -16,9 +16,9 @@ const makeItem = (id: string, scannedAt = '2026-05-18T00:00:00.000Z') => ({
   productName: `商品${id}`,
   judgment: 'ok' as const,
   detected: [],
-  thumbnail_url: null,
-  ocr_image_url: null,
-  is_public: false,
+  thumbnailUrl: null,
+  ocrImageUrl: null,
+  isPublic: false,
   memo: null,
   scannedAt,
 })
