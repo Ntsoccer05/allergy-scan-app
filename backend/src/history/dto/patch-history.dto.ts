@@ -5,6 +5,7 @@ import {
   IsString,
   IsUrl,
   MaxLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -43,6 +44,7 @@ export class PatchHistoryDto {
   is_public?: boolean;
 
   @IsOptional()
+  @ValidateIf((o: PatchHistoryDto) => o.thumbnail_url !== null)
   @IsString()
   @IsUrl()
   thumbnail_url?: string | null;
