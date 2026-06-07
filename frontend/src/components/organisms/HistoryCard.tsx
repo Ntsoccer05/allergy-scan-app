@@ -14,9 +14,12 @@ type HistoryCardProps = {
   isOwner?: boolean
   onEdit?: (item: HistoryItem) => void
   onDelete?: (id: string) => Promise<void>
+  isSelectMode?: boolean
+  isSelected?: boolean
+  onSelect?: (id: string) => void
 }
 
-export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: HistoryCardProps) => {
+export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete, isSelectMode, isSelected, onSelect }: HistoryCardProps) => {
   const t = useTranslations('history')
   const { judgment, productName, detected, scannedAt, location, memo, thumbnail_url, is_public } = item
 
@@ -37,8 +40,23 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: History
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 space-y-2">
+    <div
+      className={`bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 space-y-2 ${isSelectMode ? 'cursor-pointer' : ''}`}
+      onClick={isSelectMode ? () => onSelect?.(item.id) : undefined}
+    >
       <div className="flex items-start gap-3">
+        {/* 選択モード: チェックボックス */}
+        {isSelectMode && (
+          <input
+            type="checkbox"
+            checked={isSelected ?? false}
+            onChange={() => onSelect?.(item.id)}
+            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0 mt-0.5"
+            aria-label={productName ?? item.id}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+
         {/* サムネイル */}
         {thumbnail_url ? (
           <img
@@ -70,7 +88,7 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: History
               <time className="text-xs text-gray-400" dateTime={scannedAt}>
                 {formattedDate}
               </time>
-              {isOwner && onEdit && (
+              {isOwner && onEdit && !isSelectMode && (
                 <button
                   type="button"
                   onClick={() => onEdit(item)}
@@ -79,7 +97,7 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: History
                   {t('editButton')}
                 </button>
               )}
-              {isOwner && onDelete && (
+              {isOwner && onDelete && !isSelectMode && (
                 <button
                   type="button"
                   onClick={() => void handleDeleteClick()}

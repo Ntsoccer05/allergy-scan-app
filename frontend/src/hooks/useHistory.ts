@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { HistoryFilter, HistoryItem, HistoryListResponse, PatchHistoryBody } from '@/app/history/history.types'
-import { deleteHistory, getHistory, patchHistory } from '@/lib/api/history.api'
+import { bulkDeleteHistory, deleteHistory, getHistory, patchHistory } from '@/lib/api/history.api'
 
 type UseHistoryReturn = {
   items: HistoryItem[]
@@ -15,6 +15,7 @@ type UseHistoryReturn = {
   setFilter: (filter: HistoryFilter) => void
   updateHistoryMutation: ReturnType<typeof useMutation<void, Error, { id: string } & PatchHistoryBody>>
   deleteHistoryMutation: ReturnType<typeof useMutation<void, Error, string>>
+  bulkDeleteHistoryMutation: ReturnType<typeof useMutation<void, Error, string[]>>
 }
 
 export const useHistory = (): UseHistoryReturn => {
@@ -55,6 +56,13 @@ export const useHistory = (): UseHistoryReturn => {
     },
   })
 
+  const bulkDeleteHistoryMutation = useMutation<void, Error, string[]>({
+    mutationFn: (ids) => bulkDeleteHistory(ids),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['history'] })
+    },
+  })
+
   const items: HistoryItem[] = data?.flatMap((page) => page.items) ?? []
 
   return {
@@ -67,5 +75,6 @@ export const useHistory = (): UseHistoryReturn => {
     setFilter,
     updateHistoryMutation,
     deleteHistoryMutation,
+    bulkDeleteHistoryMutation,
   }
 }

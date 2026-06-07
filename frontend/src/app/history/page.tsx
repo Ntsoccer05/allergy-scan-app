@@ -35,6 +35,9 @@ export default function HistoryPage() {
     memo: '',
     is_public: false,
   })
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const {
     items: myItems,
@@ -46,6 +49,7 @@ export default function HistoryPage() {
     setFilter,
     updateHistoryMutation,
     deleteHistoryMutation,
+    bulkDeleteHistoryMutation,
   } = useHistory()
 
   const {
@@ -94,6 +98,37 @@ export default function HistoryPage() {
     })
   }
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(myItems.map((item) => item.id)))
+  }
+
+  const handleCancelSelect = () => {
+    setIsSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    const confirmed = window.confirm(t('select.confirmDelete', { count: selectedIds.size }))
+    if (!confirmed) return
+    setIsBulkDeleting(true)
+    try {
+      await bulkDeleteHistoryMutation.mutateAsync([...selectedIds])
+      handleCancelSelect()
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
   return (
     <main className="flex flex-col min-h-screen px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-4">{t('title')}</h1>
@@ -120,8 +155,24 @@ export default function HistoryPage() {
       {activeTab === 'mine' && (
         <>
           {/* フィルタタブ */}
-          <div className="flex gap-2 mb-4 overflow-x-auto">
-            {FILTER_TAB_VALUES.map((value) => (
+          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
+            {/* 選択モードバー */}
+            {isSelectMode && (
+              <>
+                <button type="button" onClick={handleCancelSelect} className="text-sm text-gray-600 shrink-0">
+                  ✕ {t('select.cancel')}
+                </button>
+                <span className="flex-1 text-center text-sm text-gray-700">
+                  {t('select.count', { count: selectedIds.size })}
+                </span>
+                <button type="button" onClick={handleSelectAll} className="text-sm text-blue-600 shrink-0">
+                  {t('select.selectAll')}
+                </button>
+              </>
+            )}
+
+            {/* フィルタボタン群（通常モードのみ） */}
+            {!isSelectMode && FILTER_TAB_VALUES.map((value) => (
               <button
                 key={value}
                 type="button"
@@ -135,6 +186,17 @@ export default function HistoryPage() {
                 {t(`filter.${value}`)}
               </button>
             ))}
+
+            {/* 選択ボタン（通常モードのみ右端に表示） */}
+            {!isSelectMode && (
+              <button
+                type="button"
+                onClick={() => setIsSelectMode(true)}
+                className="ml-auto shrink-0 text-sm text-blue-600 font-medium"
+              >
+                {t('select.enter')}
+              </button>
+            )}
           </div>
 
           {myIsLoading && (
@@ -158,6 +220,9 @@ export default function HistoryPage() {
                         isOwner={item.userId === userId}
                         onEdit={handleEditOpen}
                         onDelete={handleDelete}
+                        isSelectMode={isSelectMode}
+                        isSelected={selectedIds.has(item.id)}
+                        onSelect={handleToggleSelect}
                       />
                     </li>
                   ))}
@@ -176,6 +241,23 @@ export default function HistoryPage() {
                 </button>
               )}
             </>
+          )}
+
+          {/* 一括削除バー（選択モード時・画面下部固定） */}
+          {isSelectMode && (
+            <div className="fixed bottom-16 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 lg:bottom-0">
+              <button
+                type="button"
+                onClick={() => void handleBulkDelete()}
+                disabled={selectedIds.size === 0 || isBulkDeleting}
+                className="w-full py-3 rounded-xl bg-red-600 text-white text-sm font-medium
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isBulkDeleting
+                  ? t('select.deleting')
+                  : t('select.delete', { count: selectedIds.size })}
+              </button>
+            </div>
           )}
         </>
       )}
