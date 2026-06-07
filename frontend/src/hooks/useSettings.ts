@@ -22,6 +22,15 @@ type UseSettingsReturn = {
   handleDeleteUser: () => Promise<void>
 }
 
+/**
+ * window.location へのアクセスをラップする（テスト時にモック可能にする）
+ * @internal
+ */
+export const _locationHelpers = {
+  getProtocol: () => location.protocol,
+  reload: () => window.location.reload(),
+}
+
 export const useSettings = (): UseSettingsReturn => {
   const [allergenGroups, setAllergenGroups] = useState<AllergenGroup[]>([])
   const [allergies, setAllergies] = useState<AllergySettings>({})
@@ -127,8 +136,9 @@ export const useSettings = (): UseSettingsReturn => {
       try {
         await updateUser({ locale: nextLocale })
         // Cookie をセットして SSR の locale を更新する（middleware 不使用のためリロード必須）
-        document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
-        window.location.reload()
+        const secure = _locationHelpers.getProtocol() === 'https:' ? '; Secure' : ''
+        document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax${secure}`
+        _locationHelpers.reload()
       } catch {
         setLocale(prevLocale)
         setError('error.localeChangeFailed')
