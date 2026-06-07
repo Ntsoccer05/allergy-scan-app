@@ -62,9 +62,14 @@ describe('generateThumbnail', () => {
       configurable: true,
     })
     await generateThumbnail('data:image/jpeg;base64,/9j/tiny')
-    const canvas = document.createElement('canvas')
-    // canvas サイズが 100x80 のままであることを確認するため toBlob の引数を確認
-    expect(mockToBlob).toHaveBeenCalled()
+    // canvas.width と canvas.height が 100x80 のままであることを確認
+    expect(mockDrawImage).toHaveBeenCalledWith(
+      expect.any(HTMLImageElement),
+      0,
+      0,
+      100,
+      80,
+    )
   })
 
   it('toBlob が null を返した場合は reject する', async () => {
@@ -72,5 +77,15 @@ describe('generateThumbnail', () => {
     await expect(generateThumbnail('data:image/jpeg;base64,/9j/fail')).rejects.toThrow(
       'thumbnail generation failed',
     )
+  })
+
+  it('画像のロードに失敗した場合は reject する', async () => {
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      set() {
+        setTimeout(() => this.onerror?.(), 0)
+      },
+      configurable: true,
+    })
+    await expect(generateThumbnail('data:invalid')).rejects.toThrow('image load failed')
   })
 })
