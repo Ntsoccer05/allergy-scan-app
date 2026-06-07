@@ -10,12 +10,10 @@ import {
   Req,
 } from '@nestjs/common'
 import type { Request } from 'express'
-import { IsObject, IsOptional, IsString } from 'class-validator'
+import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator'
 import { UsersService } from './users.service'
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types'
 import type { UserAllergies } from '../shared/types/db.types'
-
-import { IsBoolean } from 'class-validator'
 
 class UpdateUserDto {
   @IsOptional()

@@ -21,6 +21,7 @@ const mockService = {
   getUser: jest.fn(),
   updateUser: jest.fn(),
   deleteUser: jest.fn(),
+  resetUserData: jest.fn(),
 }
 
 describe('UsersController', () => {
@@ -74,6 +75,15 @@ describe('UsersController', () => {
       mockService.deleteUser.mockResolvedValue(undefined)
       await controller.deleteUser(makeAuthReq() as any)
       expect(mockService.deleteUser).toHaveBeenCalledWith('user-uuid')
+    })
+  })
+
+  describe('POST /users/me/reset-data', () => {
+    it('calls usersService.resetUserData with req.user.sub and returns 204', async () => {
+      mockService.resetUserData.mockResolvedValue(undefined)
+      const req = makeAuthReq({ sub: 'user-abc' })
+      await controller.resetUserData(req as any)
+      expect(mockService.resetUserData).toHaveBeenCalledWith('user-abc')
     })
   })
 })

@@ -148,7 +148,12 @@ export const useSettings = (): UseSettingsReturn => {
   )
 
   const handleResetData = useCallback(async (): Promise<void> => {
-    await resetUserData()
+    try {
+      await resetUserData()
+    } catch (e) {
+      setError('error.deleteFailed')
+      throw e
+    }
   }, [])
 
   return {

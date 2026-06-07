@@ -18,7 +18,11 @@ describe('UsersRepository', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    scanHistory: {
+      deleteMany: jest.Mock;
+    };
     $executeRawUnsafe: jest.Mock;
+    $transaction: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -31,10 +35,14 @@ describe('UsersRepository', () => {
           locale: 'en',
         }),
         upsert: jest.fn().mockResolvedValue(undefined),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue(undefined),
         delete: jest.fn().mockResolvedValue(undefined),
       },
+      scanHistory: {
+        deleteMany: jest.fn().mockResolvedValue(undefined),
+      },
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn().mockResolvedValue([undefined, undefined]),
     };
 
     const module = await Test.createTestingModule({
@@ -117,6 +125,24 @@ describe('UsersRepository', () => {
 
       const sqlArg = prisma.$executeRawUnsafe.mock.calls[0][0] as string;
       expect(sqlArg).toContain('onboarding_done');
+    });
+  });
+
+  describe('resetData', () => {
+    it('resets allergies to {} and deletes scan histories in a transaction', async () => {
+      await repository.resetData('user-123');
+
+      expect(prisma.$transaction).toHaveBeenCalledWith([
+        expect.anything(),  // prisma.user.update
+        expect.anything(),  // prisma.scanHistory.deleteMany
+      ]);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: { allergies: {} },
+      });
+      expect(prisma.scanHistory.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
+      });
     });
   });
 });
