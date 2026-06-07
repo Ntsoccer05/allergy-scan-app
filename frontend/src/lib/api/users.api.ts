@@ -34,3 +34,9 @@ export const deleteUser = async (): Promise<void> => {
     headers: {},
   })
 }
+
+export const resetUserData = async (): Promise<void> => {
+  await apiFetch('/users/me/reset-data', {
+    method: 'POST',
+  })
+}

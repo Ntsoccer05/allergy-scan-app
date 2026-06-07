@@ -259,14 +259,14 @@ export default function SettingsPage() {
     handleToggleAllergen,
     handleToggleCaution,
     handleLocaleChange,
-    handleDeleteUser,
+    handleResetData,
   } = useSettings()
 
   const onDeleteConfirm = async () => {
     setIsDeleting(true)
     setDeleteError(null)
     try {
-      await handleDeleteUser()
+      await handleResetData()
       router.push('/onboarding')
     } catch {
       setDeleteError(t('error.deleteFailed'))

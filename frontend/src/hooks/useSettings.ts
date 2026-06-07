@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AllergenGroup, AllergySettings, UserProfile } from '@/app/settings/settings.types'
 import { DEBOUNCE_WAIT_MS } from '@/app/settings/settings.constants'
 import { getAllergens } from '@/lib/api/allergens.api'
-import { deleteUser, getUser, updateUser } from '@/lib/api/users.api'
+import { getUser, resetUserData, updateUser } from '@/lib/api/users.api'
 import { toggleAllergen, toggleCaution, togglePartial } from '@/lib/allergen.utils'
 
 type UseSettingsReturn = {
@@ -19,7 +19,7 @@ type UseSettingsReturn = {
   handleToggleCaution: (name: string) => void
   handleTogglePartial: (name: string) => void
   handleLocaleChange: (locale: 'ja' | 'en') => void
-  handleDeleteUser: () => Promise<void>
+  handleResetData: () => Promise<void>
 }
 
 /**
@@ -147,8 +147,8 @@ export const useSettings = (): UseSettingsReturn => {
     [locale],
   )
 
-  const handleDeleteUser = useCallback(async (): Promise<void> => {
-    await deleteUser()
+  const handleResetData = useCallback(async (): Promise<void> => {
+    await resetUserData()
   }, [])
 
   return {
@@ -163,7 +163,7 @@ export const useSettings = (): UseSettingsReturn => {
     handleToggleCaution,
     handleTogglePartial,
     handleLocaleChange,
-    handleDeleteUser,
+    handleResetData,
   }
 }
 

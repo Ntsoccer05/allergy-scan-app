@@ -1,7 +1,7 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useSettings, _locationHelpers } from '@/hooks/useSettings'
 import { getAllergens } from '@/lib/api/allergens.api'
-import { getUser, updateUser, deleteUser } from '@/lib/api/users.api'
+import { getUser, updateUser, resetUserData } from '@/lib/api/users.api'
 import type { AllergenGroup, UserProfile } from '@/app/settings/settings.types'
 
 jest.mock('@/lib/api/allergens.api')
@@ -10,7 +10,7 @@ jest.mock('@/lib/api/users.api')
 const mockGetAllergens = getAllergens as jest.MockedFunction<typeof getAllergens>
 const mockGetUser = getUser as jest.MockedFunction<typeof getUser>
 const mockUpdateUser = updateUser as jest.MockedFunction<typeof updateUser>
-const mockDeleteUser = deleteUser as jest.MockedFunction<typeof deleteUser>
+const mockResetUserData = resetUserData as jest.MockedFunction<typeof resetUserData>
 
 const makeAllergenGroups = (): AllergenGroup[] => [
   {
@@ -145,8 +145,8 @@ describe('useSettings', () => {
     )
   })
 
-  it('handleDeleteUser 呼び出し後に deleteUser API が呼ばれる', async () => {
-    mockDeleteUser.mockResolvedValue(undefined)
+  it('handleResetData 呼び出し後に resetUserData API が呼ばれる', async () => {
+    mockResetUserData.mockResolvedValue(undefined)
 
     const { result } = renderHook(() => useSettings())
 
@@ -155,10 +155,10 @@ describe('useSettings', () => {
     })
 
     await act(async () => {
-      await result.current.handleDeleteUser()
+      await result.current.handleResetData()
     })
 
-    expect(mockDeleteUser).toHaveBeenCalledTimes(1)
+    expect(mockResetUserData).toHaveBeenCalledTimes(1)
   })
 
   describe('handleLocaleChange', () => {

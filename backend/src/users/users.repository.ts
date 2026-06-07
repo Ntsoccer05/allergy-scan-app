@@ -45,6 +45,20 @@ export class UsersRepository {
     await this.prisma.user.delete({ where: { id: userId } });
   }
 
+  /**
+   * アレルギー設定をリセットし、履歴を削除する。
+   * users レコードと user_daily_scans は保持してスキャン上限バイパスを防ぐ。
+   */
+  async resetData(userId: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { allergies: {} },
+      }),
+      this.prisma.scanHistory.deleteMany({ where: { userId } }),
+    ]);
+  }
+
   async createWithFreePlan(userId: string): Promise<void> {
     const freePlan = await this.prisma.plan.findUniqueOrThrow({ where: { name: 'free' } })
     await this.prisma.$transaction([

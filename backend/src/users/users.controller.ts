@@ -59,4 +59,10 @@ export class UsersController {
   async deleteUser(@Req() req: AuthRequest) {
     await this.usersService.deleteUser(req.user.sub)
   }
+
+  @Post('reset-data')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async resetUserData(@Req() req: AuthRequest) {
+    await this.usersService.resetUserData(req.user.sub)
+  }
 }

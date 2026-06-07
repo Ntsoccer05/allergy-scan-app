@@ -56,4 +56,11 @@ export class UsersService {
     await this.usersRepository.deleteById(userId)
     this.logger.log('ユーザー削除', { userId })
   }
+
+  async resetUserData(userId: string): Promise<void> {
+    const user = await this.usersRepository.findById(userId)
+    if (!user) throw new NotFoundException('ユーザーが見つかりません')
+    await this.usersRepository.resetData(userId)
+    this.logger.log('ユーザーデータリセット', { userId })
+  }
 }
