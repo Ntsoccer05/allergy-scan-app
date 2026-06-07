@@ -65,7 +65,9 @@
       "storeName": "店舗名",
       "storeNamePlaceholder": "店舗名を入力",
       "memo": "備考",
-      "memoPlaceholder": "メモを入力"
+      "memoPlaceholder": "メモを入力",
+      "thumbnail": "サムネイル",
+      "retakeThumbnail": "再撮影"
     }
   },
   "camera": {

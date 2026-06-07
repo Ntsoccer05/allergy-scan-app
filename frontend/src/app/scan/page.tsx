@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/templates/AppLayout'
 import { LoadingOverlay } from '@/components/atoms/LoadingOverlay'
@@ -9,6 +9,7 @@ import { useScan } from '@/hooks/useScan'
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
 import { useAuthContext } from '@/providers/AuthProvider'
 import { ResultCard } from '@/components/organisms/ResultCard'
+import { ThumbnailCameraModal } from '@/components/organisms/ThumbnailCameraModal'
 import { useScanUsage } from '@/hooks/useScanUsage'
 
 export default function ScanPage() {
@@ -16,6 +17,7 @@ export default function ScanPage() {
   const t = useTranslations('scan')
   const { user } = useAuthContext()
   const { scanUsage, refreshScanUsage } = useScanUsage(user?.id)
+  const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
 
   const {
     scanState,
@@ -70,7 +72,17 @@ export default function ScanPage() {
             storeCandidates={storeCandidates}
             onStoreSelect={onStoreSelect}
             onPatchHistory={onPatchHistory}
+            onRetakeThumbnail={() => setShowThumbnailCamera(true)}
           />
+          {showThumbnailCamera && (
+            <ThumbnailCameraModal
+              onCapture={(url) => {
+                onPatchHistory({ thumbnail_url: url })
+                setShowThumbnailCamera(false)
+              }}
+              onClose={() => setShowThumbnailCamera(false)}
+            />
+          )}
         </div>
       </AppLayout>
     )

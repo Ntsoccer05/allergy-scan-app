@@ -103,7 +103,7 @@ type UseScanReturn = {
   facingMode: 'environment' | 'user'
   toggleFacingMode: () => void
   onStoreSelect: (candidate: StoreCandidate | null) => void
-  onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null }) => void
+  onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
 }
 
 /** ScanResult から POST /history のリクエストボディを構築する。 */
@@ -449,7 +449,7 @@ export const useScan = (): UseScanReturn => {
   )
 
   const onPatchHistory = useCallback(
-    (data: { product_name?: string | null; store_name?: string | null; memo?: string | null }): void => {
+    (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }): void => {
       const historyId = scanHistoryIdRef.current
       if (!historyId) return
       void patchHistoryFields(historyId, data)

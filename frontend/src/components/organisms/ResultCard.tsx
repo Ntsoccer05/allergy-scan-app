@@ -17,7 +17,8 @@ type ResultCardProps = {
   onReset: () => void
   storeCandidates?: StoreCandidate[]
   onStoreSelect?: (candidate: StoreCandidate | null) => void
-  onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null }) => void
+  onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
+  onRetakeThumbnail?: () => void
 }
 
 const MIN_HEIGHT = 64
@@ -127,6 +128,7 @@ export const ResultCard = ({
   storeCandidates = [],
   onStoreSelect,
   onPatchHistory,
+  onRetakeThumbnail,
 }: ResultCardProps) => {
   // アコーディオンはデフォルト展開
   const [rawTextOpen, setRawTextOpen] = useState(true)
@@ -490,6 +492,20 @@ export const ResultCard = ({
             className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400 resize-none"
           />
         </div>
+
+        {/* サムネイル再撮影ボタン */}
+        {onRetakeThumbnail && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">{t('productInfo.thumbnail')}</span>
+            <button
+              type="button"
+              onClick={onRetakeThumbnail}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              {t('productInfo.retakeThumbnail')}
+            </button>
+          </div>
+        )}
 
         {/* ⚠️ 安全設計: 全判定で常時表示（省略禁止） */}
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">

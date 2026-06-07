@@ -65,7 +65,9 @@
       "storeName": "Store name",
       "storeNamePlaceholder": "Enter store name",
       "memo": "Notes",
-      "memoPlaceholder": "Add notes"
+      "memoPlaceholder": "Add notes",
+      "thumbnail": "Thumbnail",
+      "retakeThumbnail": "Retake"
     }
   },
   "camera": {
