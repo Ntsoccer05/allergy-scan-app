@@ -222,6 +222,50 @@ describe('HistoryController', () => {
     });
   });
 
+  describe('DELETE /history/bulk', () => {
+    let app: INestApplication;
+    let bulkDeleteMock: jest.Mock;
+
+    beforeEach(async () => {
+      bulkDeleteMock = jest.fn().mockResolvedValue(undefined);
+      app = await buildApp({
+        getHistory: jest.fn(),
+        createHistory: jest.fn(),
+        updateHistory: jest.fn(),
+        deleteHistory: jest.fn(),
+        bulkDeleteHistory: bulkDeleteMock,
+      });
+    });
+
+    afterEach(async () => {
+      await app.close();
+    });
+
+    it('正常系: 204 を返し bulkDeleteHistory が呼ばれる', async () => {
+      const res = await request(app.getHttpServer())
+        .delete('/history/bulk')
+        .set('X-Test-User-Id', 'user-1')
+        .send({ ids: ['id-1', 'id-2'] });
+
+      expect(res.status).toBe(204);
+      expect(bulkDeleteMock).toHaveBeenCalledWith(
+        'user-1',
+        { ids: ['id-1', 'id-2'] },
+      );
+    });
+
+    it('ids が 100 件を超えると 400 を返す', async () => {
+      const ids = Array.from({ length: 101 }, (_, i) => `id-${i}`);
+      const res = await request(app.getHttpServer())
+        .delete('/history/bulk')
+        .set('X-Test-User-Id', 'user-1')
+        .send({ ids });
+
+      expect(res.status).toBe(400);
+      expect(bulkDeleteMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('DELETE /history/:id', () => {
     describe('正常系', () => {
       let app: INestApplication;

@@ -11,6 +11,7 @@ import type { ScanHistoryLocation } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
+import { BulkDeleteHistoryDto } from './dto/bulk-delete-history.dto';
 import { ProductRepository } from '../products/product.repository';
 
 /** GET /history のレスポンス型。 */
@@ -191,6 +192,12 @@ export class HistoryService {
   /** 公開履歴の件数と最終更新日時を返す（ダイジェスト）。認証不要。 */
   async getPublicHistoryDigest(): Promise<{ count: number; last_updated_at: Date | null }> {
     return this.scanHistoryRepository.getPublicHistoryDigest();
+  }
+
+  /** 指定された ID リストに対応する履歴を一括削除する。他ユーザーの ID は無視される。 */
+  async bulkDeleteHistory(userId: string, dto: BulkDeleteHistoryDto): Promise<void> {
+    this.logger.log(`一括削除: userId=${userId}, count=${dto.ids.length}`);
+    await this.scanHistoryRepository.deleteManyByIds(userId, dto.ids);
   }
 
   /** スキャン履歴を1件 INSERT する。 */

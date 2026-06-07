@@ -242,6 +242,18 @@ export class ScanHistoryRepository {
   }
 
   /**
+   * 指定された ID リストのうち userId に属するレコードを一括物理削除する。
+   * ids が空配列の場合は何もしない。
+   * 所有権は WHERE userId = userId で保証するため、他ユーザーの ID を含めても削除されない。
+   */
+  async deleteManyByIds(userId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.prisma.scanHistory.deleteMany({
+      where: { id: { in: ids }, userId },
+    });
+  }
+
+  /**
    * isPublic: true かつ judgment = 'ok' のスキャン履歴をカーソルページネーションで取得する。
    * 認証不要のパブリック履歴一覧に使用する。
    * ⚠️ 安全設計: userId・detected・location の lat/lng・memo は返却しない（個人情報漏洩防止）。

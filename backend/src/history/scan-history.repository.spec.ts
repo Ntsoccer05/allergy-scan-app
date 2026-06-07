@@ -206,6 +206,37 @@ describe('ScanHistoryRepository.update', () => {
   });
 });
 
+describe('ScanHistoryRepository.deleteManyByIds', () => {
+  let repository: ScanHistoryRepository;
+  let prisma: { scanHistory: { deleteMany: jest.Mock } };
+
+  beforeEach(async () => {
+    prisma = { scanHistory: { deleteMany: jest.fn() } };
+    const module = await Test.createTestingModule({
+      providers: [
+        ScanHistoryRepository,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    repository = module.get(ScanHistoryRepository);
+  });
+
+  it('ids と userId を WHERE 条件として deleteMany を呼ぶ', async () => {
+    prisma.scanHistory.deleteMany.mockResolvedValue({ count: 2 });
+
+    await repository.deleteManyByIds('user-1', ['id-1', 'id-2']);
+
+    expect(prisma.scanHistory.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['id-1', 'id-2'] }, userId: 'user-1' },
+    });
+  });
+
+  it('ids が空配列のとき deleteMany を呼ばない', async () => {
+    await repository.deleteManyByIds('user-1', []);
+    expect(prisma.scanHistory.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('ScanHistoryRepository.deleteById', () => {
   let repository: ScanHistoryRepository;
   let prisma: {

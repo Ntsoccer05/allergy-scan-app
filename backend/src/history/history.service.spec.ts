@@ -31,6 +31,7 @@ describe('HistoryService', () => {
     updateLocation: jest.Mock;
     update: jest.Mock;
     deleteById: jest.Mock;
+    deleteManyByIds: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -41,6 +42,7 @@ describe('HistoryService', () => {
       updateLocation: jest.fn(),
       update: jest.fn(),
       deleteById: jest.fn(),
+      deleteManyByIds: jest.fn(),
     };
 
     const module = await Test.createTestingModule({
@@ -275,6 +277,27 @@ describe('HistoryService', () => {
         service.updateHistory('rec-uuid', 'user-1', { product_name: '商品名' }),
       ).rejects.toThrow(ForbiddenException);
       expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('bulkDeleteHistory', () => {
+    it('正常系: deleteManyByIds を呼ぶ', async () => {
+      const mockDeleteMany = jest.fn().mockResolvedValue(undefined);
+      repository['deleteManyByIds'] = mockDeleteMany;
+
+      await service.bulkDeleteHistory('user-1', { ids: ['id-1', 'id-2'] });
+
+      expect(mockDeleteMany).toHaveBeenCalledWith('user-1', ['id-1', 'id-2']);
+    });
+
+    it('ids が空配列でも正常終了する', async () => {
+      const mockDeleteMany = jest.fn().mockResolvedValue(undefined);
+      repository['deleteManyByIds'] = mockDeleteMany;
+
+      await expect(
+        service.bulkDeleteHistory('user-1', { ids: [] }),
+      ).resolves.toBeUndefined();
+      expect(mockDeleteMany).toHaveBeenCalledWith('user-1', []);
     });
   });
 

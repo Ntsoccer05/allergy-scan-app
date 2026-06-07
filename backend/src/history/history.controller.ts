@@ -17,6 +17,7 @@ import { HistoryService } from './history.service';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
+import { BulkDeleteHistoryDto } from './dto/bulk-delete-history.dto';
 import type { HistoryListResult } from './history.service';
 import type { ScanHistoryRecord } from './scan-history.repository';
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
@@ -62,6 +63,16 @@ export class HistoryController {
     @Body() body: PatchHistoryDto,
   ): Promise<void> {
     await this.historyService.updateHistory(id, req.user.sub, body);
+  }
+
+  /** DELETE /history/bulk: 複数履歴を一括削除する。成功時 204 を返す（最大 100 件）。 */
+  @Delete('bulk')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async bulkDelete(
+    @Req() req: AuthRequest,
+    @Body() dto: BulkDeleteHistoryDto,
+  ): Promise<void> {
+    await this.historyService.bulkDeleteHistory(req.user.sub, dto);
   }
 
   /** DELETE /history/:id: 履歴を物理削除する。成功時 204 を返す。 */
