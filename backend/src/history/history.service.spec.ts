@@ -16,6 +16,7 @@ const makeRecord = (
   detected: [],
   location: null,
   thumbnailUrl: null,
+  isPublic: false,
   memo: null,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
   ...overrides,
@@ -235,6 +236,8 @@ describe('HistoryService', () => {
         productName: '新商品名',
         storeName: null,
         memo: 'テストメモ',
+        isPublic: undefined,
+        thumbnailUrl: undefined,
       });
     });
 

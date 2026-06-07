@@ -131,6 +131,8 @@ export class HistoryService {
       productName: data.product_name,
       storeName: data.store_name,
       memo: data.memo,
+      isPublic: data.is_public,
+      thumbnailUrl: data.thumbnail_url,
     });
 
     // location フィールドが指定された場合は location も更新する（後方互換）

@@ -7,6 +7,8 @@ export type UpdateScanHistoryData = {
   productName?: string | null;
   storeName?: string | null;
   memo?: string | null;
+  isPublic?: boolean;
+  thumbnailUrl?: string | null;
 };
 
 /** scan_histories テーブルへの INSERT データ型。 */
@@ -30,6 +32,7 @@ export type ScanHistoryRecord = {
   detected: string[];
   location: ScanHistoryLocation | null;
   thumbnailUrl: string | null;
+  isPublic: boolean;
   memo: string | null;
   scannedAt: Date;
 };
@@ -85,6 +88,7 @@ export class ScanHistoryRepository {
         detected: true,
         location: true,
         thumbnailUrl: true,
+        isPublic: true,
         memo: true,
         scannedAt: true,
       },
@@ -100,6 +104,7 @@ export class ScanHistoryRepository {
       detected: (record.detected as unknown as string[]) ?? [],
       location: (record.location as unknown as ScanHistoryLocation) ?? null,
       thumbnailUrl: record.thumbnailUrl,
+      isPublic: record.isPublic,
       memo: record.memo,
       scannedAt: record.scannedAt,
     }));
@@ -118,6 +123,7 @@ export class ScanHistoryRepository {
         detected: true,
         location: true,
         thumbnailUrl: true,
+        isPublic: true,
         memo: true,
         scannedAt: true,
       },
@@ -132,6 +138,7 @@ export class ScanHistoryRepository {
       detected: (record.detected as unknown as string[]) ?? [],
       location: (record.location as unknown as ScanHistoryLocation) ?? null,
       thumbnailUrl: record.thumbnailUrl,
+      isPublic: record.isPublic,
       memo: record.memo,
       scannedAt: record.scannedAt,
     };
@@ -172,6 +179,7 @@ export class ScanHistoryRepository {
         detected: true,
         location: true,
         thumbnailUrl: true,
+        isPublic: true,
         memo: true,
         scannedAt: true,
       },
@@ -186,6 +194,7 @@ export class ScanHistoryRepository {
       detected: (record.detected as unknown as string[]) ?? [],
       location: (record.location as unknown as ScanHistoryLocation) ?? null,
       thumbnailUrl: record.thumbnailUrl,
+      isPublic: record.isPublic,
       memo: record.memo,
       scannedAt: record.scannedAt,
     };
@@ -216,6 +225,14 @@ export class ScanHistoryRepository {
 
     if (data.memo !== undefined) {
       updateData.memo = data.memo;
+    }
+
+    if (data.isPublic !== undefined) {
+      updateData.isPublic = data.isPublic;
+    }
+
+    if (data.thumbnailUrl !== undefined) {
+      updateData.thumbnailUrl = data.thumbnailUrl;
     }
 
     await this.prisma.scanHistory.update({

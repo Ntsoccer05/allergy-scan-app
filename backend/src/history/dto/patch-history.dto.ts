@@ -1,7 +1,9 @@
 import {
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -35,6 +37,15 @@ export class PatchHistoryDto {
   @IsString()
   @MaxLength(500)
   memo?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  is_public?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @IsUrl()
+  thumbnail_url?: string | null;
 
   @IsOptional()
   @ValidateNested()
