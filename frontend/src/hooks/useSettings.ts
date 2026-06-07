@@ -126,6 +126,9 @@ export const useSettings = (): UseSettingsReturn => {
       setLocale(nextLocale)
       try {
         await updateUser({ locale: nextLocale })
+        // Cookie をセットして SSR の locale を更新する（middleware 不使用のためリロード必須）
+        document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+        window.location.reload()
       } catch {
         setLocale(prevLocale)
         setError('error.localeChangeFailed')
