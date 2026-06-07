@@ -43,7 +43,8 @@ export const ThumbnailCameraModal = ({ onCapture, onClose }: Props) => {
   const handleRetake = useCallback(() => {
     setCapturedDataUrl(null)
     setModalState('camera')
-  }, [])
+    void startCamera()
+  }, [startCamera])
 
   const handleConfirm = useCallback(async () => {
     if (!capturedDataUrl) return
@@ -122,7 +123,7 @@ export const ThumbnailCameraModal = ({ onCapture, onClose }: Props) => {
               disabled={modalState === 'uploading'}
               className="px-6 py-2 rounded-full bg-white text-black text-sm font-medium disabled:opacity-50"
             >
-              {modalState === 'uploading' ? '...' : t('editModal.confirm')}
+              {modalState === 'uploading' ? t('loading') : t('editModal.confirm')}
             </button>
           </div>
         </>
