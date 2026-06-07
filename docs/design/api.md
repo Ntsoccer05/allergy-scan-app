@@ -7,6 +7,9 @@ POST /users/me/init          Supabase JWT 初回ユーザー登録（users INSER
 GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
 PUT  /users/me               アレルギー設定更新
 DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+POST /users/me/reset-data    アレルギー設定・履歴のみリセット（users/user_daily_scans は保持・204）
+POST /users/me/backup-code   引継ぎ用バックアップコード発行（30日有効・再発行で旧コード無効化）
+POST /users/me/restore       バックアップコードでアレルギー設定を引継ぎ（{ code: string }）
 GET  /scan/presigned-url     S3 Presigned URL発行
 POST /scan/barcode           JANコード照合
 POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
