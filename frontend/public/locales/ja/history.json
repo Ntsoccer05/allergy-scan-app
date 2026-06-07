@@ -42,6 +42,8 @@
     "memo": "メモ",
     "thumbnail": "サムネイル",
     "retake": "再撮影",
+    "retakeCapture": "撮り直す",
+    "confirm": "確定",
     "save": "保存",
     "cancel": "キャンセル"
   },

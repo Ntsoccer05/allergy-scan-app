@@ -42,6 +42,8 @@
     "memo": "Memo",
     "thumbnail": "Thumbnail",
     "retake": "Retake",
+    "retakeCapture": "Retake",
+    "confirm": "Confirm",
     "save": "Save",
     "cancel": "Cancel"
   },

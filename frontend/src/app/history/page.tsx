@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { HistoryCard } from '@/components/organisms/HistoryCard'
+import { ThumbnailCameraModal } from '@/components/organisms/ThumbnailCameraModal'
 import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
 import { useOthersScanned } from '@/hooks/useOthersScanned'
@@ -20,6 +21,7 @@ type EditFormData = {
   store_name: string
   memo: string
   is_public: boolean
+  thumbnail_url: string | null
 }
 
 export default function HistoryPage() {
@@ -34,7 +36,9 @@ export default function HistoryPage() {
     store_name: '',
     memo: '',
     is_public: false,
+    thumbnail_url: null,
   })
+  const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
@@ -67,12 +71,13 @@ export default function HistoryPage() {
       store_name: item.location?.store_name ?? '',
       memo: item.memo ?? '',
       is_public: item.is_public,
+      thumbnail_url: item.thumbnail_url,
     })
   }
 
   const handleEditClose = () => {
     setEditingItem(null)
-    setEditForm({ product_name: '', store_name: '', memo: '', is_public: false })
+    setEditForm({ product_name: '', store_name: '', memo: '', is_public: false, thumbnail_url: null })
   }
 
   const handleEditSave = () => {
@@ -84,6 +89,7 @@ export default function HistoryPage() {
         store_name: editForm.store_name || null,
         memo: editForm.memo || null,
         is_public: editForm.is_public,
+        thumbnail_url: editForm.thumbnail_url,
       },
       { onSuccess: handleEditClose },
     )
@@ -323,6 +329,17 @@ export default function HistoryPage() {
         </>
       )}
 
+      {/* サムネイル再撮影カメラモーダル */}
+      {showThumbnailCamera && (
+        <ThumbnailCameraModal
+          onCapture={(url) => {
+            setEditForm((prev) => ({ ...prev, thumbnail_url: url }))
+            setShowThumbnailCamera(false)
+          }}
+          onClose={() => setShowThumbnailCamera(false)}
+        />
+      )}
+
       {/* 編集モーダル */}
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -405,6 +422,32 @@ export default function HistoryPage() {
                 >
                   {t('is_public_label')}
                 </label>
+              </div>
+
+              {/* サムネイル */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('editModal.thumbnail')}
+                </label>
+                <div className="flex items-center gap-3">
+                  {editForm.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={editForm.thumbnail_url}
+                      alt=""
+                      className="h-16 w-16 rounded object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="h-16 w-16 rounded bg-gray-100 shrink-0" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowThumbnailCamera(true)}
+                    className="text-sm text-blue-600"
+                  >
+                    {t('editModal.retake')}
+                  </button>
+                </div>
               </div>
             </div>
 
