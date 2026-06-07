@@ -196,6 +196,7 @@ export class HistoryService {
 
   /** 指定された ID リストに対応する履歴を一括削除する。他ユーザーの ID は無視される。 */
   async bulkDeleteHistory(userId: string, dto: BulkDeleteHistoryDto): Promise<void> {
+    if (dto.ids.length === 0) return;
     this.logger.log(`一括削除: userId=${userId}, count=${dto.ids.length}`);
     await this.scanHistoryRepository.deleteManyByIds(userId, dto.ids);
   }

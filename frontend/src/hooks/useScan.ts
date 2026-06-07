@@ -190,6 +190,9 @@ export const useScan = (): UseScanReturn => {
         if (!ctx) throw new Error('canvas context unavailable')
         ctx.drawImage(srcCanvas, 0, 0, targetW, targetH)
 
+        // OCR前処理適用前のオリジナルカラー画像を保持する（サムネイル用）
+        const originalColorDataUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
+
         // グレースケール・コントラスト強調・シャープニングを適用（反射・ぼけ対策）
         preprocessFrame(ctx, targetW, targetH)
 
@@ -198,9 +201,10 @@ export const useScan = (): UseScanReturn => {
         dispatch({ type: 'PROCESSING', capturedImageUrl })
 
         // Branch B: サムネイルアップロード（OCR と並列実行。失敗は無視して thumbnail_url=null とする）
+        // originalColorDataUrl を使用してOCR前処理（グレースケール化等）が適用されないようにする
         const thumbnailUrlPromise: Promise<string | null> = (async () => {
           try {
-            const thumbBlob = await generateThumbnail(capturedImageUrl)
+            const thumbBlob = await generateThumbnail(originalColorDataUrl)
             const { url: thumbPresigned } = await fetchPresignedUrl()
             await putS3(thumbPresigned, thumbBlob)
             return getPublicUrlFromPresigned(thumbPresigned)

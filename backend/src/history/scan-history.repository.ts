@@ -216,11 +216,9 @@ export class ScanHistoryRepository {
       // storeName 更新時は既存の lat/lng を維持するため findById で取得して merge する
       const existing = await this.findById(id);
       const existingLocation = existing?.location;
-      updateData.location = {
-        store_name: data.storeName,
-        lat: existingLocation?.lat ?? 0,
-        lng: existingLocation?.lng ?? 0,
-      };
+      updateData.location = existingLocation
+        ? { store_name: data.storeName, lat: existingLocation.lat, lng: existingLocation.lng }
+        : { store_name: data.storeName };
     }
 
     if (data.memo !== undefined) {

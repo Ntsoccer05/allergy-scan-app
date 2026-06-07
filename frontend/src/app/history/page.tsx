@@ -224,8 +224,8 @@ export default function HistoryPage() {
                       <HistoryCard
                         item={item}
                         isOwner={item.userId === userId}
-                        onEdit={handleEditOpen}
-                        onDelete={handleDelete}
+                        onEdit={isSelectMode ? undefined : handleEditOpen}
+                        onDelete={isSelectMode ? undefined : handleDelete}
                         isSelectMode={isSelectMode}
                         isSelected={selectedIds.has(item.id)}
                         onSelect={handleToggleSelect}

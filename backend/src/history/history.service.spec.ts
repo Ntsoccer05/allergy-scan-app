@@ -290,14 +290,14 @@ describe('HistoryService', () => {
       expect(mockDeleteMany).toHaveBeenCalledWith('user-1', ['id-1', 'id-2']);
     });
 
-    it('ids が空配列でも正常終了する', async () => {
+    it('ids が空配列のとき deleteManyByIds を呼ばずに正常終了する', async () => {
       const mockDeleteMany = jest.fn().mockResolvedValue(undefined);
       repository['deleteManyByIds'] = mockDeleteMany;
 
       await expect(
         service.bulkDeleteHistory('user-1', { ids: [] }),
       ).resolves.toBeUndefined();
-      expect(mockDeleteMany).toHaveBeenCalledWith('user-1', []);
+      expect(mockDeleteMany).not.toHaveBeenCalled();
     });
   });
 
