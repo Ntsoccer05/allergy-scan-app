@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { UsersRepository } from './users.repository'
 import { BackupCodesRepository } from './backup-codes.repository'
+import { PrismaService } from '../prisma/prisma.service'
 import type { UserAllergies } from '../shared/types/db.types'
 
 type InitResult = { created: boolean }
@@ -22,6 +23,7 @@ export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly backupCodesRepository: BackupCodesRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   async initUser(userId: string, _email?: string): Promise<InitResult> {
@@ -82,8 +84,18 @@ export class UsersService {
     const sourceUser = await this.usersRepository.findById(record.userId)
     if (!sourceUser) throw new BadRequestException('code_invalid')
 
-    await this.usersRepository.update(requestingUserId, { allergies: sourceUser.allergies as UserAllergies })
-    await this.backupCodesRepository.markUsed(record.id)
+    // アレルギー設定の移行とコードの消費をアトミックに実行する
+    // （update 成功後に markUsed が失敗するとコードが再利用可能になるためトランザクションが必須）
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: requestingUserId },
+        data: { allergies: JSON.stringify(sourceUser.allergies) },
+      })
+      await tx.backupCode.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      })
+    })
 
     this.logger.log('バックアップコードで引継ぎ完了', {
       requestingUserId,

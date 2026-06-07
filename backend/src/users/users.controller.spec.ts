@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing'
-import { NotFoundException } from '@nestjs/common'
+import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { UsersController } from './users.controller'
 import { UsersService } from './users.service'
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types'
@@ -22,6 +22,8 @@ const mockService = {
   updateUser: jest.fn(),
   deleteUser: jest.fn(),
   resetUserData: jest.fn(),
+  issueBackupCode: jest.fn(),
+  restoreFromCode: jest.fn(),
 }
 
 describe('UsersController', () => {
@@ -84,6 +86,33 @@ describe('UsersController', () => {
       const req = makeAuthReq({ sub: 'user-abc' })
       await controller.resetUserData(req as any)
       expect(mockService.resetUserData).toHaveBeenCalledWith('user-abc')
+    })
+  })
+
+  describe('POST /users/me/backup-code', () => {
+    it('returns code and expires_at from service', async () => {
+      const mockResult = { code: 'ALRG-ABCD-EFGH', expires_at: '2026-07-07T00:00:00.000Z' }
+      mockService.issueBackupCode.mockResolvedValue(mockResult)
+      const req = makeAuthReq({ sub: 'user-abc' })
+      const result = await controller.issueBackupCode(req as any)
+      expect(mockService.issueBackupCode).toHaveBeenCalledWith('user-abc')
+      expect(result).toEqual(mockResult)
+    })
+  })
+
+  describe('POST /users/me/restore', () => {
+    it('calls service and returns { success: true }', async () => {
+      mockService.restoreFromCode.mockResolvedValue(undefined)
+      const req = makeAuthReq({ sub: 'user-xyz' })
+      const result = await controller.restoreFromCode(req as any, { code: 'ALRG-XXXX-YYYY' })
+      expect(mockService.restoreFromCode).toHaveBeenCalledWith('user-xyz', 'ALRG-XXXX-YYYY')
+      expect(result).toEqual({ success: true })
+    })
+
+    it('propagates BadRequestException from service', async () => {
+      mockService.restoreFromCode.mockRejectedValue(new BadRequestException('code_invalid'))
+      const req = makeAuthReq({ sub: 'user-xyz' })
+      await expect(controller.restoreFromCode(req as any, { code: 'BAD' })).rejects.toBeInstanceOf(BadRequestException)
     })
   })
 })

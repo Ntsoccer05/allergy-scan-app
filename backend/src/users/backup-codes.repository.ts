@@ -30,14 +30,15 @@ export class BackupCodesRepository {
     const codeHash = hashCode(code)
     const expiresAt = new Date(Date.now() + CODE_TTL_DAYS * 24 * 60 * 60 * 1000)
 
-    // 既存の未使用コードを無効化（1ユーザー1アクティブコード）
-    await this.prisma.backupCode.updateMany({
-      where: { userId, usedAt: null },
-      data: { usedAt: new Date() },
-    })
-
-    await this.prisma.backupCode.create({
-      data: { userId, codeHash, expiresAt },
+    // 既存の未使用コードを無効化してから新コードを作成する（競合防止のためトランザクションで実行）
+    await this.prisma.$transaction(async (tx) => {
+      await tx.backupCode.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: new Date() },
+      })
+      await tx.backupCode.create({
+        data: { userId, codeHash, expiresAt },
+      })
     })
 
     return { code, expires_at: expiresAt }
