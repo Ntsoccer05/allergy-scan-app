@@ -118,8 +118,9 @@ POST /scan/barcode           JANコード照合
 POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
 GET  /history                履歴一覧（カーソルページネーション）
 POST /history                履歴保存
-PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public）
+PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public / thumbnail_url）
 DELETE /history/:id          履歴削除
+DELETE /history/bulk         履歴一括削除（ids: string[]・最大100件）
 GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
 GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用・認証不要）
 GET  /allergens              アレルギーマスター取得

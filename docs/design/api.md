@@ -148,6 +148,7 @@ request:
     store_name?: string | null     // 最大100文字（location JSONB の store_name のみ更新。lat/lng は既存値を維持）
     memo?: string | null           // 最大500文字
     is_public?: boolean            // みんなの履歴公開フラグ（デフォルト: true）
+    thumbnail_url?: string | null  // サムネイル URL（null で削除）
   }
 
 response: 200 OK（ボディなし）
@@ -160,6 +161,22 @@ response: 200 OK（ボディなし）
 ```
 認証: Bearer Token 必須（未認証 → 401）
 所有権チェック: 他ユーザーの履歴 → 403、存在しない → 404
+
+response: 204 No Content
+```
+
+---
+
+## DELETE /history/bulk
+
+```
+認証: Bearer Token 必須（未認証 → 401）
+他ユーザーの ID を含めても自ユーザー分のみ削除される（403 にしない）
+
+request:
+  {
+    ids: string[]   // 削除対象の履歴 ID リスト（最大100件）
+  }
 
 response: 204 No Content
 ```
