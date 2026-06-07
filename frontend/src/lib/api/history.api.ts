@@ -67,6 +67,13 @@ export const deleteHistory = async (historyId: string): Promise<void> => {
   })
 }
 
+export const bulkDeleteHistory = async (ids: string[]): Promise<void> => {
+  await apiFetch('/history/bulk', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export type PublicHistoryItem = {
   id: string
   product_name: string | null

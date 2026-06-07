@@ -26,11 +26,22 @@
   "memo_label": "メモ",
   "edit_memo": "メモを編集",
   "is_public_label": "みんなの履歴に公開",
+  "select": {
+    "enter": "選択",
+    "cancel": "キャンセル",
+    "count": "{count}件選択中",
+    "selectAll": "全選択",
+    "delete": "削除（{count}件）",
+    "confirmDelete": "{count}件の履歴を削除しますか？この操作は取り消せません。",
+    "deleting": "削除中..."
+  },
   "editModal": {
     "title": "履歴を編集",
     "productName": "商品名",
     "storeName": "店舗名",
     "memo": "メモ",
+    "thumbnail": "サムネイル",
+    "retake": "再撮影",
     "save": "保存",
     "cancel": "キャンセル"
   },

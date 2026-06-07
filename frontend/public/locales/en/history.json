@@ -26,11 +26,22 @@
   "memo_label": "Memo",
   "edit_memo": "Edit memo",
   "is_public_label": "Share to public history",
+  "select": {
+    "enter": "Select",
+    "cancel": "Cancel",
+    "count": "{count} selected",
+    "selectAll": "Select All",
+    "delete": "Delete ({count})",
+    "confirmDelete": "Delete {count} history item(s)? This action cannot be undone.",
+    "deleting": "Deleting..."
+  },
   "editModal": {
     "title": "Edit History",
     "productName": "Product Name",
     "storeName": "Store Name",
     "memo": "Memo",
+    "thumbnail": "Thumbnail",
+    "retake": "Retake",
     "save": "Save",
     "cancel": "Cancel"
   },
