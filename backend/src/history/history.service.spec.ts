@@ -250,6 +250,24 @@ describe('HistoryService', () => {
       expect(repository.update).not.toHaveBeenCalled();
     });
 
+    it('is_public: true と thumbnail_url が repository.update に正しくマッピングされる', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'user-1' }));
+      repository.update.mockResolvedValue(undefined);
+
+      await service.updateHistory('rec-uuid', 'user-1', {
+        is_public: true,
+        thumbnail_url: 'https://s3.example.com/thumb.jpg',
+      });
+
+      expect(repository.update).toHaveBeenCalledWith('rec-uuid', {
+        productName: undefined,
+        storeName: undefined,
+        memo: undefined,
+        isPublic: true,
+        thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+      });
+    });
+
     it('他ユーザーの履歴は ForbiddenException を throw する', async () => {
       repository.findById.mockResolvedValue(makeRecord({ userId: 'other-user' }));
 

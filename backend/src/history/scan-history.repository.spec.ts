@@ -176,6 +176,34 @@ describe('ScanHistoryRepository.update', () => {
       }),
     });
   });
+
+  it('isPublic: true と thumbnailUrl を指定すると prisma.scanHistory.update に渡される', async () => {
+    prisma.scanHistory.update.mockResolvedValue(undefined);
+
+    await repository.update('rec-uuid', {
+      isPublic: true,
+      thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+    });
+
+    expect(prisma.scanHistory.update).toHaveBeenCalledWith({
+      where: { id: 'rec-uuid' },
+      data: expect.objectContaining({
+        isPublic: true,
+        thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+      }),
+    });
+  });
+
+  it('thumbnailUrl: null を渡すとクリア（null）として prisma に渡される', async () => {
+    prisma.scanHistory.update.mockResolvedValue(undefined);
+
+    await repository.update('rec-uuid', { thumbnailUrl: null });
+
+    expect(prisma.scanHistory.update).toHaveBeenCalledWith({
+      where: { id: 'rec-uuid' },
+      data: expect.objectContaining({ thumbnailUrl: null }),
+    });
+  });
 });
 
 describe('ScanHistoryRepository.deleteById', () => {

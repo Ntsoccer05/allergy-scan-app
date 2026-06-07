@@ -45,7 +45,6 @@ export class PatchHistoryDto {
 
   @IsOptional()
   @ValidateIf((o: PatchHistoryDto) => o.thumbnail_url !== null)
-  @IsString()
   @IsUrl()
   thumbnail_url?: string | null;
 

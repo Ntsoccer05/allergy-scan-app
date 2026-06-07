@@ -158,6 +158,34 @@ describe('HistoryController', () => {
           expect.objectContaining({ location: validBody.location }),
         );
       });
+
+      it('is_public: true を送ると updateHistory に渡される', async () => {
+        const res = await request(app.getHttpServer())
+          .patch('/history/rec-uuid')
+          .set('X-Test-User-Id', 'user-1')
+          .send({ is_public: true });
+
+        expect(res.status).toBe(200);
+        expect(updateHistoryMock).toHaveBeenCalledWith(
+          'rec-uuid',
+          'user-1',
+          expect.objectContaining({ is_public: true }),
+        );
+      });
+
+      it('thumbnail_url を送ると updateHistory に渡される', async () => {
+        const res = await request(app.getHttpServer())
+          .patch('/history/rec-uuid')
+          .set('X-Test-User-Id', 'user-1')
+          .send({ thumbnail_url: 'https://s3.example.com/thumb.jpg' });
+
+        expect(res.status).toBe(200);
+        expect(updateHistoryMock).toHaveBeenCalledWith(
+          'rec-uuid',
+          'user-1',
+          expect.objectContaining({ thumbnail_url: 'https://s3.example.com/thumb.jpg' }),
+        );
+      });
     });
 
     describe('他ユーザーの history（403 Forbidden）', () => {
