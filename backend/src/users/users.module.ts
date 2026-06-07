@@ -4,6 +4,7 @@ import { UsersService } from './users.service'
 import { UsersRepository } from './users.repository'
 import { UserDailyScansRepository } from './user-daily-scans.repository'
 import { UserDailyScansService } from './user-daily-scans.service'
+import { BackupCodesRepository } from './backup-codes.repository'
 
 @Module({
   controllers: [UsersController],
@@ -12,6 +13,7 @@ import { UserDailyScansService } from './user-daily-scans.service'
     UsersRepository,
     UserDailyScansRepository,
     UserDailyScansService,
+    BackupCodesRepository,
   ],
   exports: [UsersRepository, UsersService, UserDailyScansService],
 })

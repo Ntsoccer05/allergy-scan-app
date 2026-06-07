@@ -117,6 +117,7 @@ model User {
   subscriptions  UserSubscription[]
   dailyScans     UserDailyScan[]
   stripeCustomer StripeCustomer?
+  backupCodes    BackupCode[]
 
   @@map("users")
 }
@@ -180,4 +181,20 @@ model StripeCustomer {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("stripe_customers")
+}
+
+// 引継ぎ用バックアップコード
+model BackupCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  codeHash  String    @map("code_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([codeHash])
+  @@map("backup_codes")
 }

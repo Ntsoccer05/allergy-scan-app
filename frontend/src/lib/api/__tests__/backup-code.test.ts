@@ -19,7 +19,7 @@ describe('backup-code API クライアント', () => {
   })
 
   describe('issueBackupCode', () => {
-    it('POST /users/backup-code を Authorization Bearer で呼ぶ', async () => {
+    it('POST /users/me/backup-code を Authorization Bearer で呼ぶ', async () => {
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({
@@ -32,7 +32,7 @@ describe('backup-code API クライアント', () => {
       const result = await issueBackupCode()
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/users/backup-code',
+        '/users/me/backup-code',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -55,7 +55,7 @@ describe('backup-code API クライアント', () => {
   })
 
   describe('restoreFromCode', () => {
-    it('POST /users/restore を Authorization Bearer で呼ぶ', async () => {
+    it('POST /users/me/restore を Authorization Bearer で呼ぶ', async () => {
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({ success: true }),
@@ -65,7 +65,7 @@ describe('backup-code API クライアント', () => {
       const result = await restoreFromCode('ALRG-ABCD-EFGH')
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/users/restore',
+        '/users/me/restore',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -98,7 +98,7 @@ describe('backup-code API クライアント', () => {
       })
 
       await expect(restoreFromCode('ALRG-ABCD-EFGH')).rejects.toThrow(
-        'POST /users/restore failed: 401',
+        'POST /users/me/restore failed: 401',
       )
     })
   })

@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { UsersRepository } from './users.repository'
+import { BackupCodesRepository } from './backup-codes.repository'
 import type { UserAllergies } from '../shared/types/db.types'
 
 type InitResult = { created: boolean }
@@ -18,7 +19,10 @@ type UserMeResult = {
 export class UsersService {
   private readonly logger = new Logger(UsersService.name)
 
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly backupCodesRepository: BackupCodesRepository,
+  ) {}
 
   async initUser(userId: string, _email?: string): Promise<InitResult> {
     const existing = await this.usersRepository.findById(userId)
@@ -62,5 +66,28 @@ export class UsersService {
     if (!user) throw new NotFoundException('ユーザーが見つかりません')
     await this.usersRepository.resetData(userId)
     this.logger.log('ユーザーデータリセット', { userId })
+  }
+
+  async issueBackupCode(userId: string): Promise<{ code: string; expires_at: string }> {
+    const user = await this.usersRepository.findById(userId)
+    if (!user) throw new NotFoundException('ユーザーが見つかりません')
+    const result = await this.backupCodesRepository.issue(userId)
+    return { code: result.code, expires_at: result.expires_at.toISOString() }
+  }
+
+  async restoreFromCode(requestingUserId: string, code: string): Promise<void> {
+    const record = await this.backupCodesRepository.findValidByCode(code)
+    if (!record) throw new BadRequestException('code_invalid')
+
+    const sourceUser = await this.usersRepository.findById(record.userId)
+    if (!sourceUser) throw new BadRequestException('code_invalid')
+
+    await this.usersRepository.update(requestingUserId, { allergies: sourceUser.allergies as UserAllergies })
+    await this.backupCodesRepository.markUsed(record.id)
+
+    this.logger.log('バックアップコードで引継ぎ完了', {
+      requestingUserId,
+      sourceUserId: record.userId,
+    })
   }
 }

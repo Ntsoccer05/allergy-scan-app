@@ -14,10 +14,10 @@ export type RestoreFromCodeError = {
 }
 
 /**
- * POST /users/backup-code: バックアップコードを発行する
+ * POST /users/me/backup-code: バックアップコードを発行する
  */
 export const issueBackupCode = async (): Promise<IssueBackupCodeResponse> => {
-  const res = await apiFetch('/users/backup-code', {
+  const res = await apiFetch('/users/me/backup-code', {
     method: 'POST',
     headers: {},
   })
@@ -25,7 +25,7 @@ export const issueBackupCode = async (): Promise<IssueBackupCodeResponse> => {
 }
 
 /**
- * POST /users/restore: バックアップコードで引き継ぎを実行する
+ * POST /users/me/restore: バックアップコードで引き継ぎを実行する
  * @throws { message: 'code_invalid' } コードが無効な場合
  */
 export const restoreFromCode = async (
@@ -43,7 +43,7 @@ export const restoreFromCode = async (
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
 
-  const res = await fetch(`${baseUrl}/users/restore`, {
+  const res = await fetch(`${baseUrl}/users/me/restore`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ code }),
@@ -53,7 +53,7 @@ export const restoreFromCode = async (
     throw body
   }
   if (!res.ok) {
-    throw new Error(`POST /users/restore failed: ${res.status}`)
+    throw new Error(`POST /users/me/restore failed: ${res.status}`)
   }
   return res.json() as Promise<RestoreFromCodeResponse>
 }

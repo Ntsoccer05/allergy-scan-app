@@ -29,6 +29,11 @@ class UpdateUserDto {
   onboarding_done?: boolean
 }
 
+class RestoreFromCodeDto {
+  @IsString()
+  code!: string
+}
+
 type AuthRequest = Request & { user: SupabaseJwtPayload }
 
 @Controller('users/me')
@@ -62,5 +67,18 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetUserData(@Req() req: AuthRequest) {
     await this.usersService.resetUserData(req.user.sub)
+  }
+
+  @Post('backup-code')
+  @HttpCode(HttpStatus.OK)
+  async issueBackupCode(@Req() req: AuthRequest) {
+    return this.usersService.issueBackupCode(req.user.sub)
+  }
+
+  @Post('restore')
+  @HttpCode(HttpStatus.OK)
+  async restoreFromCode(@Req() req: AuthRequest, @Body() dto: RestoreFromCodeDto) {
+    await this.usersService.restoreFromCode(req.user.sub, dto.code)
+    return { success: true }
   }
 }
