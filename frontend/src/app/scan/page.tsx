@@ -79,7 +79,11 @@ export default function ScanPage() {
   // カメラ画面（idle / processing / error）
   return (
     <AppLayout>
-      <LoadingOverlay isOpen={scanState === 'processing'} message={t('processing')} />
+      <LoadingOverlay
+        isOpen={scanState === 'processing'}
+        message={t('processing')}
+        subtitle={t('camera.processingSubtitle')}
+      />
 
       <div className="relative flex h-[calc(100dvh-4rem)] flex-col lg:h-screen">
         <video
