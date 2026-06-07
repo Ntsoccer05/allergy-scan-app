@@ -10,6 +10,8 @@ import {
   OCR_JPEG_QUALITY,
 } from '@/app/scan/scan.constants'
 import type { OcrApiResponse, OcrStreamEvent } from '@/lib/api/scan.api'
+import { getPublicUrlFromPresigned } from '@/lib/api/scan.api'
+import { generateThumbnail } from '@/lib/thumbnail'
 import { preprocessFrame } from '@/lib/image-preprocess'
 import { useBarcode } from './useBarcode'
 import { useCamera } from './useCamera'
@@ -195,6 +197,18 @@ export const useScan = (): UseScanReturn => {
         const capturedImageUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
         dispatch({ type: 'PROCESSING', capturedImageUrl })
 
+        // Branch B: サムネイルアップロード（OCR と並列実行。失敗は無視して thumbnail_url=null とする）
+        const thumbnailUrlPromise: Promise<string | null> = (async () => {
+          try {
+            const thumbBlob = await generateThumbnail(capturedImageUrl)
+            const { url: thumbPresigned } = await fetchPresignedUrl()
+            await putS3(thumbPresigned, thumbBlob)
+            return getPublicUrlFromPresigned(thumbPresigned)
+          } catch {
+            return null
+          }
+        })()
+
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob((b) => {
             if (b) resolve(b)
@@ -253,7 +267,12 @@ export const useScan = (): UseScanReturn => {
         // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
         const historyBody = buildHistoryBody(scanResult)
         if (historyBody) {
-          const saved = await saveHistory(historyBody)
+          // Branch A (OCR) 完了後にサムネイル URL を取得（Branch B がまだ実行中なら await で待つ）
+          const thumbnailUrl = await thumbnailUrlPromise
+          const saved = await saveHistory({
+            ...historyBody,
+            thumbnail_url: thumbnailUrl ?? undefined,
+          })
           if (saved) {
             scanHistoryIdRef.current = saved.id
           }
