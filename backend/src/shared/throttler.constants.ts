@@ -26,9 +26,9 @@ export const THROTTLE_OCR_LIMIT = 5;
 export const THROTTLE_BARCODE_TTL = 60 * SEC_TO_MS;
 export const THROTTLE_BARCODE_LIMIT = 30;
 
-/** POST /users/init: DB flooding 防止（3600秒に3回） */
+/** POST /users/init: DB flooding 防止（3600秒に10回） */
 export const THROTTLE_USERS_INIT_TTL = 3600 * SEC_TO_MS;
-export const THROTTLE_USERS_INIT_LIMIT = 3;
+export const THROTTLE_USERS_INIT_LIMIT = 10;
 
 /** GET /history: 過剰ポーリング防止（60秒に60回） */
 export const THROTTLE_HISTORY_TTL = 60 * SEC_TO_MS;
