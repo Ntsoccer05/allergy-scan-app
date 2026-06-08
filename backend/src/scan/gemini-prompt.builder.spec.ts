@@ -1,4 +1,4 @@
-import { buildGeminiPrompt } from './gemini-prompt.builder';
+import { buildGeminiPrompt, clearPromptCacheForTest } from './gemini-prompt.builder';
 import type { AllergenComponentRecord } from '../allergens/allergen-component.repository';
 
 const mockComponents: AllergenComponentRecord[] = [
@@ -115,19 +115,20 @@ const db = mockDb as unknown as DbParam;
 describe('buildGeminiPrompt', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearPromptCacheForTest();
     mockDb.findByAllergens.mockResolvedValue(mockComponents);
   });
 
   it('exclude 型成分が検出対象リストに含まれない', async () => {
     const prompt = await buildGeminiPrompt(['乳', '卵'], db);
-    const detectionSection = prompt.split('【検出対象外')[0];
+    const detectionSection = prompt.split('## 検出対象外')[0];
     expect(detectionSection).not.toContain('乳化剤');
     expect(detectionSection).not.toContain('乳酸菌');
   });
 
   it('exclude 型成分が誤検出防止リストに含まれる', async () => {
     const prompt = await buildGeminiPrompt(['乳', '卵'], db);
-    const excludeSection = prompt.split('【検出対象外')[1] ?? '';
+    const excludeSection = prompt.split('## 検出対象外')[1] ?? '';
     expect(excludeSection).toContain('乳化剤');
     expect(excludeSection).toContain('乳酸菌');
   });
@@ -239,7 +240,7 @@ describe('buildGeminiPrompt', () => {
 
   it('exclude 型成分が detectionList 展開後に含まれない', async () => {
     const prompt = await buildGeminiPrompt(['乳'], db);
-    const detectionSection = prompt.split('【検出対象外')[0];
+    const detectionSection = prompt.split('## 検出対象外')[0];
     expect(detectionSection).not.toContain('乳化剤');
     expect(detectionSection).not.toContain('乳酸菌');
   });

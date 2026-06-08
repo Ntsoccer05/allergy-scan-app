@@ -4,79 +4,78 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { ScanError, ScanResult, ScanState, StoreCandidate } from '@/app/scan/scan.types'
 import type { CreateHistoryBody } from '@/app/history/history.types'
 import {
-  CONSECUTIVE_FRAMES_REQUIRED,
   FRAME_CHECK_INTERVAL_MS,
   GEO_TIMEOUT_MS,
   OCR_MAX_DIMENSION,
   OCR_JPEG_QUALITY,
 } from '@/app/scan/scan.constants'
 import type { OcrApiResponse, OcrStreamEvent } from '@/lib/api/scan.api'
+import { getPublicUrlFromPresigned } from '@/lib/s3.utils'
+import { generateThumbnail } from '@/lib/thumbnail'
 import { preprocessFrame } from '@/lib/image-preprocess'
 import { useBarcode } from './useBarcode'
 import { useCamera } from './useCamera'
-import { useFrameCheck } from './useFrameCheck'
 import { useScanApi } from './useScanApi'
 
 export type Action =
   | { type: 'START_CAMERA' }
-  | { type: 'STABLE' }
-  | { type: 'PROCESSING' }
-  | { type: 'PARTIAL_TEXT'; text: string }
+  | { type: 'PREVIEW'; imageDataUrl: string }
+  | { type: 'PROCESSING'; capturedImageUrl?: string }
   | { type: 'RESULT'; payload: ScanResult }
   | { type: 'ERROR'; error: ScanError }
   | { type: 'RESET' }
   | { type: 'STORE_SELECTED' }
+  | { type: 'SET_THUMBNAIL_URL'; url: string | null }
 
 export type State = {
   scanState: ScanState
   error: ScanError | null
   result: ScanResult | null
+  previewDataUrl: string | null
   storeCandidates: StoreCandidate[]
-  partialRawText: string | null
+  capturedImageUrl: string | null
+  thumbnailUrl: string | null
 }
 
 export const initialState: State = {
   scanState: 'idle',
   error: null,
   result: null,
+  previewDataUrl: null,
   storeCandidates: [],
-  partialRawText: null,
+  capturedImageUrl: null,
+  thumbnailUrl: null,
 }
 
 export const scanReducer = (state: State, action: Action): State => {
   switch (action.type) {
     case 'START_CAMERA':
-      return { ...state, scanState: 'detecting', error: null, result: null, storeCandidates: [] }
+      return { ...initialState, scanState: 'idle' }
 
-    case 'STABLE':
-      if (state.scanState !== 'detecting') return state
-      return { ...state, scanState: 'stable' }
+    case 'PREVIEW':
+      return { ...state, scanState: 'preview', previewDataUrl: action.imageDataUrl, error: null }
 
     case 'PROCESSING':
-      return { ...state, scanState: 'processing', partialRawText: null }
-
-    case 'PARTIAL_TEXT':
-      return { ...state, partialRawText: action.text }
+      return {
+        ...state,
+        scanState: 'processing',
+        previewDataUrl: null,
+        capturedImageUrl: action.capturedImageUrl !== undefined ? action.capturedImageUrl : state.capturedImageUrl,
+      }
 
     case 'RESULT': {
-      const storeCandidates =
-        action.payload.type === 'ocr'
-          ? (action.payload.storeCandidates ?? [])
-          : []
+      const storeCandidates = action.payload.type === 'ocr' ? (action.payload.storeCandidates ?? []) : []
       return { ...state, scanState: 'result', result: action.payload, storeCandidates }
     }
 
-    case 'ERROR': {
-      if (action.error === 'api_error') {
-        // api_error → idle（ユーザー操作が必要なため自動リトライしない）
-        return { ...state, scanState: 'idle', error: action.error }
-      }
-      // dark / blur / motion / incomplete / confidence_low → detecting 継続
-      return { ...state, scanState: 'detecting', error: action.error }
-    }
+    case 'ERROR':
+      return { ...state, scanState: 'error', error: action.error }
 
     case 'STORE_SELECTED':
       return { ...state, storeCandidates: [] }
+
+    case 'SET_THUMBNAIL_URL':
+      return { ...state, thumbnailUrl: action.url }
 
     case 'RESET':
       return initialState
@@ -95,18 +94,24 @@ type UseScanReturn = {
   error: ScanError | null
   result: ScanResult | null
   storeCandidates: StoreCandidate[]
-  partialRawText: string | null
+  capturedImageUrl: string | null
+  thumbnailUrl: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
+  setThumbnailUrl: (url: string | null) => void
   startScan: () => Promise<void>
   stopScan: () => void
   reset: () => void
+  /** タップ撮影: 現在フレームをキャプチャして即座に OCR フローに進む */
+  handleCapture: () => void
   manualCapture: () => Promise<void>
+  uploadAndScanImage: (file: File) => Promise<void>
   zoomLevel: number
   setZoom: (level: number) => void
   supportsHardwareZoom: boolean
   facingMode: 'environment' | 'user'
   toggleFacingMode: () => void
   onStoreSelect: (candidate: StoreCandidate | null) => void
+  onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
 }
 
 /** ScanResult から POST /history のリクエストボディを構築する。 */
@@ -145,6 +150,7 @@ const buildHistoryBody = (result: ScanResult): CreateHistoryBody | null => {
     return {
       judgment,
       detected: allDetected,
+      raw_text: data.raw_text || undefined,
     }
   }
 
@@ -155,12 +161,9 @@ export const useScan = (): UseScanReturn => {
   const [state, dispatch] = useReducer(scanReducer, initialState)
   const { videoRef, captureFrame, startCamera, stopCamera, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useCamera()
   const { detectFromImageData } = useBarcode()
-  const { isQualityOk } = useFrameCheck()
-  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation } =
+  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation, patchHistoryFields } =
     useScanApi()
 
-  const consecutiveOkRef = useRef(0)
-  const prevFrameRef = useRef<ImageData | null>(null)
   const intervalRef = useRef<number | null>(null)
   const isProcessingRef = useRef(false)
   const stateRef = useRef<ScanState>('idle')
@@ -196,8 +199,32 @@ export const useScan = (): UseScanReturn => {
         if (!ctx) throw new Error('canvas context unavailable')
         ctx.drawImage(srcCanvas, 0, 0, targetW, targetH)
 
+        // OCR前処理適用前のオリジナルカラー画像を保持する（サムネイル用）
+        const originalColorDataUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
+
         // グレースケール・コントラスト強調・シャープニングを適用（反射・ぼけ対策）
         preprocessFrame(ctx, targetW, targetH)
+
+        // 結果表示用にスキャン画像を保持する（前処理後の状態）
+        const capturedImageUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
+        dispatch({ type: 'PROCESSING', capturedImageUrl })
+
+        // オリジナルカラー画像をサムネイルとして即座にセット（S3 URL は DB 保存のみ使用）
+        // ⚠️ RESULT dispatch 前にセットして結果画面に即表示させる
+        dispatch({ type: 'SET_THUMBNAIL_URL', url: originalColorDataUrl })
+
+        // Branch B: サムネイルアップロード（OCR と並列実行。失敗は無視して thumbnail_url=null とする）
+        // originalColorDataUrl を使用してOCR前処理（グレースケール化等）が適用されないようにする
+        const thumbnailUrlPromise: Promise<string | null> = (async () => {
+          try {
+            const thumbBlob = await generateThumbnail(originalColorDataUrl)
+            const { url: thumbPresigned } = await fetchPresignedUrl()
+            await putS3(thumbPresigned, thumbBlob)
+            return getPublicUrlFromPresigned(thumbPresigned)
+          } catch {
+            return null
+          }
+        })()
 
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob((b) => {
@@ -222,11 +249,12 @@ export const useScan = (): UseScanReturn => {
 
         for await (const event of stream as AsyncGenerator<OcrStreamEvent>) {
           if (event.type === 'raw_text') {
-            dispatch({ type: 'PARTIAL_TEXT', text: event.text })
+            // raw_text イベントは現在表示しない（プレビューフローでは不要）
           } else if (event.type === 'confidence_low') {
             lowConfidenceRawText = event.raw_text
           } else if (event.type === 'error') {
             if (event.code === 'INCOMPLETE_IMAGE') {
+              void thumbnailUrlPromise  // fire-and-forget; result discarded on incomplete scan
               dispatch({ type: 'ERROR', error: 'incomplete' })
               return
             }
@@ -237,6 +265,7 @@ export const useScan = (): UseScanReturn => {
         }
 
         if (lowConfidenceRawText !== null) {
+          void thumbnailUrlPromise  // fire-and-forget; result discarded on low_confidence
           dispatch({ type: 'RESULT', payload: { type: 'low_confidence', raw_text: lowConfidenceRawText } })
           return
         }
@@ -254,87 +283,73 @@ export const useScan = (): UseScanReturn => {
         }
         dispatch({ type: 'RESULT', payload: scanResult })
 
-        // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
-        const historyBody = buildHistoryBody(scanResult)
-        if (historyBody) {
-          const saved = await saveHistory(historyBody)
-          if (saved) {
-            scanHistoryIdRef.current = saved.id
+        // バックエンドが履歴を作成済みのため history_id を使用する。
+        // 未認証の場合（history_id なし）はフォールバックとして POST /history で保存する。
+        const historyIdFromBackend = ocrResult.history_id
+        if (historyIdFromBackend) {
+          scanHistoryIdRef.current = historyIdFromBackend
+          // S3 アップロード完了後に thumbnail_url をパッチ（失敗は無視）
+          const thumbnailUrl = await thumbnailUrlPromise
+          if (thumbnailUrl) {
+            void patchHistoryFields(historyIdFromBackend, { thumbnail_url: thumbnailUrl })
+          }
+        } else {
+          // 未認証ユーザー: フォールバックとして POST /history で保存
+          const historyBody = buildHistoryBody(scanResult)
+          if (historyBody) {
+            const thumbnailUrl = await thumbnailUrlPromise
+            const saved = await saveHistory({
+              ...historyBody,
+              thumbnail_url: thumbnailUrl ?? undefined,
+            })
+            if (saved) {
+              scanHistoryIdRef.current = saved.id
+            }
           }
         }
       } catch {
         dispatch({ type: 'ERROR', error: 'api_error' })
       }
     },
-    [fetchPresignedUrl, putS3, scanOcrStream, saveHistory],
+    [fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchHistoryFields],
   )
 
   const tick = useCallback(async (): Promise<void> => {
     if (isProcessingRef.current) return
-    if (stateRef.current !== 'detecting' && stateRef.current !== 'stable') return
+    if (stateRef.current !== 'idle') return
 
     const frame = captureFrame()
     if (!frame) return
 
     // バーコード検出を優先
-    if (stateRef.current === 'detecting') {
-      const janCode = await detectFromImageData(frame)
-      if (janCode) {
-        isProcessingRef.current = true
-        dispatch({ type: 'PROCESSING' })
-        try {
-          const result = await scanBarcodeWithCache(janCode)
-          if (result.found) {
-            const scanResult: ScanResult = { type: 'barcode', data: result }
-            dispatch({ type: 'RESULT', payload: scanResult })
+    const janCode = await detectFromImageData(frame)
+    if (janCode) {
+      isProcessingRef.current = true
+      dispatch({ type: 'PROCESSING' })
+      try {
+        const result = await scanBarcodeWithCache(janCode)
+        if (result.found) {
+          const scanResult: ScanResult = { type: 'barcode', data: result }
+          dispatch({ type: 'RESULT', payload: scanResult })
 
-            // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
-            const historyBody = buildHistoryBody(scanResult)
-            if (historyBody) {
-              void saveHistory(historyBody)
-            }
-          } else {
-            // found:false → OCR フローに自動切り替え
-            await runOcrFlow(frame)
+          // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
+          const historyBody = buildHistoryBody(scanResult)
+          if (historyBody) {
+            void saveHistory(historyBody)
           }
-        } catch {
-          dispatch({ type: 'ERROR', error: 'api_error' })
-        } finally {
-          isProcessingRef.current = false
+        } else {
+          // found:false → OCR フローに自動切り替え
+          await runOcrFlow(frame)
         }
-        return
-      }
-    }
-
-    // フレーム品質チェック
-    const { ok, reasons } = isQualityOk(frame, prevFrameRef.current)
-    prevFrameRef.current = frame
-
-    if (ok) {
-      consecutiveOkRef.current++
-      if (consecutiveOkRef.current >= CONSECUTIVE_FRAMES_REQUIRED) {
-        consecutiveOkRef.current = 0
-        dispatch({ type: 'STABLE' })
-
-        // stable になったら直ちに OCR フロー
-        if (stateRef.current === 'stable' || stateRef.current === 'detecting') {
-          isProcessingRef.current = true
-          await runOcrFlow(frame).finally(() => {
-            isProcessingRef.current = false
-          })
-        }
-      }
-    } else {
-      consecutiveOkRef.current = 0
-      const primaryReason = reasons[0]
-      if (primaryReason) {
-        dispatch({ type: 'ERROR', error: primaryReason })
+      } catch {
+        dispatch({ type: 'ERROR', error: 'api_error' })
+      } finally {
+        isProcessingRef.current = false
       }
     }
   }, [
     captureFrame,
     detectFromImageData,
-    isQualityOk,
     scanBarcodeWithCache,
     runOcrFlow,
     saveHistory,
@@ -343,8 +358,6 @@ export const useScan = (): UseScanReturn => {
   const startScan = useCallback(async (): Promise<void> => {
     await startCamera()
     dispatch({ type: 'START_CAMERA' })
-    consecutiveOkRef.current = 0
-    prevFrameRef.current = null
     isProcessingRef.current = false
     geolocationRef.current = null
     scanHistoryIdRef.current = null
@@ -387,7 +400,7 @@ export const useScan = (): UseScanReturn => {
   /** 品質チェックをスキップして現在フレームを即時OCR送信する（PC・手動操作用） */
   const manualCapture = useCallback(async (): Promise<void> => {
     if (isProcessingRef.current) return
-    if (stateRef.current !== 'detecting' && stateRef.current !== 'idle') return
+    if (stateRef.current !== 'idle') return
     const frame = captureFrame()
     if (!frame) return
     isProcessingRef.current = true
@@ -395,6 +408,53 @@ export const useScan = (): UseScanReturn => {
       isProcessingRef.current = false
     })
   }, [captureFrame, runOcrFlow])
+
+  /**
+   * タップ撮影: 現在フレームをキャプチャして即座に OCR フローに進む。
+   * idle 状態でのみ有効。確認画面なし。
+   */
+  const handleCapture = useCallback((): void => {
+    if (isProcessingRef.current) return
+    if (stateRef.current !== 'idle') return
+    const frame = captureFrame()
+    if (!frame) return
+    isProcessingRef.current = true
+    void runOcrFlow(frame).finally(() => {
+      isProcessingRef.current = false
+    })
+  }, [captureFrame, runOcrFlow])
+
+  /**
+   * ギャラリー / ファイルシステムから選択した画像を OCR 解析する。
+   * File → createImageBitmap → Canvas → ImageData に変換して runOcrFlow に渡す。
+   */
+  const uploadAndScanImage = useCallback(
+    async (file: File): Promise<void> => {
+      if (isProcessingRef.current) return
+      isProcessingRef.current = true
+      dispatch({ type: 'PROCESSING' })
+      try {
+        const bitmap = await createImageBitmap(file)
+        const longEdge = Math.max(bitmap.width, bitmap.height)
+        const scale = Math.min(1, OCR_MAX_DIMENSION / longEdge)
+        const targetW = Math.round(bitmap.width * scale)
+        const targetH = Math.round(bitmap.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = targetW
+        canvas.height = targetH
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('canvas context unavailable')
+        ctx.drawImage(bitmap, 0, 0, targetW, targetH)
+        const imageData = ctx.getImageData(0, 0, targetW, targetH)
+        await runOcrFlow(imageData)
+      } catch {
+        dispatch({ type: 'ERROR', error: 'api_error' })
+      } finally {
+        isProcessingRef.current = false
+      }
+    },
+    [runOcrFlow],
+  )
 
   const onStoreSelect = useCallback(
     (candidate: StoreCandidate | null): void => {
@@ -412,6 +472,19 @@ export const useScan = (): UseScanReturn => {
     [patchLocation],
   )
 
+  const setThumbnailUrl = useCallback((url: string | null) => {
+    dispatch({ type: 'SET_THUMBNAIL_URL', url })
+  }, [])
+
+  const onPatchHistory = useCallback(
+    (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }): void => {
+      const historyId = scanHistoryIdRef.current
+      if (!historyId) return
+      void patchHistoryFields(historyId, data)
+    },
+    [patchHistoryFields],
+  )
+
   // アンマウント時にクリーンアップ
   useEffect(() => {
     return () => {
@@ -424,17 +497,22 @@ export const useScan = (): UseScanReturn => {
     error: state.error,
     result: state.result,
     storeCandidates: state.storeCandidates,
-    partialRawText: state.partialRawText,
+    capturedImageUrl: state.capturedImageUrl,
+    thumbnailUrl: state.thumbnailUrl,
     videoRef,
+    setThumbnailUrl,
     startScan,
     stopScan,
     reset,
+    handleCapture,
     manualCapture,
+    uploadAndScanImage,
     zoomLevel,
     setZoom,
     supportsHardwareZoom,
     facingMode,
     toggleFacingMode,
     onStoreSelect,
+    onPatchHistory,
   }
 }

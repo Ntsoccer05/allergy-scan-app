@@ -10,6 +10,10 @@ import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
 import { AllergensModule } from './allergens/allergens.module';
 import { ThrottlerExceptionFilter } from './shared/throttler-exception.filter';
+import { AuthModule } from './auth/auth.module';
+import { SupabaseJwtGuard } from './auth/supabase-jwt.guard';
+import { AdminModule } from './admin/admin.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import {
   THROTTLE_DEFAULT_TTL_MS,
   THROTTLE_DEFAULT_LIMIT,
@@ -29,10 +33,17 @@ import {
     UsersModule,
     ProductsModule,
     AllergensModule,
+    AuthModule,
+    AdminModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: SupabaseJwtGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

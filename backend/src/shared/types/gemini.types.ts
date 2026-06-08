@@ -31,4 +31,5 @@ export type GeminiOcrResponse = {
   price: number | null;
   price_with_tax: number | null;
   price_confidence: 'high' | 'low' | null;
+  product_name: string | null;
 };

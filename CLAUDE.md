@@ -97,25 +97,37 @@ Week4：設定・オンボーディング
 | `patterns.md` | 確立済み実装パターン（スキャンフロー・UPSERT・judgment_type等） |
 | `implementation_rules.md` | プロジェクト固有制約（Lambda制限・免責UI・OCR安全設計・個人情報等） |
 | `database_design.md` | DB正規化方針（1NF〜5NF・無損失分解・非正規化の許容条件） |
+| `chrome_testing.md` | Chrome 実機チェック手順・省略不可条件（UI/API/認証変更時） |
 
 ## APIエンドポイント一覧（概要）
 
 詳細は `architecture.md` および `docs/design/api.md` を参照。
 
+**認証方式（現行）**: Cookie ベース認証（HttpOnly Cookie）。`@Public()` デコレータで認証バイパス。`/admin/*` は Supabase Auth `app_metadata.role === 'admin'` を追加チェック。Phase 1（pending）で JWT Bearer Token に統一予定。
+
 ```
-POST /users/init             初回 Cookie 発行・users INSERT（初回アクセス時）
-POST /users/backup-code      バックアップコード発行（Cookie 認証必須）
-POST /users/restore          バックアップコードによるデバイス引き継ぎ（レートリミット: 60秒5回）
-GET  /scan/presigned-url     S3 Presigned URL 発行
-POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルギー判定
-GET  /history                履歴一覧（カーソルページネーション）
-POST /history                履歴保存
-DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+POST /users/me/init          Supabase JWT 初回ユーザー登録（Bearer Token 必須）
 GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
 PUT  /users/me               アレルギー設定更新
+DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+POST /users/me/reset-data    アレルギー設定・履歴のみリセット（users/user_daily_scans は保持）
+POST /users/me/backup-code   引継ぎ用バックアップコード発行（30日有効・再発行で旧コード無効化）
+POST /users/me/restore       バックアップコードでアレルギー設定を引継ぎ
+GET  /scan/presigned-url     S3 Presigned URL 発行
+POST /scan/barcode           JANコード照合
+POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
+GET  /history                履歴一覧（カーソルページネーション）
+POST /history                履歴保存
+PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public / thumbnail_url）
+DELETE /history/:id          履歴削除
+DELETE /history/bulk         履歴一括削除（ids: string[]・最大100件）
+GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
+GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用・認証不要）
 GET  /allergens              アレルギーマスター取得
-GET  /products/others        みんなのスキャン一覧（カーソルページネーション・Cookie 認証必須）
+GET  /admin/users            ユーザー一覧（admin 専用）
+GET  /admin/stats            統計情報（admin 専用）
+PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
+POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
 ## タスク・要求の起票
@@ -124,10 +136,33 @@ GET  /products/others        みんなのスキャン一覧（カーソルペー
 - 採番: 既存の最大連番 +1（初回は `00001`）
 - 完了タスクは `.claude/tasks/__done/` へ手動移動
 
-## Claude Code 資産（エージェントパイプライン）
+## 実装計画（Plans）
 
-- `.claude/skills/run-harness-cycle/` — Planner→Generator→Evaluator ループ
-- `.claude/agents/` — planner / generator / evaluator / spec-docs-syncer / static-test-runner
+- 作成先: `.claude/plans/pending/YYYY-MM-DD-<feature-name>.md`
+- 完了後: `.claude/plans/done/` へ移動
+- 計画を書く際は `writing-plans` スキルを使用
+
+## ワークフロースキル
+
+Claude Code の `Skill` ツールで呼び出す。セッション開始時に `using-superpowers` が自動注入される。
+
+**ブランチ運用:** ブランチの作成・切り替えはユーザー自身が行う。Claude はブランチを作成・削除しない。
+
+| スキル | 使用タイミング |
+|---|---|
+| `using-superpowers` | セッション開始時に自動ロード — スキルの使い方を確立 |
+| `brainstorming` | 機能追加・設計変更など実装前に必ず使用 |
+| `writing-plans` | 仕様/要件がある多ステップタスクの計画作成 |
+| `executing-plans` | 書かれた実装計画をサブエージェントレビューつきで実行 |
+| `subagent-driven-development` | 計画の独立タスクをサブエージェントで実行（推奨） |
+| `finishing-a-development-branch` | 実装完了後 — テスト検証・ドキュメント更新・最終レビュー・PR |
+| `systematic-debugging` | バグ・テスト失敗・予期しない動作に遭遇したとき |
+| `verification-before-completion` | 完了主張やコミット・PR 作成の前に必ず実行 |
+| `test-driven-development` | 機能追加・バグ修正で実装コードを書く前 |
+| `dispatching-parallel-agents` | 2 件以上の独立タスクを並列処理するとき |
+| `requesting-code-review` | タスク完了後やマージ前のコードレビュー依頼 |
+| `receiving-code-review` | コードレビューフィードバックを受け取ったとき |
+| `writing-skills` | 新しいスキルの作成・既存スキルの編集 |
 
 ## 詳細設計ドキュメント（人間向け参照）
 
@@ -136,7 +171,7 @@ GET  /products/others        みんなのスキャン一覧（カーソルペー
 - OCR安全設計・Geminiプロンプト: `docs/design/ocr.md`
 - DB設計・テーブル定義・初期データ: `docs/design/database.md`
   （allergens / allergen_components / products / scan_histories
-   / users / backup_codes / judgment_reports）
+   / users / plans / user_subscriptions / user_daily_scans / stripe_customers）
 - APIエンドポイント設計: `docs/design/api.md`
 - 履歴・設定・オンボーディング・SNS共有・引き継ぎ・i18n: `docs/design/screens.md`
 - 法務・免責・プライバシー: `docs/design/legal.md`

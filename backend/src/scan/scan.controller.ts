@@ -7,6 +7,8 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
@@ -14,7 +16,9 @@ import { ScanService } from './scan.service';
 import { BarcodeScandDto } from './dto/barcode-scan.dto';
 import { OcrScanDto } from './dto/ocr-scan.dto';
 import type { BarcodeScanResult, OcrScanResult, PresignedUrlResult } from './scan.service';
-import { COOKIE_NAME } from '../users/users.constants';
+import { DailyScanLimitGuard } from './daily-scan-limit.guard';
+import { UserDailyScansService } from '../users/user-daily-scans.service';
+import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 import {
   THROTTLE_OCR_TTL,
   THROTTLE_OCR_LIMIT,
@@ -22,36 +26,56 @@ import {
   THROTTLE_BARCODE_LIMIT,
 } from '../shared/throttler.constants';
 
+type AuthRequest = Request & { user?: SupabaseJwtPayload };
+
 @Controller('scan')
 export class ScanController {
-  constructor(private readonly scanService: ScanService) {}
+  constructor(
+    private readonly scanService: ScanService,
+    private readonly userDailyScansService: UserDailyScansService,
+  ) {}
 
   /** GET /scan/presigned-url: S3 Presigned PUT URL を発行する。 */
+  @UseGuards(DailyScanLimitGuard)
   @Get('presigned-url')
-  async getPresignedUrl(): Promise<PresignedUrlResult> {
-    return this.scanService.getPresignedUrl();
+  async getPresignedUrl(@Req() req: AuthRequest): Promise<PresignedUrlResult> {
+    const userId = req.user?.sub;
+    return this.scanService.getPresignedUrl(userId);
   }
 
   /** POST /scan/barcode: JAN コード照合。found フィールドを必ず含むレスポンスを返す。 */
+  @UseGuards(DailyScanLimitGuard)
   @Post('barcode')
   @HttpCode(HttpStatus.OK)
   @Throttle({
     default: { ttl: THROTTLE_BARCODE_TTL, limit: THROTTLE_BARCODE_LIMIT },
   })
-  async scanBarcode(@Body() dto: BarcodeScandDto): Promise<BarcodeScanResult> {
-    return this.scanService.scanBarcode(dto.jan_code);
+  async scanBarcode(@Body() dto: BarcodeScandDto, @Req() req: AuthRequest): Promise<BarcodeScanResult> {
+    const userId = req.user?.sub;
+    return this.scanService.scanBarcode(dto.jan_code, userId);
   }
 
   /** POST /scan/ocr: S3 キーを受け取り OCR + アレルギー判定を行う。 */
+  @UseGuards(DailyScanLimitGuard)
   @Post('ocr')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
   async scanOcr(
     @Body() dto: OcrScanDto,
-    @Req() req: Request,
+    @Req() req: AuthRequest,
   ): Promise<OcrScanResult> {
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    const userId = req.user?.sub;
     return this.scanService.processOcr(dto.s3_key, userId, dto.lat, dto.lng, dto.allow_low_confidence);
+  }
+
+  /** GET /scan/usage: 今日の残りスキャン数を返す。Bearer Token 必須。 */
+  @Get('usage')
+  async getScanUsage(
+    @Req() req: AuthRequest,
+  ): Promise<{ used: number; limit: number; remaining: number }> {
+    const userId = req.user?.sub;
+    if (!userId) throw new UnauthorizedException();
+    return this.userDailyScansService.getRemainingScans(userId);
   }
 
   /**
@@ -59,11 +83,12 @@ export class ScanController {
    * raw_text が確定するたびに raw_text イベントを送信し、完了後に result イベントを送信する。
    * ⚠️ Lambda 環境では Response Streaming が必要（ローカル開発では通常の SSE で動作する）。
    */
+  @UseGuards(DailyScanLimitGuard)
   @Post('ocr-stream')
   @Throttle({ default: { ttl: THROTTLE_OCR_TTL, limit: THROTTLE_OCR_LIMIT } })
   async ocrStream(
     @Body() dto: OcrScanDto,
-    @Req() req: Request,
+    @Req() req: AuthRequest,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
     res.status(200);
@@ -73,7 +98,7 @@ export class ScanController {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
+    const userId = req.user?.sub;
 
     try {
       const stream = this.scanService.processOcrStream(

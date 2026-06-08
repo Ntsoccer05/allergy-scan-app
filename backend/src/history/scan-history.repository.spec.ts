@@ -11,19 +11,31 @@ const makePrismaRecord = (overrides: Record<string, unknown> = {}) => ({
   detected: [],
   location: null,
   thumbnailUrl: null,
+  isPublic: false,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
   ...overrides,
 });
 
 describe('ScanHistoryRepository.findByUser', () => {
   let repository: ScanHistoryRepository;
-  let prisma: { scanHistory: { findMany: jest.Mock; create: jest.Mock } };
+  let prisma: {
+    scanHistory: {
+      findMany: jest.Mock;
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+  };
 
   beforeEach(async () => {
     prisma = {
       scanHistory: {
         findMany: jest.fn(),
         create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
     };
 
@@ -111,6 +123,160 @@ describe('ScanHistoryRepository.findByUser', () => {
 
       const callArgs = prisma.scanHistory.findMany.mock.calls[0][0];
       expect(callArgs.where).not.toHaveProperty('judgment');
+    });
+  });
+});
+
+describe('ScanHistoryRepository.update', () => {
+  let repository: ScanHistoryRepository;
+  let prisma: {
+    scanHistory: {
+      findMany: jest.Mock;
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      scanHistory: {
+        findMany: jest.fn(),
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+    };
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ScanHistoryRepository,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    repository = module.get(ScanHistoryRepository);
+  });
+
+  it('正常系: productName・memo を指定すると prisma.scanHistory.update が呼ばれる', async () => {
+    prisma.scanHistory.update.mockResolvedValue(undefined);
+
+    await repository.update('rec-uuid', {
+      productName: '新商品名',
+      memo: 'テストメモ',
+    });
+
+    expect(prisma.scanHistory.update).toHaveBeenCalledWith({
+      where: { id: 'rec-uuid' },
+      data: expect.objectContaining({
+        productName: '新商品名',
+        memo: 'テストメモ',
+      }),
+    });
+  });
+
+  it('isPublic: true と thumbnailUrl を指定すると prisma.scanHistory.update に渡される', async () => {
+    prisma.scanHistory.update.mockResolvedValue(undefined);
+
+    await repository.update('rec-uuid', {
+      isPublic: true,
+      thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+    });
+
+    expect(prisma.scanHistory.update).toHaveBeenCalledWith({
+      where: { id: 'rec-uuid' },
+      data: expect.objectContaining({
+        isPublic: true,
+        thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+      }),
+    });
+  });
+
+  it('thumbnailUrl: null を渡すとクリア（null）として prisma に渡される', async () => {
+    prisma.scanHistory.update.mockResolvedValue(undefined);
+
+    await repository.update('rec-uuid', { thumbnailUrl: null });
+
+    expect(prisma.scanHistory.update).toHaveBeenCalledWith({
+      where: { id: 'rec-uuid' },
+      data: expect.objectContaining({ thumbnailUrl: null }),
+    });
+  });
+});
+
+describe('ScanHistoryRepository.deleteManyByIds', () => {
+  let repository: ScanHistoryRepository;
+  let prisma: { scanHistory: { deleteMany: jest.Mock } };
+
+  beforeEach(async () => {
+    prisma = { scanHistory: { deleteMany: jest.fn() } };
+    const module = await Test.createTestingModule({
+      providers: [
+        ScanHistoryRepository,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    repository = module.get(ScanHistoryRepository);
+  });
+
+  it('ids と userId を WHERE 条件として deleteMany を呼ぶ', async () => {
+    prisma.scanHistory.deleteMany.mockResolvedValue({ count: 2 });
+
+    await repository.deleteManyByIds('user-1', ['id-1', 'id-2']);
+
+    expect(prisma.scanHistory.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['id-1', 'id-2'] }, userId: 'user-1' },
+    });
+  });
+
+  it('ids が空配列のとき deleteMany を呼ばない', async () => {
+    await repository.deleteManyByIds('user-1', []);
+    expect(prisma.scanHistory.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('ScanHistoryRepository.deleteById', () => {
+  let repository: ScanHistoryRepository;
+  let prisma: {
+    scanHistory: {
+      findMany: jest.Mock;
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      scanHistory: {
+        findMany: jest.fn(),
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+    };
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ScanHistoryRepository,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    repository = module.get(ScanHistoryRepository);
+  });
+
+  it('正常系: prisma.scanHistory.delete が { where: { id } } で呼ばれる', async () => {
+    prisma.scanHistory.delete.mockResolvedValue(undefined);
+
+    await repository.deleteById('rec-uuid');
+
+    expect(prisma.scanHistory.delete).toHaveBeenCalledWith({
+      where: { id: 'rec-uuid' },
     });
   });
 });

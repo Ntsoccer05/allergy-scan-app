@@ -1,68 +1,180 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
+import { AppLayout } from '@/components/templates/AppLayout'
+import { LoadingOverlay } from '@/components/atoms/LoadingOverlay'
+import { ScanLimitBadge } from '@/components/molecules/ScanLimitBadge'
 import { useScan } from '@/hooks/useScan'
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
-import { CameraView } from '@/components/CameraView'
-import { ScanGuide } from '@/components/ScanGuide'
-import { ScanOverlay } from '@/components/ScanOverlay'
-import { ResultCard } from '@/components/ResultCard'
-import { GUIDE_MESSAGES } from '@/app/scan/scan.constants'
+import { useAuthContext } from '@/providers/AuthProvider'
+import { ResultCard } from '@/components/organisms/ResultCard'
+import { ThumbnailCameraModal } from '@/components/organisms/ThumbnailCameraModal'
+import { useScanUsage } from '@/hooks/useScanUsage'
 
 export default function ScanPage() {
   useOnboardingGuard()
+  const t = useTranslations('scan')
+  const { user } = useAuthContext()
+  const { scanUsage, refreshScanUsage } = useScanUsage(user?.id)
+  const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
+
   const {
-    scanState, error, result, storeCandidates, onStoreSelect,
-    videoRef, startScan, reset, manualCapture,
-    zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode,
-    partialRawText,
+    scanState,
+    error,
+    result,
+    storeCandidates,
+    capturedImageUrl,
+    thumbnailUrl,
+    setThumbnailUrl,
+    onStoreSelect,
+    onPatchHistory,
+    videoRef,
+    startScan,
+    stopScan,
+    reset,
+    handleCapture,
+    toggleFacingMode,
+    uploadAndScanImage,
   } = useScan()
 
-  // 初回マウント時のみカメラを起動する（依存配列のサイズを一定に保つ）
+  // 初回マウント時にカメラを起動し、アンマウント時に停止する
   useEffect(() => {
     void startScan()
+    return () => stopScan()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startScan])
+  }, [])
 
-  // 「もう一度スキャンする」: reset で状態とカメラをリセットし、直後に再起動する
-  const handleScanAgain = useCallback(() => {
-    reset()
-    void startScan()
-  }, [reset, startScan])
+  // スキャン完了後にカウントを再取得する
+  useEffect(() => {
+    if (scanState === 'result') refreshScanUsage()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanState])
 
-  const showManualButton = scanState === 'detecting' || scanState === 'idle'
+  // 結果画面
+  if (scanState === 'result' && result !== null) {
+    return (
+      <AppLayout>
+        <div className="relative h-[calc(100dvh-4rem)] lg:h-screen">
+          {/* スキャン画像をカメラフレームと同じ位置に全面表示 */}
+          {capturedImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={capturedImageUrl}
+              alt=""
+              aria-hidden="true"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-gray-900" />
+          )}
+          <ResultCard
+            result={result}
+            onReset={() => { reset(); void startScan() }}
+            storeCandidates={storeCandidates}
+            onStoreSelect={onStoreSelect}
+            onPatchHistory={onPatchHistory}
+            onRetakeThumbnail={() => setShowThumbnailCamera(true)}
+            thumbnailUrl={thumbnailUrl}
+          />
+          {showThumbnailCamera && (
+            <ThumbnailCameraModal
+              onCapture={(s3Url, localDataUrl) => {
+                onPatchHistory({ thumbnail_url: s3Url })
+                setThumbnailUrl(localDataUrl)
+                setShowThumbnailCamera(false)
+              }}
+              onClose={() => setShowThumbnailCamera(false)}
+            />
+          )}
+        </div>
+      </AppLayout>
+    )
+  }
 
+  // カメラ画面（idle / processing / error）
   return (
-    <div className="relative flex flex-col w-full max-w-120 lg:max-w-none mx-auto h-[calc(100vh-56px)] lg:h-screen overflow-hidden bg-black">
-      <CameraView
-        videoRef={videoRef}
-        zoomLevel={zoomLevel}
-        supportsHardwareZoom={supportsHardwareZoom}
-        onZoomChange={setZoom}
-        facingMode={facingMode}
-        onToggleFacingMode={toggleFacingMode}
+    <AppLayout>
+      <LoadingOverlay
+        isOpen={scanState === 'processing'}
+        message={t('processing')}
+        subtitle={t('camera.processingSubtitle')}
       />
-      <ScanOverlay state={scanState} partialRawText={partialRawText} />
 
-      <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-3 px-4">
-        {/* 手動キャプチャボタン: 自動検出が通らないときの手動トリガー */}
-        {showManualButton && (
-          <button
-            type="button"
-            onClick={() => { void manualCapture() }}
-            className="px-8 py-3 rounded-full bg-white/90 text-gray-900 text-sm font-semibold
-              shadow-lg active:scale-95 transition-transform
-              focus:outline-none focus:ring-2 focus:ring-white"
-          >
-            {GUIDE_MESSAGES.manual}
-          </button>
-        )}
-        <ScanGuide state={scanState} error={error ?? undefined} />
+      <div className="relative flex h-[calc(100dvh-4rem)] flex-col lg:h-screen">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-full w-full object-cover"
+          aria-label={t('camera.videoLabel')}
+        />
+
+        <div className="absolute inset-0 flex flex-col justify-between p-4">
+          <div className="flex items-center justify-between">
+            {/* スキャン使用量バッジ */}
+            {scanUsage !== null && (
+              <ScanLimitBadge used={scanUsage.used} limit={scanUsage.limit} />
+            )}
+            {/* カメラ切り替えボタン（モバイルのみ表示） */}
+            <button
+              onClick={toggleFacingMode}
+              aria-label={t('camera.switchCamera')}
+              className="rounded-full bg-black/40 p-2 text-white lg:hidden"
+            >
+              🔄
+            </button>
+          </div>
+
+          {error && (
+            <div className="mx-auto rounded-lg bg-black/60 px-4 py-2 text-sm text-white">
+              {t(`error.${error}`)}
+            </div>
+          )}
+
+          {/* 下部: 注意文 + 撮影ボタン + アップロードボタン */}
+          <div className="flex flex-col items-center gap-3 pb-4">
+            {/* ⚠️ 安全設計: オーバーレイ内に配置して常時視認可能にする（省略禁止） */}
+            <p className="rounded-lg bg-black/50 px-3 py-1.5 text-center text-xs text-white backdrop-blur-sm">
+              {t('caution')}
+            </p>
+            <div className="flex items-center gap-6">
+              {/* タップ撮影ボタン */}
+              <button
+                onClick={handleCapture}
+                disabled={scanState === 'processing'}
+                aria-label={t('capture')}
+                className="flex flex-col items-center gap-1 rounded-2xl bg-black/40 px-4 py-3 text-white backdrop-blur-sm transition-opacity disabled:opacity-50"
+              >
+                <span className="text-2xl">📷</span>
+                <span className="text-xs font-medium">{t('camera.cameraButton')}</span>
+              </button>
+              {/* ファイルアップロードボタン */}
+              <label
+                aria-label={t('camera.uploadButton')}
+                className={`flex flex-col items-center gap-1 cursor-pointer rounded-2xl bg-black/40 px-4 py-3 text-white backdrop-blur-sm transition-opacity
+                  ${scanState === 'processing' ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <span className="text-2xl">🖼️</span>
+                <span className="text-xs font-medium">{t('camera.uploadButton')}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={scanState === 'processing'}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void uploadAndScanImage(file)
+                    // 同じファイルを再選択できるようにリセット
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
-
-      {scanState === 'result' && result !== null && (
-        <ResultCard result={result} onClose={handleScanAgain} storeCandidates={storeCandidates} onStoreSelect={onStoreSelect} />
-      )}
-    </div>
+    </AppLayout>
   )
 }

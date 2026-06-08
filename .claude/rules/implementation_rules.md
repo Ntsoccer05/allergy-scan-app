@@ -55,25 +55,27 @@ NG・一部含む判定の商品は共有ボタンを表示しない。誤情報
 - 暗い環境での自動フラッシュ ON は禁止。「明るい場所に移動してください」と表示するのみ
 - フォーカスエリアは画面中央に強制指定する（ピントずれ対策）
 
-### 自動キャプチャの条件（3フレーム連続 OK が必要）
+### タップ撮影フロー（手動キャプチャ・プレビュー確認あり）
 
 ```
-✅ ブレなし（前フレームとの差分チェック）
-✅ 明るさ十分
-✅ ピント合致（エッジシャープネス）
-✅ テキスト領域検出
+idle（カメラ映像ライブ表示 + 撮影ボタン）
+    ↓ ユーザーが撮影ボタンをタップ
+preview（撮影画像プレビュー + 撮り直す / 確定する）
+    ↓ 確定
+processing（S3 PUT → POST /scan/ocr or /scan/barcode）
+    ↓
+result（結果カードスライドイン）
 ```
 
-全条件が揃わない限り自動キャプチャしない。
+- 撮影前のガイドは「バーコードまたは原材料欄にかざしてください」のみ表示
+- 撮り直しは `preview → idle` に戻る
+- 自動キャプチャ・フレーム品質チェック（3フレーム連続 OK）は使用しない
 
 ### エラー時の状態遷移ルール
 
 ```
 api_error  → idle（ユーザー操作が必要なため自動リトライしない）
-dark       → detecting 継続（自動リトライ）
-blur       → detecting 継続（自動リトライ）
-motion     → detecting 継続（自動リトライ）
-incomplete → detecting 継続（ガイド表示して継続）
+incomplete → idle（ガイド表示してユーザーに撮り直しを促す）
 ```
 
 ---
@@ -98,18 +100,17 @@ incomplete → detecting 継続（ガイド表示して継続）
 - UPSERT 時は `scan_count` を +1、`updated_at` を更新、`expires_at` を再計算する
 - 惣菜の場合のみ S3 に thumbnail を保存する（JANコード商品は保存しない）
 
-### バックアップコード（デバイス引き継ぎ）の制約
+### スキャン日次上限制約
 
-- コードフォーマット: `ALRG-XXXX-XXXX`（文字セット: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`、O/0/I/1 を除外）
-- 有効期限: 発行から **7 日間**（`BACKUP_CODE_EXPIRY_DAYS = 7`）
-- 発行時は既存の有効コードを全件無効化してから新コードを INSERT する（ユーザー1人につき有効コードは常に1件以下）
-- コード生成時に UNIQUE 制約違反が発生した場合は最大3回リトライする
-- 引き継ぎ処理（`restoreFromCode`）は必ずトランザクション内で実行する（scan_histories・backup_codes の user_id 更新 + 旧 users レコード削除を不可分に行う）
+- スキャン回数は `user_daily_scans` テーブルで per-user/日 単位に管理する
+- 無料プラン: `plans.daily_scan_limit`（デフォルト 20 回/日）を超えたら 429 を返す
+- プレミアムプラン: `plans.daily_scan_limit`（50 回/日）
+- `DailyScanLimitGuard` で `POST /scan/ocr` と `POST /scan/barcode` に適用する
+- 上限チェックは `user_daily_scans` の `(user_id, scan_date)` UNIQUE 制約を利用した UPSERT で行う
 
 ### レートリミット制約
 
-- コード照合・認証系エンドポイントには必ず専用の厳しいレートリミットを設ける
-- `POST /users/restore`（バックアップコード照合）: **60秒5回**（`THROTTLE_RESTORE_TTL / THROTTLE_RESTORE_LIMIT`）
+- 認証系エンドポイントには専用の厳しいレートリミットを設ける
 - 通常エンドポイントのデフォルトレートリミットより必ず厳しく設定すること（ブルートフォース防止）
 
 ---

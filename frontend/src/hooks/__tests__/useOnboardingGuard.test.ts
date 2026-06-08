@@ -40,6 +40,7 @@ const makeUserProfile = (overrides?: Partial<UserProfile>): UserProfile => ({
   allergies: {},
   locale: 'ja',
   onboarding_done: false,
+  subscription: null,
   ...overrides,
 })
 

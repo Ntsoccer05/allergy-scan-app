@@ -1,265 +1,118 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { UsersController } from './users.controller';
-import { UsersRepository } from './users.repository';
-import { COOKIE_NAME, COOKIE_MAX_AGE } from './users.constants';
-import type { Request, Response } from 'express';
-import type { UserRecord } from './users.repository';
+import { Test } from '@nestjs/testing'
+import { BadRequestException, NotFoundException } from '@nestjs/common'
+import { UsersController } from './users.controller'
+import { UsersService } from './users.service'
+import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types'
 
-const buildMockRes = (): {
-  res: jest.Mocked<
-    Pick<Response, 'cookie' | 'clearCookie' | 'json' | 'status' | 'end'>
-  >;
-  jsonFn: jest.Mock;
-  cookieFn: jest.Mock;
-  clearCookieFn: jest.Mock;
-  statusFn: jest.Mock;
-  endFn: jest.Mock;
-} => {
-  const jsonFn = jest.fn().mockReturnThis();
-  const cookieFn = jest.fn().mockReturnThis();
-  const clearCookieFn = jest.fn().mockReturnThis();
-  const endFn = jest.fn().mockReturnThis();
-  // status() は chainable なので json / end を返すモックにする
-  const statusFn = jest.fn().mockReturnValue({ json: jsonFn, end: endFn });
-  const res = {
-    cookie: cookieFn,
-    clearCookie: clearCookieFn,
-    json: jsonFn,
-    status: statusFn,
-    end: endFn,
-  } as unknown as jest.Mocked<
-    Pick<Response, 'cookie' | 'clearCookie' | 'json' | 'status' | 'end'>
-  >;
-  return { res, jsonFn, cookieFn, clearCookieFn, statusFn, endFn };
-};
+const makeAuthReq = (overrides?: Partial<SupabaseJwtPayload>) => ({
+  user: {
+    sub: 'user-uuid',
+    email: 'user@example.com',
+    role: 'authenticated',
+    app_metadata: { provider: 'email', providers: ['email'] },
+    iat: 0,
+    exp: 9999999999,
+    ...overrides,
+  } as SupabaseJwtPayload,
+})
 
-const makeUserRecord = (overrides?: Partial<UserRecord>): UserRecord => ({
-  id: 'user-1',
-  allergies: {},
-  locale: 'ja',
-  onboardingDone: false,
-  ...overrides,
-});
+const mockService = {
+  initUser: jest.fn(),
+  getUser: jest.fn(),
+  updateUser: jest.fn(),
+  deleteUser: jest.fn(),
+  resetUserData: jest.fn(),
+  issueBackupCode: jest.fn(),
+  restoreFromCode: jest.fn(),
+}
 
 describe('UsersController', () => {
-  let controller: UsersController;
-  let repository: {
-    create: jest.Mock;
-    findById: jest.Mock;
-    update: jest.Mock;
-    deleteById: jest.Mock;
-  };
+  let controller: UsersController
 
   beforeEach(async () => {
-    repository = {
-      create: jest.fn().mockResolvedValue(undefined),
-      findById: jest.fn().mockResolvedValue(makeUserRecord()),
-      update: jest
-        .fn()
-        .mockImplementation((_id: string, input: Partial<UserRecord>) =>
-          Promise.resolve(makeUserRecord({ ...input })),
-        ),
-      deleteById: jest.fn().mockResolvedValue(undefined),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
+    const module = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [{ provide: UsersRepository, useValue: repository }],
-    }).compile();
+      providers: [{ provide: UsersService, useValue: mockService }],
+    }).compile()
+    controller = module.get(UsersController)
+  })
 
-    controller = module.get<UsersController>(UsersController);
-  });
+  afterEach(() => jest.clearAllMocks())
 
-  describe('POST /users/init', () => {
-    it('Cookie なしで呼んだ場合、UUID を生成して UsersRepository.create が1回呼ばれ { created: true, onboarding_done: false } を返す', async () => {
-      const req = { cookies: {} } as unknown as Request;
-      const { res, statusFn, jsonFn, cookieFn } = buildMockRes();
+  describe('POST /users/me/init', () => {
+    it('should call initUser with sub and email, return created:true', async () => {
+      mockService.initUser.mockResolvedValue({ created: true })
+      const result = await controller.initUser(makeAuthReq() as any)
+      expect(result).toEqual({ created: true })
+      expect(mockService.initUser).toHaveBeenCalledWith('user-uuid', 'user@example.com')
+    })
 
-      await controller.init(req, res as unknown as Response);
-
-      expect(repository.create).toHaveBeenCalledTimes(1);
-      expect(cookieFn).toHaveBeenCalledTimes(1);
-      expect(statusFn).toHaveBeenCalledWith(201);
-      expect(jsonFn).toHaveBeenCalledWith({
-        created: true,
-        onboarding_done: false,
-      });
-    });
-
-    it('Cookie あり（userId 設定済み）で呼んだ場合、UsersRepository.create が呼ばれず { created: false, onboarding_done: false } を返す', async () => {
-      repository.findById.mockResolvedValue(
-        makeUserRecord({ onboardingDone: false }),
-      );
-      const req = {
-        cookies: { [COOKIE_NAME]: 'existing-uuid' },
-      } as unknown as Request;
-      const { res, jsonFn, cookieFn } = buildMockRes();
-
-      await controller.init(req, res as unknown as Response);
-
-      expect(repository.create).not.toHaveBeenCalled();
-      expect(cookieFn).not.toHaveBeenCalled();
-      expect(jsonFn).toHaveBeenCalledWith({
-        created: false,
-        onboarding_done: false,
-      });
-    });
-
-    it('Cookie あり（onboarding_done: true のユーザー）で呼んだ場合、{ created: false, onboarding_done: true } を返す', async () => {
-      repository.findById.mockResolvedValue(
-        makeUserRecord({ onboardingDone: true }),
-      );
-      const req = {
-        cookies: { [COOKIE_NAME]: 'existing-uuid' },
-      } as unknown as Request;
-      const { res, jsonFn } = buildMockRes();
-
-      await controller.init(req, res as unknown as Response);
-
-      expect(jsonFn).toHaveBeenCalledWith({
-        created: false,
-        onboarding_done: true,
-      });
-    });
-
-    it('NODE_ENV=production 時、Set-Cookie に Secure 属性が含まれる', async () => {
-      const original = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
-
-      const req = { cookies: {} } as unknown as Request;
-      const { res, cookieFn } = buildMockRes();
-
-      await controller.init(req, res as unknown as Response);
-
-      expect(cookieFn).toHaveBeenCalledWith(
-        COOKIE_NAME,
-        expect.any(String),
-        expect.objectContaining({ secure: true }),
-      );
-
-      process.env.NODE_ENV = original;
-    });
-
-    it('NODE_ENV=development 時、Set-Cookie に Secure 属性が含まれない', async () => {
-      const original = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
-
-      const req = { cookies: {} } as unknown as Request;
-      const { res, cookieFn } = buildMockRes();
-
-      await controller.init(req, res as unknown as Response);
-
-      expect(cookieFn).toHaveBeenCalledWith(
-        COOKIE_NAME,
-        expect.any(String),
-        expect.objectContaining({ secure: false }),
-      );
-
-      process.env.NODE_ENV = original;
-    });
-
-    it('発行される Cookie の maxAge が COOKIE_MAX_AGE * 1000 (ms) で設定される', async () => {
-      const req = { cookies: {} } as unknown as Request;
-      const { res, cookieFn } = buildMockRes();
-
-      await controller.init(req, res as unknown as Response);
-
-      expect(cookieFn).toHaveBeenCalledWith(
-        COOKIE_NAME,
-        expect.any(String),
-        expect.objectContaining({ maxAge: COOKIE_MAX_AGE * 1000 }),
-      );
-    });
-  });
+    it('should return created:false when user already exists', async () => {
+      mockService.initUser.mockResolvedValue({ created: false })
+      const result = await controller.initUser(makeAuthReq() as any)
+      expect(result).toEqual({ created: false })
+    })
+  })
 
   describe('GET /users/me', () => {
-    it('Cookie あり・ユーザー存在時に onboarding_done を含むプロファイルを返す', async () => {
-      repository.findById.mockResolvedValue(
-        makeUserRecord({ onboardingDone: true }),
-      );
-      const req = {
-        cookies: { [COOKIE_NAME]: 'user-1' },
-      } as unknown as Request;
-
-      const result = await controller.getMe(req);
-
-      expect(result).toEqual({
-        id: 'user-1',
-        allergies: {},
-        locale: 'ja',
-        onboarding_done: true,
-      });
-    });
-
-    it('Cookie なしの場合 UnauthorizedException をスローする', async () => {
-      const req = { cookies: {} } as unknown as Request;
-
-      await expect(controller.getMe(req)).rejects.toThrow('Unauthorized');
-    });
-  });
+    it('should call getUser with sub', async () => {
+      const userData = { id: 'user-uuid', allergies: {}, locale: 'ja', subscription: null }
+      mockService.getUser.mockResolvedValue(userData)
+      const result = await controller.getUser(makeAuthReq() as any)
+      expect(result).toEqual(userData)
+      expect(mockService.getUser).toHaveBeenCalledWith('user-uuid')
+    })
+  })
 
   describe('PUT /users/me', () => {
-    it('onboarding_done: true を渡すと UsersRepository.update が onboardingDone: true で呼ばれる', async () => {
-      repository.update.mockResolvedValue(
-        makeUserRecord({ onboardingDone: true }),
-      );
-      const req = {
-        cookies: { [COOKIE_NAME]: 'user-1' },
-      } as unknown as Request;
-
-      await controller.updateMe(req, { onboarding_done: true });
-
-      expect(repository.update).toHaveBeenCalledWith(
-        'user-1',
-        expect.objectContaining({ onboardingDone: true }),
-      );
-    });
-
-    it('onboarding_done: false を渡すと UsersRepository.update で onboardingDone が undefined になる（無視される）', async () => {
-      repository.update.mockResolvedValue(makeUserRecord());
-      const req = {
-        cookies: { [COOKIE_NAME]: 'user-1' },
-      } as unknown as Request;
-
-      await controller.updateMe(req, { onboarding_done: false });
-
-      expect(repository.update).toHaveBeenCalledWith(
-        'user-1',
-        expect.objectContaining({ onboardingDone: undefined }),
-      );
-    });
-
-    it('Cookie なしの場合 UnauthorizedException をスローする', async () => {
-      const req = { cookies: {} } as unknown as Request;
-
-      await expect(controller.updateMe(req, {})).rejects.toThrow(
-        'Unauthorized',
-      );
-    });
-  });
+    it('should call updateUser with sub and dto', async () => {
+      mockService.updateUser.mockResolvedValue(undefined)
+      await controller.updateUser(makeAuthReq() as any, { locale: 'en' })
+      expect(mockService.updateUser).toHaveBeenCalledWith('user-uuid', undefined, 'en', undefined)
+    })
+  })
 
   describe('DELETE /users/me', () => {
-    it('Cookie あり時に Cookie を削除してユーザーを削除する', async () => {
-      const req = {
-        cookies: { [COOKIE_NAME]: 'user-1' },
-      } as unknown as Request;
-      const { res, clearCookieFn, statusFn, endFn } = buildMockRes();
+    it('should call deleteUser with sub', async () => {
+      mockService.deleteUser.mockResolvedValue(undefined)
+      await controller.deleteUser(makeAuthReq() as any)
+      expect(mockService.deleteUser).toHaveBeenCalledWith('user-uuid')
+    })
+  })
 
-      await controller.deleteMe(req, res as unknown as Response);
+  describe('POST /users/me/reset-data', () => {
+    it('calls usersService.resetUserData with req.user.sub and returns 204', async () => {
+      mockService.resetUserData.mockResolvedValue(undefined)
+      const req = makeAuthReq({ sub: 'user-abc' })
+      await controller.resetUserData(req as any)
+      expect(mockService.resetUserData).toHaveBeenCalledWith('user-abc')
+    })
+  })
 
-      expect(clearCookieFn).toHaveBeenCalledWith(COOKIE_NAME, { path: '/' });
-      expect(repository.deleteById).toHaveBeenCalledWith('user-1');
-      expect(statusFn).toHaveBeenCalledWith(204);
-      expect(endFn).toHaveBeenCalled();
-    });
+  describe('POST /users/me/backup-code', () => {
+    it('returns code and expires_at from service', async () => {
+      const mockResult = { code: 'ALRG-ABCD-EFGH', expires_at: '2026-07-07T00:00:00.000Z' }
+      mockService.issueBackupCode.mockResolvedValue(mockResult)
+      const req = makeAuthReq({ sub: 'user-abc' })
+      const result = await controller.issueBackupCode(req as any)
+      expect(mockService.issueBackupCode).toHaveBeenCalledWith('user-abc')
+      expect(result).toEqual(mockResult)
+    })
+  })
 
-    it('Cookie なしの場合 UnauthorizedException をスローする', async () => {
-      const req = { cookies: {} } as unknown as Request;
-      const { res } = buildMockRes();
+  describe('POST /users/me/restore', () => {
+    it('calls service and returns { success: true }', async () => {
+      mockService.restoreFromCode.mockResolvedValue(undefined)
+      const req = makeAuthReq({ sub: 'user-xyz' })
+      const result = await controller.restoreFromCode(req as any, { code: 'ALRG-XXXX-YYYY' })
+      expect(mockService.restoreFromCode).toHaveBeenCalledWith('user-xyz', 'ALRG-XXXX-YYYY')
+      expect(result).toEqual({ success: true })
+    })
 
-      await expect(
-        controller.deleteMe(req, res as unknown as Response),
-      ).rejects.toThrow('Unauthorized');
-    });
-  });
-});
+    it('propagates BadRequestException from service', async () => {
+      mockService.restoreFromCode.mockRejectedValue(new BadRequestException('code_invalid'))
+      const req = makeAuthReq({ sub: 'user-xyz' })
+      await expect(controller.restoreFromCode(req as any, { code: 'BAD' })).rejects.toBeInstanceOf(BadRequestException)
+    })
+  })
+})

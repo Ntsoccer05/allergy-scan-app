@@ -12,8 +12,9 @@
 - 画像が斜め・ぼけ・透明袋越しでも、**読み取れる文字は必ず全て抽出**すること
 - `results` は **空配列** を返す（アレルギー設定なし）
 - `highlights` は **空配列** を返す
-- テキストが途切れている場合は `incomplete: true` を返す
+- `incomplete: true` は原材料名・アレルゲン表示セクションが画像に写っておらず判断不能な場合のみ設定する。画像端の外装デザイン・製造者住所・QRコード等が見切れていても `incomplete: false` を返す
 - 価格が読み取れる場合は `price` / `price_with_tax` に記載する
+- 商品名がラベルから読み取れる場合は `product_name` に文字列を返す。読み取れない場合は `null` を返す
 
 ## confidence の判定基準
 
@@ -38,6 +39,7 @@
   "incomplete": false,
   "price": null,
   "price_with_tax": null,
-  "price_confidence": null
+  "price_confidence": null,
+  "product_name": "商品名（読み取れない場合は null）"
 }
 ```

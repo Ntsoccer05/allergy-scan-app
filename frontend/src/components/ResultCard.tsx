@@ -54,24 +54,22 @@ const deriveJudgment = (result: ScanResult): Judgment | null => {
 const isNgJudgment = (judgment: Judgment | null): boolean =>
   judgment === '含む' || judgment === '一部含む'
 
-/**
- * Web Share API に渡す共有コンテンツを構築する。
- * ⚠️ navigator.share は HTTPS 環境でのみ動作する（localhost 開発時は非対応の場合がある）
- */
-const buildShareContent = (result: ScanResult, title: string): { title: string; text: string } => {
-  const name =
-    result.type === 'barcode'
-      ? (result.data.product_name ?? '商品')
-      : '商品'
-  return {
-    title,
-    text: `${name} はアレルギーなし（${title}調べ）`,
-  }
-}
-
 /** Web Share API のサポート有無を判定する */
 const supportsWebShare = (): boolean =>
   typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+
+/** 食品ラベルの定型セクション見出し前に改行を挿入して読みやすくする */
+const LABEL_SECTION_KEYWORDS = [
+  '原材料名', 'アレルギー物質', '栄養成分', '保存方法',
+  '賞味期限', '製造者', '販売者', '内容量', '名称', '原産国',
+]
+const formatRawText = (text: string): string => {
+  let result = text
+  for (const kw of LABEL_SECTION_KEYWORDS) {
+    result = result.replace(new RegExp(`([^\n])(${kw})`, 'g'), '$1\n$2')
+  }
+  return result
+}
 
 /** highlights[] を使って raw_text をハイライト表示するコンポーネント（XSS 防止: React コンポーネント配列で安全に実装） */
 const HighlightedText = ({
@@ -81,7 +79,7 @@ const HighlightedText = ({
   rawText: string
   highlights: HighlightItem[]
 }) => {
-  const parts = splitByHighlights(rawText, highlights)
+  const parts = splitByHighlights(formatRawText(rawText), highlights)
   return (
     <p className="mt-2 text-xs text-gray-600 bg-gray-50 rounded p-2 whitespace-pre-wrap">
       {parts.map((part, i) =>
@@ -138,6 +136,22 @@ export const ResultCard = ({
   const [rawTextOpen, setRawTextOpen] = useState(false)
   const t = useTranslations('result')
 
+  /**
+   * Web Share API に渡す共有コンテンツを構築する。
+   * ⚠️ navigator.share は HTTPS 環境でのみ動作する（localhost 開発時は非対応の場合がある）
+   */
+  const buildShareContent = (): { title: string; text: string } => {
+    const title = t('share.title')
+    const name =
+      result.type === 'barcode'
+        ? (result.data.product_name ?? t('share.defaultProductName'))
+        : t('share.defaultProductName')
+    return {
+      title,
+      text: t('share.text', { name, title }),
+    }
+  }
+
   /** judgment 値から表示ラベルへのマッピング（t() はコンポーネント内で呼ぶ必要がある） */
   const judgmentLabel: Record<Judgment, string> = {
     '含む': t('judgment.contains'),
@@ -152,7 +166,7 @@ export const ResultCard = ({
       <div
         className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
         role="region"
-        aria-label="スキャン結果"
+        aria-label={t('regionLabel')}
       >
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
@@ -189,7 +203,7 @@ export const ResultCard = ({
       <div
         className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl"
         role="region"
-        aria-label="スキャン結果"
+        aria-label={t('regionLabel')}
       >
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
@@ -227,12 +241,21 @@ export const ResultCard = ({
     result.type === 'barcode' ? (result.data.detected ?? []) : []
 
   const productName =
-    result.type === 'barcode' ? result.data.product_name : undefined
+    result.type === 'barcode'
+      ? result.data.product_name
+      : result.type === 'ocr'
+        ? (result.data.product_name ?? null)
+        : undefined
+
+  const ocrPrice =
+    result.type === 'ocr' && result.data.price_confidence === 'high'
+      ? (result.data.price_with_tax ?? result.data.price)
+      : null
 
   const handleShare = async (): Promise<void> => {
     if (typeof navigator.share !== 'function') return
     vibrateIfAndroid(VIBRATE_SHARE_MS)
-    const shareContent = buildShareContent(result, t('appTitle'))
+    const shareContent = buildShareContent()
     try {
       await navigator.share(shareContent)
     } catch (err) {
@@ -248,7 +271,7 @@ export const ResultCard = ({
       className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl
         translate-y-0 transition-transform duration-300"
       role="region"
-      aria-label="スキャン結果"
+      aria-label={t('regionLabel')}
     >
       {/* ドラッグハンドル */}
       <div className="flex justify-center pt-2 pb-1">
@@ -258,7 +281,18 @@ export const ResultCard = ({
       <div className="px-4 pb-6 space-y-4 max-h-[70vh] overflow-y-auto">
         {/* 商品名 */}
         {productName && (
-          <p className="text-base font-semibold text-gray-800">{productName}</p>
+          <p className="text-base font-semibold text-gray-800">
+            <span className="text-xs font-normal text-gray-500 mr-1">{t('productNameLabel')}</span>
+            {productName}
+          </p>
+        )}
+
+        {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
+        {ocrPrice !== null && (
+          <p className="text-sm text-gray-700">
+            <span className="text-xs font-normal text-gray-500 mr-1">{t('priceLabel')}</span>
+            {t('priceValue', { price: ocrPrice })}
+          </p>
         )}
 
         {/* 判定サマリ */}
@@ -380,7 +414,7 @@ export const ResultCard = ({
             className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
               bg-black text-white text-sm font-medium"
           >
-            {t('share')}
+            {t('share.button')}
           </button>
         )}
 

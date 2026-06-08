@@ -6,7 +6,7 @@ import type {
   BarcodeScanResponse,
   PresignedUrlResponse,
 } from '@/app/scan/scan.types'
-import type { CreateHistoryBody, HistoryItem } from '@/app/history/history.types'
+import type { CreateHistoryBody, HistoryItem, PatchHistoryBody } from '@/app/history/history.types'
 import {
   getPresignedUrl,
   postBarcode,
@@ -16,7 +16,7 @@ import {
   type OcrApiResponse,
   type OcrStreamEvent,
 } from '@/lib/api/scan.api'
-import { postHistory, patchHistoryLocation } from '@/lib/api/history.api'
+import { postHistory, patchHistoryLocation, patchHistory } from '@/lib/api/history.api'
 import { getCached, setCached } from '@/lib/cache'
 
 type ScanOcrParams = {
@@ -38,6 +38,7 @@ type UseScanApiReturn = {
     historyId: string,
     location: { store_name: string; lat: number; lng: number },
   ) => Promise<void>
+  patchHistoryFields: (historyId: string, data: PatchHistoryBody) => Promise<void>
 }
 
 export const useScanApi = (): UseScanApiReturn => {
@@ -122,5 +123,17 @@ export const useScanApi = (): UseScanApiReturn => {
     [queryClient],
   )
 
-  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, scanOcrStream, saveHistory, patchLocation }
+  const patchHistoryFields = useCallback(
+    async (historyId: string, data: PatchHistoryBody): Promise<void> => {
+      try {
+        await patchHistory(historyId, data)
+        await queryClient.invalidateQueries({ queryKey: ['history'] })
+      } catch (e) {
+        console.error('フィールド更新に失敗しました', e)
+      }
+    },
+    [queryClient],
+  )
+
+  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, scanOcrStream, saveHistory, patchLocation, patchHistoryFields }
 }

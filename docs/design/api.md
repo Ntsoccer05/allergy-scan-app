@@ -3,19 +3,32 @@
 ## エンドポイント一覧
 
 ```
-POST /users/init             初回Cookie発行・users INSERT（初回アクセス時）
-GET  /scan/presigned-url     S3 Presigned URL発行
-POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルギー判定
-GET  /history                履歴一覧取得
-POST /history                履歴保存
-GET  /allergens              アレルギーマスター取得（設定画面用）
-GET  /users/me               ユーザー設定取得
+POST /users/me/init          Supabase JWT 初回ユーザー登録（users INSERT）
+GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
 PUT  /users/me               アレルギー設定更新
 DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+POST /users/me/reset-data    アレルギー設定・履歴のみリセット（users/user_daily_scans は保持・204）
+POST /users/me/backup-code   引継ぎ用バックアップコード発行（30日有効・再発行で旧コード無効化）
+POST /users/me/restore       バックアップコードでアレルギー設定を引継ぎ（{ code: string }）
+GET  /scan/presigned-url     S3 Presigned URL発行
+POST /scan/barcode           JANコード照合
+POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
+GET  /history                履歴一覧取得（カーソルページネーション）
+POST /history                履歴保存
+PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public）
+DELETE /history/:id          履歴削除
+GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
+GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用）
+GET  /allergens              アレルギーマスター取得（設定画面用）
+GET  /admin/users            ユーザー一覧（admin 専用・カーソルページネーション）
+GET  /admin/stats            統計情報（admin 専用）
+PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
+POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
-**認証方式**: ログイン不要。`POST /users/init` で `HttpOnly; SameSite=Strict; Secure` Cookie を発行し、以降すべてのリクエストでブラウザが自動送信する。カスタムヘッダー（`x-user-id`）は使用しない。
+**認証方式（現行）**: Cookie ベース認証（HttpOnly Cookie）。フロントエンドはクッキーを自動送信する。`@Public()` デコレータで認証バイパス。`/admin/*` は `AdminGuard` が Supabase Auth `app_metadata.role === 'admin'` を追加チェック。
+
+> ⚠️ Phase 1（pending）で Supabase Auth JWT Bearer Token に統一予定。移行後は `Authorization: Bearer <token>` ヘッダーを `apiFetch` ラッパーが自動付与する。
 
 ---
 
@@ -119,6 +132,164 @@ response:
     items: ScanHistory[],
     next_before: string | null
   }
+```
+
+---
+
+## PATCH /history/:id
+
+```
+認証: Bearer Token 必須（未認証 → 401）
+所有権チェック: 他ユーザーの履歴 → 403、存在しない → 404
+
+request:
+  {
+    product_name?: string | null   // 最大200文字
+    store_name?: string | null     // 最大100文字（location JSONB の store_name のみ更新。lat/lng は既存値を維持）
+    memo?: string | null           // 最大500文字
+    is_public?: boolean            // みんなの履歴公開フラグ（デフォルト: true）
+    thumbnail_url?: string | null  // サムネイル URL（null で削除）
+  }
+
+response: 200 OK（ボディなし）
+```
+
+---
+
+## DELETE /history/:id
+
+```
+認証: Bearer Token 必須（未認証 → 401）
+所有権チェック: 他ユーザーの履歴 → 403、存在しない → 404
+
+response: 204 No Content
+```
+
+---
+
+## DELETE /history/bulk
+
+```
+認証: Bearer Token 必須（未認証 → 401）
+他ユーザーの ID を含めても自ユーザー分のみ削除される（403 にしない）
+
+request:
+  {
+    ids: string[]   // 削除対象の履歴 ID リスト（最大100件）
+  }
+
+response: 204 No Content
+```
+
+---
+
+## GET /public/history
+
+```
+認証: 不要（@Public）
+
+query:
+  limit: number（デフォルト20）
+  before: string（カーソル用 ISO8601 datetime）
+
+response:
+  {
+    items: PublicHistoryItem[],
+    next_before: string | null
+  }
+
+PublicHistoryItem:
+  {
+    id: string
+    product_name: string | null
+    store_name: string | null
+    judgment: 'ng' | 'partial' | 'ok'
+    thumbnail_url: string | null
+    scanned_at: string
+  }
+```
+
+---
+
+## GET /public/history/digest
+
+```
+認証: 不要（@Public）
+用途: フロントエンドが60秒ごとにポーリングして新着バナー表示
+
+response:
+  {
+    count: number    // 最新N件のスキャン数（新着検知用）
+  }
+```
+
+---
+
+## GET /admin/users
+
+```
+認証: Bearer Token 必須 + AdminGuard (role=admin)
+
+query:
+  limit: number（デフォルト20）
+  cursor: string（カーソル用 user.created_at ISO8601）
+
+response:
+  {
+    items: AdminUser[],
+    next_cursor: string | null
+  }
+
+AdminUser:
+  {
+    id: string
+    created_at: string
+    subscription: { plan_name: string } | null
+    daily_scan_limit: number
+  }
+```
+
+---
+
+## GET /admin/stats
+
+```
+認証: Bearer Token 必須 + AdminGuard (role=admin)
+
+response:
+  {
+    total_users: number
+    total_scans: number
+    today_scans: number
+    premium_users: number
+  }
+```
+
+---
+
+## PATCH /admin/users/:id/plan
+
+```
+認証: Bearer Token 必須 + AdminGuard (role=admin)
+
+request:
+  { plan_name: string }   // 'free' | 'premium'
+
+response: 204 No Content
+```
+
+---
+
+## POST /webhooks/stripe
+
+```
+認証: 不要（@Public）、Stripe 署名検証（TODO: Stripe SDK）
+
+headers:
+  stripe-signature: string（Stripe が付与するHMAC署名）
+
+response:
+  { received: true }
 ```
 
 ---

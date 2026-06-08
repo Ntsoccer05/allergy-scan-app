@@ -65,12 +65,24 @@
       "separator": ", "
     }
   },
+  "plan": "Current Plan",
+  "planUpgrade": "Change Plan",
+  "planUpgradeComingSoon": "Plan upgrade is coming soon. Please contact support for inquiries.",
+  "planUpgradeContact": "Contact Support",
+  "dailyLimit": "Daily scan limit: {limit}",
+  "changePassword": {
+    "title": "Change Password",
+    "newPasswordPlaceholder": "New password (min 6 characters)",
+    "button": "Update Password",
+    "success": "Password updated successfully"
+  },
   "loading": "Loading...",
   "saving": "Saving...",
   "error": {
     "loadFailed": "Failed to load settings",
     "saveFailed": "Failed to save settings",
     "localeChangeFailed": "Failed to save language setting",
-    "deleteFailed": "Failed to reset data"
+    "deleteFailed": "Failed to reset data",
+    "passwordChangeFailed": "Failed to change password"
   }
 }

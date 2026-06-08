@@ -1,16 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AllergenGroup, AllergySettings } from '@/app/settings/settings.types'
+import type { AllergenGroup, AllergySettings, UserProfile } from '@/app/settings/settings.types'
 import { DEBOUNCE_WAIT_MS } from '@/app/settings/settings.constants'
 import { getAllergens } from '@/lib/api/allergens.api'
-import { deleteUser, getUser, updateUser } from '@/lib/api/users.api'
+import { getUser, resetUserData, updateUser } from '@/lib/api/users.api'
 import { toggleAllergen, toggleCaution, togglePartial } from '@/lib/allergen.utils'
 
 type UseSettingsReturn = {
   allergenGroups: AllergenGroup[]
   allergies: AllergySettings
   locale: 'ja' | 'en'
+  userSettings: UserProfile | null
   isLoading: boolean
   isSaving: boolean
   error: string | null
@@ -18,13 +19,23 @@ type UseSettingsReturn = {
   handleToggleCaution: (name: string) => void
   handleTogglePartial: (name: string) => void
   handleLocaleChange: (locale: 'ja' | 'en') => void
-  handleDeleteUser: () => Promise<void>
+  handleResetData: () => Promise<void>
+}
+
+/**
+ * window.location へのアクセスをラップする（テスト時にモック可能にする）
+ * @internal
+ */
+export const _locationHelpers = {
+  getProtocol: () => location.protocol,
+  reload: () => window.location.reload(),
 }
 
 export const useSettings = (): UseSettingsReturn => {
   const [allergenGroups, setAllergenGroups] = useState<AllergenGroup[]>([])
   const [allergies, setAllergies] = useState<AllergySettings>({})
   const [locale, setLocale] = useState<'ja' | 'en'>('ja')
+  const [userSettings, setUserSettings] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +55,7 @@ export const useSettings = (): UseSettingsReturn => {
         setAllergenGroups(groups)
         setAllergies(user.allergies)
         setLocale(user.locale)
+        setUserSettings(user)
       } catch {
         if (!isMounted) return
         setError('error.loadFailed')
@@ -123,6 +135,10 @@ export const useSettings = (): UseSettingsReturn => {
       setLocale(nextLocale)
       try {
         await updateUser({ locale: nextLocale })
+        // Cookie をセットして SSR の locale を更新する（middleware 不使用のためリロード必須）
+        const secure = _locationHelpers.getProtocol() === 'https:' ? '; Secure' : ''
+        document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax${secure}`
+        _locationHelpers.reload()
       } catch {
         setLocale(prevLocale)
         setError('error.localeChangeFailed')
@@ -131,14 +147,20 @@ export const useSettings = (): UseSettingsReturn => {
     [locale],
   )
 
-  const handleDeleteUser = useCallback(async (): Promise<void> => {
-    await deleteUser()
+  const handleResetData = useCallback(async (): Promise<void> => {
+    try {
+      await resetUserData()
+    } catch (e) {
+      setError('error.deleteFailed')
+      throw e
+    }
   }, [])
 
   return {
     allergenGroups,
     allergies,
     locale,
+    userSettings,
     isLoading,
     isSaving,
     error,
@@ -146,7 +168,7 @@ export const useSettings = (): UseSettingsReturn => {
     handleToggleCaution,
     handleTogglePartial,
     handleLocaleChange,
-    handleDeleteUser,
+    handleResetData,
   }
 }
 

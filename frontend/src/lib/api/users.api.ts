@@ -1,5 +1,5 @@
 import type { UpdateUserBody, UserProfile } from '@/app/settings/settings.types'
-import { API_BASE_URL } from '@/lib/constants'
+import { apiFetch } from './api-client'
 
 type InitUserResponse = {
   created: boolean
@@ -7,45 +7,36 @@ type InitUserResponse = {
 }
 
 export const initUser = async (): Promise<InitUserResponse> => {
-  const res = await fetch(`${API_BASE_URL}/users/init`, {
+  const res = await apiFetch('/users/me/init', {
     method: 'POST',
-    credentials: 'include',
+    headers: {},
   })
-  if (!res.ok) {
-    throw new Error(`POST /users/init failed: ${res.status}`)
-  }
   return res.json() as Promise<InitUserResponse>
 }
 
 export const getUser = async (): Promise<UserProfile> => {
-  const res = await fetch(`${API_BASE_URL}/users/me`, {
-    credentials: 'include',
+  const res = await apiFetch('/users/me', {
+    headers: {},
   })
-  if (!res.ok) {
-    throw new Error(`GET /users/me failed: ${res.status}`)
-  }
   return res.json() as Promise<UserProfile>
 }
 
-export const updateUser = async (body: UpdateUserBody): Promise<UserProfile> => {
-  const res = await fetch(`${API_BASE_URL}/users/me`, {
+export const updateUser = async (body: UpdateUserBody): Promise<void> => {
+  await apiFetch('/users/me', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    throw new Error(`PUT /users/me failed: ${res.status}`)
-  }
-  return res.json() as Promise<UserProfile>
 }
 
 export const deleteUser = async (): Promise<void> => {
-  const res = await fetch(`${API_BASE_URL}/users/me`, {
+  await apiFetch('/users/me', {
     method: 'DELETE',
-    credentials: 'include',
+    headers: {},
   })
-  if (!res.ok) {
-    throw new Error(`DELETE /users/me failed: ${res.status}`)
-  }
+}
+
+export const resetUserData = async (): Promise<void> => {
+  await apiFetch('/users/me/reset-data', {
+    method: 'POST',
+  })
 }

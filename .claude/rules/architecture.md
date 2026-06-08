@@ -93,10 +93,9 @@ Repository  (DB アクセスのみ)
 Page / Screen コンポーネント
     ↓ (データ取得・状態管理は Hook 経由)
 Custom Hooks
-    useScan          メインフック（状態統合）
+    useScan          メインフック（状態統合・タップ撮影フロー）
     useCamera        カメラ制御
     useBarcode       バーコード検出（ZXing.js）
-    useFrameCheck    フレーム品質チェック（Canvas API）
     useScanApi       API通信
     ↓
 API クライアント関数（fetch ラッパー）
@@ -114,22 +113,30 @@ UI コンポーネント（表示のみ・ロジックなし）
 ## APIエンドポイント一覧（フロント↔バック境界）
 
 ```
-POST /users/init             初回 Cookie 発行・users INSERT（初回アクセス時）
-POST /users/backup-code      バックアップコード発行（Cookie 認証必須）
-POST /users/restore          バックアップコードによるデバイス引き継ぎ（レートリミット: 60秒5回）
-GET  /scan/presigned-url     S3 Presigned URL 発行
-POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルギー判定
-GET  /history                履歴一覧（カーソルページネーション）
-POST /history                履歴保存
-DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
+POST /users/me/init          Supabase JWT 初回ユーザー登録（Bearer Token 必須）
 GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
 PUT  /users/me               アレルギー設定更新
+DELETE /users/me             ユーザーデータ削除
+GET  /scan/presigned-url     S3 Presigned URL 発行
+POST /scan/barcode           JANコード照合
+POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
+GET  /history                履歴一覧（カーソルページネーション）
+POST /history                履歴保存
+PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public / thumbnail_url）
+DELETE /history/:id          履歴削除
+DELETE /history/bulk         履歴一括削除（ids: string[]・最大100件）
+GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
+GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用・認証不要）
 GET  /allergens              アレルギーマスター取得
-GET  /products/others        みんなのスキャン一覧（カーソルページネーション・Cookie 認証必須）
+GET  /admin/users            ユーザー一覧（admin 専用）
+GET  /admin/stats            統計情報（admin 専用）
+PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
+POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
-**認証方式**: `POST /users/init` で `HttpOnly; SameSite=Strict; Secure` Cookie を発行。以降はブラウザが自動送信。`x-user-id` カスタムヘッダーは使用しない。フロント fetch は `credentials: 'include'` を必ず付ける。
+**認証方式（現行）**: Cookie ベース認証（`HttpOnly Cookie` の `COOKIE_NAME`）。`req.cookies?.[COOKIE_NAME]` で `userId` を取得。`/admin/*` は `AdminGuard` が Supabase Auth の `app_metadata.role === 'admin'` を追加チェック。`@Public()` デコレータで認証バイパス。
+
+> ⚠️ Phase 1（pending）で Supabase Auth JWT Bearer Token に統一予定。移行後は `SupabaseJwtGuard` がグローバル適用され、フロントエンドは `apiFetch` 経由で `Authorization: Bearer <token>` を自動付与する。
 
 フロントエンドは上記エンドポイントのみを使う。DB に直接アクセスしない。
 スキーマ詳細 → `docs/design/api.md`
@@ -149,7 +156,7 @@ GET  /products/others        みんなのスキャン一覧（カーソルペー
 ```
 allergens（マスター）
     └─ category: 'mandatory' | 'recommended' | 'addiction' | 'skin'
-    └─ judgment_type: 'allergy' | 'caution'
+    └─ judgment_type: 'allergy' | 'caution'  ※ Week4 実装予定・現在は category から導出
     └─ name (FK) → allergen_components.allergen_name
 
 products
@@ -162,14 +169,22 @@ scan_histories
 users
     └─ allergies (JSONB キーは allergens.name と完全一致)
     └─ locale: VARCHAR（'ja' | 'en'）
+    └─ subscriptions → user_subscriptions
+    └─ dailyScans    → user_daily_scans
+    └─ stripeCustomer → stripe_customers
 
-backup_codes
+plans
+    └─ subscriptions → user_subscriptions
+
+user_subscriptions
+    └─ user_id (FK) → users.id
+    └─ plan_id (FK) → plans.id
+
+user_daily_scans
     └─ user_id (FK) → users.id
 
-judgment_reports
-    └─ user_id → users.id
-    └─ product_id (FK) → products.id
-    └─ scan_history_id (FK) → scan_histories.id
+stripe_customers
+    └─ user_id (FK) → users.id
 ```
 
 SQL 定義・初期データ → `docs/design/database.md`

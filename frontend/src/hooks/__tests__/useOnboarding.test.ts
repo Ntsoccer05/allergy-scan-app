@@ -73,12 +73,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   localStorageMock.clear()
   mockGetAllergens.mockResolvedValue(makeAllergenGroups())
-  mockUpdateUser.mockResolvedValue({
-    id: 'user-1',
-    allergies: {},
-    locale: 'ja',
-    onboarding_done: true,
-  })
+  mockUpdateUser.mockResolvedValue(undefined)
 })
 
 describe('useOnboarding', () => {

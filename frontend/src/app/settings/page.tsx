@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useSettings } from '@/hooks/useSettings'
-import { useOnboardingGuard } from '@/hooks/useOnboardingGuard'
+import { useAuthContext } from '@/providers/AuthProvider'
 import { issueBackupCode } from '@/lib/api/backup-code'
+import { createClient } from '@/lib/supabase/client'
 import { ReservationTextSection } from './ReservationTextSection'
 import type { AllergenGroup, AllergenItem } from './settings.types'
 import type { IssueBackupCodeResponse } from '@/lib/api/backup-code'
@@ -16,7 +17,7 @@ const isAndroid = (): boolean =>
 
 export const VIBRATION_STORAGE_KEY = 'vibration_enabled'
 
-type TranslateFn = (key: string) => string
+type TranslateFn = (key: string, values?: Record<string, string | number>) => string
 
 type AllergenToggleRowProps = {
   item: AllergenItem
@@ -29,9 +30,13 @@ const AllergenToggleRow = ({ item, enabled, onToggle }: AllergenToggleRowProps) 
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         {item.emoji && (
-          <span className="text-lg" aria-hidden="true">
-            {item.emoji}
-          </span>
+          // emoji フィールドは SVG アイコンのスラッグ名（例: "egg"）
+          <img
+            src={`/icons/allergens/${item.emoji}.svg`}
+            alt=""
+            aria-hidden="true"
+            className="w-10 h-10 object-contain flex-shrink-0"
+          />
         )}
         <span className="text-sm font-medium text-gray-800">
           {item.display_name}
@@ -64,9 +69,6 @@ type AllergenSectionProps = {
   t: TranslateFn
 }
 
-/** localStorage に保存するアコーディオン状態のキー（recommended カテゴリのみ） */
-const ACCORDION_STORAGE_KEY = 'allergen_accordion_recommended'
-
 const AllergenSection = ({
   group,
   allergies,
@@ -74,21 +76,24 @@ const AllergenSection = ({
   onToggleCaution,
   t,
 }: AllergenSectionProps) => {
-  const isRecommended = group.category === 'recommended'
+  const isMandatory = group.category === 'mandatory'
+  const storageKey = `allergen_accordion_${group.category}`
 
-  // recommended はデフォルト展開。localStorage で状態を永続化する。
+  // mandatory は常に展開。それ以外は localStorage 永続化 + 初回はグループ内に有効設定があれば開く。
   const [isExpanded, setIsExpanded] = useState(() => {
-    if (!isRecommended) return true
+    if (isMandatory) return true
     if (typeof window === 'undefined') return true
-    const stored = localStorage.getItem(ACCORDION_STORAGE_KEY)
-    return stored === null ? true : stored === 'true'
+    const stored = localStorage.getItem(storageKey)
+    if (stored !== null) return stored === 'true'
+    // 初回（localStorage 未設定）: 1 つでも有効設定があれば開く
+    return group.items.some((item) => allergies[item.name]?.enabled === true)
   })
 
   const handleToggle = () => {
     setIsExpanded((prev) => {
       const next = !prev
       if (typeof window !== 'undefined') {
-        localStorage.setItem(ACCORDION_STORAGE_KEY, String(next))
+        localStorage.setItem(storageKey, String(next))
       }
       return next
     })
@@ -96,7 +101,13 @@ const AllergenSection = ({
 
   return (
     <section className="mb-4">
-      {isRecommended ? (
+      {isMandatory ? (
+        <div className="mb-2 px-0.5">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            {t(`allergens.category.${group.category}`)}
+          </h2>
+        </div>
+      ) : (
         <button
           type="button"
           onClick={handleToggle}
@@ -124,12 +135,6 @@ const AllergenSection = ({
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
-      ) : (
-        <div className="mb-2 px-0.5">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-            {t(`allergens.category.${group.category}`)}
-          </h2>
-        </div>
       )}
 
       {isExpanded && (
@@ -161,9 +166,13 @@ const AllergenSection = ({
 }
 
 export default function SettingsPage() {
-  useOnboardingGuard()
   const router = useRouter()
   const t = useTranslations('settings') as TranslateFn
+  const { user } = useAuthContext()
+  const isEmailProvider =
+    user?.app_metadata?.provider === 'email' ||
+    (user?.identities?.some((identity: { provider: string }) => identity.provider === 'email') ??
+      false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -188,6 +197,30 @@ export default function SettingsPage() {
   const [isIssuing, setIsIssuing] = useState(false)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [showReissueConfirm, setShowReissueConfirm] = useState(false)
+
+  const [newPassword, setNewPassword] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsChangingPassword(true)
+    setPasswordError(null)
+    setPasswordSuccess(false)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) {
+        setPasswordError(t('error.passwordChangeFailed'))
+      } else {
+        setPasswordSuccess(true)
+        setNewPassword('')
+      }
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
 
   const handleIssueBackupCode = async () => {
     setIsIssuing(true)
@@ -219,20 +252,21 @@ export default function SettingsPage() {
     allergenGroups,
     allergies,
     locale,
+    userSettings,
     isLoading,
     isSaving,
     error,
     handleToggleAllergen,
     handleToggleCaution,
     handleLocaleChange,
-    handleDeleteUser,
+    handleResetData,
   } = useSettings()
 
   const onDeleteConfirm = async () => {
     setIsDeleting(true)
     setDeleteError(null)
     try {
-      await handleDeleteUser()
+      await handleResetData()
       router.push('/onboarding')
     } catch {
       setDeleteError(t('error.deleteFailed'))
@@ -261,9 +295,14 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {isSaving && (
-        <p className="text-xs text-gray-400 mb-2 text-right">{t('saving')}</p>
-      )}
+      <p
+        className={`text-xs text-gray-400 mb-2 text-right transition-opacity duration-150 ${
+          isSaving ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        aria-live="polite"
+      >
+        {t('saving')}
+      </p>
 
       {/* アレルギー設定セクション: PC は 2 カラム（mandatory | recommended + others） */}
       <section className="mb-8">
@@ -284,15 +323,35 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* サブスクリプション情報 */}
+      {userSettings?.subscription && (
+        <section className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 mb-8">
+          <h2 className="text-base font-bold text-gray-800 mb-3">{t('plan')}</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-700">
+                {userSettings.subscription.plan_name}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {t('dailyLimit', { limit: userSettings.subscription.daily_scan_limit })}
+              </p>
+            </div>
+            {/* ⚠️ alert() は Stripe 連携実装時にモーダルまたは Stripe Checkout リンクに差し替える */}
+            <button
+              type="button"
+              onClick={() => alert(t('planUpgradeComingSoon'))}
+              className="shrink-0 ml-4 px-4 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium
+                border border-blue-200 hover:bg-blue-100 transition-colors
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              {t('planUpgrade')}
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* お店予約用テキスト */}
       <ReservationTextSection
-        key={
-          allergenGroups
-            .flatMap((g) => g.items)
-            .filter((i) => allergies[i.name]?.enabled)
-            .map((i) => i.name)
-            .join(',') + locale
-        }
         allergies={allergies}
         allergenGroups={allergenGroups}
         locale={locale}
@@ -381,6 +440,45 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        {/* パスワード変更（メールプロバイダーのみ） */}
+        {isEmailProvider && (
+          <section className="mb-8">
+            <h2 className="text-base font-bold text-gray-800 mb-4">
+              {t('changePassword.title')}
+            </h2>
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder={t('changePassword.newPasswordPlaceholder')}
+                  minLength={6}
+                  required
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                    focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {passwordError && (
+                  <p className="text-sm text-red-600">{passwordError}</p>
+                )}
+                {passwordSuccess && (
+                  <p className="text-sm text-green-600">{t('changePassword.success')}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={isChangingPassword || newPassword.length < 6}
+                  className="w-full py-2.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium
+                    border border-blue-200 hover:bg-blue-100 transition-colors
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                    disabled:opacity-50"
+                >
+                  {isChangingPassword ? t('loading') : t('changePassword.button')}
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
 
         {/* アカウント・データリセット */}
         <section className="mb-8">

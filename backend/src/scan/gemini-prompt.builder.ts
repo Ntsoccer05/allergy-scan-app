@@ -34,6 +34,11 @@ const PLACEHOLDER_EXCLUDE_LIST = '{{EXCLUDE_LIST}}';
 // アレルゲン成分リストは master data で更新頻度が低い。キャッシュキーはアレルゲン名ソート済みリスト。
 const _promptCache = new Map<string, string>();
 
+/** テスト用: プロンプトキャッシュをクリアする。本番コードでは使用しない。 */
+export const clearPromptCacheForTest = (): void => {
+  _promptCache.clear();
+};
+
 /**
  * Gemini プロンプトを動的生成する（dry_principles.md の集約点）。
  * exclude 型を検出対象から除外し、誤検出防止リストとして別途プロンプトに含める（anti_patterns.md #3）。

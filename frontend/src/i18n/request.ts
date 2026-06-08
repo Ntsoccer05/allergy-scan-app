@@ -1,4 +1,5 @@
 import { getRequestConfig } from 'next-intl/server'
+import { cookies } from 'next/headers'
 import fs from 'fs'
 import path from 'path'
 
@@ -6,6 +7,7 @@ const SUPPORTED_LOCALES = ['ja', 'en'] as const
 type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
 
 const DEFAULT_LOCALE: SupportedLocale = 'ja'
+const LOCALE_COOKIE = 'NEXT_LOCALE'
 
 const isSupportedLocale = (locale: string): locale is SupportedLocale =>
   (SUPPORTED_LOCALES as readonly string[]).includes(locale)
@@ -19,10 +21,13 @@ const readLocaleFile = (locale: string, namespace: string): Record<string, unkno
 
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale
+  // middleware が未設定のため requestLocale は常に undefined。
+  // Cookie NEXT_LOCALE をフォールバックとして使う。
+  const cookieLocale = (await cookies()).get(LOCALE_COOKIE)?.value
   const locale =
-    requested !== undefined && isSupportedLocale(requested)
-      ? requested
-      : DEFAULT_LOCALE
+    (requested && isSupportedLocale(requested)) ? requested :
+    (cookieLocale && isSupportedLocale(cookieLocale)) ? cookieLocale :
+    DEFAULT_LOCALE
 
   const [
     scanMessages,
@@ -30,18 +35,20 @@ export default getRequestConfig(async ({ requestLocale }) => {
     settingsMessages,
     onboardingMessages,
     historyMessages,
-  ] = ['scan', 'common', 'settings', 'onboarding', 'history'].map((ns) =>
+    authMessages,
+  ] = ['scan', 'common', 'settings', 'onboarding', 'history', 'auth'].map((ns) =>
     readLocaleFile(locale, ns),
   )
 
   return {
     locale,
     messages: {
-      ...scanMessages,
+      scan: scanMessages,
       common: commonMessages,
       settings: settingsMessages,
       onboarding: onboardingMessages,
       history: historyMessages,
+      auth: authMessages,
     },
   }
 })

@@ -14,5 +14,57 @@
   "othersEmpty": "まだスキャンされた商品がありません",
   "loadMore": "もっと見る",
   "loading": "読み込み中...",
-  "expiredTag": "情報が古い可能性"
+  "expiredTag": "情報が古い可能性",
+  "storeName": "📍 {store}",
+  "editButton": "編集",
+  "deleteButton": "削除",
+  "deleteConfirm": "この履歴を削除しますか？この操作は取り消せません。",
+  "deleteDeleting": "削除中...",
+  "memoLabel": "メモ",
+  "public_badge": "公開中",
+  "private_badge": "非公開",
+  "memo_label": "メモ",
+  "edit_memo": "メモを編集",
+  "is_public_label": "みんなの履歴に公開",
+  "select": {
+    "enter": "選択",
+    "cancel": "キャンセル",
+    "count": "{count}件選択中",
+    "selectAll": "全選択",
+    "delete": "削除（{count}件）",
+    "confirmDelete": "{count}件の履歴を削除しますか？この操作は取り消せません。",
+    "deleting": "削除中..."
+  },
+  "editModal": {
+    "title": "履歴を編集",
+    "productName": "商品名",
+    "storeName": "店舗名",
+    "memo": "メモ",
+    "thumbnail": "サムネイル",
+    "retake": "再撮影",
+    "retakeCapture": "撮り直す",
+    "confirm": "確定",
+    "save": "保存",
+    "cancel": "キャンセル"
+  },
+  "public": {
+    "title": "みんなの履歴",
+    "newItems": "新しいスキャンがあります",
+    "refresh": "更新する"
+  },
+  "unnamed": "商品名なし",
+  "detail": {
+    "close": "閉じる",
+    "edit": "編集",
+    "delete": "削除",
+    "detected": "検出アレルゲン",
+    "noDetected": "検出なし",
+    "memo": "メモ",
+    "rawTextLabel": "原材料テキスト",
+    "rawTextExpand": "原材料を確認する ▼",
+    "rawTextCollapse": "原材料を閉じる ▲",
+    "ariaLabel": "詳細を見る",
+    "editAriaLabel": "編集する",
+    "deleteAriaLabel": "削除する"
+  }
 }

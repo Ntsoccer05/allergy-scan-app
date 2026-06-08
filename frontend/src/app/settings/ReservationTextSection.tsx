@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { buildReservationText } from '@/lib/reservation-text.util'
 import type { AllergenGroup, AllergySettings } from './settings.types'
 
@@ -39,11 +39,15 @@ export const ReservationTextSection = ({
 
   const generatedText = buildReservationText(enabledNames, format)
 
-  // allergies または locale 変化時は親が key を変えてコンポーネントを再マウントする。
-  // 再マウント時に useState の初期値が再評価されるため、textarea は自動的に新しい生成テキストに戻る。
+  // allergies または locale 変化時は generatedText が変わるため useEffect で同期する。
+  // key による再マウントは不要。
   const [text, setText] = useState(generatedText)
   const [isCopied, setIsCopied] = useState(false)
   const [copyError, setCopyError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setText(generatedText)
+  }, [generatedText])
 
   if (enabledNames.length === 0) return null
 

@@ -13,20 +13,40 @@ describe('UsersRepository', () => {
   let prisma: {
     user: {
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       upsert: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
     };
+    scanHistory: {
+      deleteMany: jest.Mock;
+    };
+    $executeRawUnsafe: jest.Mock;
+    $transaction: jest.Mock;
   };
 
   beforeEach(async () => {
     prisma = {
       user: {
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          allergies: mockAllergies,
+          locale: 'en',
+        }),
         upsert: jest.fn().mockResolvedValue(undefined),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          allergies: mockAllergies,
+          locale: 'en',
+        }),
         delete: jest.fn().mockResolvedValue(undefined),
       },
+      scanHistory: {
+        deleteMany: jest.fn().mockResolvedValue(undefined),
+      },
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn().mockResolvedValue([undefined, undefined]),
     };
 
     const module = await Test.createTestingModule({
@@ -40,12 +60,11 @@ describe('UsersRepository', () => {
   });
 
   describe('findById', () => {
-    it('ユーザーが存在する場合、id・allergies・locale・onboardingDone を返す', async () => {
+    it('ユーザーが存在する場合、id・allergies・locale を返す', async () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         allergies: mockAllergies,
         locale: 'ja',
-        onboardingDone: true,
       });
 
       const result = await repository.findById('user-1');
@@ -54,7 +73,6 @@ describe('UsersRepository', () => {
         id: 'user-1',
         allergies: mockAllergies,
         locale: 'ja',
-        onboardingDone: true,
       });
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
@@ -62,7 +80,6 @@ describe('UsersRepository', () => {
           id: true,
           allergies: true,
           locale: true,
-          onboardingDone: true,
         },
       });
     });
@@ -74,84 +91,64 @@ describe('UsersRepository', () => {
 
       expect(result).toBeNull();
     });
-
-    it('onboardingDone が null の場合 false にフォールバックする', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        allergies: {},
-        locale: 'ja',
-        onboardingDone: null,
-      });
-
-      const result = await repository.findById('user-1');
-
-      expect(result?.onboardingDone).toBe(false);
-    });
   });
 
   describe('update', () => {
-    it('onboardingDone: true を渡すと Prisma update に onboardingDone: true が含まれる', async () => {
-      prisma.user.update.mockResolvedValue({
-        id: 'user-1',
-        allergies: {},
-        locale: 'ja',
-        onboardingDone: true,
-      });
-
+    it('allergies と locale を渡すと prisma.user.update が呼ばれ、更新後のユーザーを返す', async () => {
       const result = await repository.update('user-1', {
-        onboardingDone: true,
+        allergies: mockAllergies,
+        locale: 'en',
       });
 
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { onboardingDone: true },
-        select: {
-          id: true,
-          allergies: true,
-          locale: true,
-          onboardingDone: true,
+        data: {
+          allergies: mockAllergies,
+          locale: 'en',
         },
       });
-      expect(result.onboardingDone).toBe(true);
+      expect(result.locale).toBe('en');
+      expect(result.allergies).toEqual(mockAllergies);
     });
 
-    it('onboardingDone: false を渡すと Prisma update の data に onboardingDone が含まれない（無視される）', async () => {
-      prisma.user.update.mockResolvedValue({
-        id: 'user-1',
-        allergies: {},
-        locale: 'ja',
-        onboardingDone: false,
-      });
+    it('allergies のみ渡した場合、data に allergies のみ含まれる', async () => {
+      await repository.update('user-1', { allergies: mockAllergies });
 
+      const callData = prisma.user.update.mock.calls[0][0].data;
+      expect(callData).toHaveProperty('allergies');
+      expect(callData).not.toHaveProperty('locale');
+    });
+
+    it('onboardingDone: true を渡すと onboardingDone が data に含まれる', async () => {
+      await repository.update('user-1', { onboardingDone: true });
+
+      const callData = prisma.user.update.mock.calls[0][0].data;
+      expect(callData).toHaveProperty('onboardingDone', true);
+    });
+
+    it('onboardingDone: false を渡しても onboardingDone が data に含まれない（上書き禁止ガード）', async () => {
       await repository.update('user-1', { onboardingDone: false });
 
-      const updateCalls1 = prisma.user.update.mock.calls as Array<
-        [{ data: Record<string, unknown> }]
-      >;
-      const callArg1 = updateCalls1[0][0];
-      expect(callArg1.data).not.toHaveProperty('onboardingDone');
+      const callData = prisma.user.update.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty('onboardingDone');
     });
+  });
 
-    it('allergies と locale のみ渡した場合 onboardingDone が data に含まれない', async () => {
-      prisma.user.update.mockResolvedValue({
-        id: 'user-1',
-        allergies: mockAllergies,
-        locale: 'en',
-        onboardingDone: false,
+  describe('resetData', () => {
+    it('resets allergies to {} and deletes scan histories in a transaction', async () => {
+      await repository.resetData('user-123');
+
+      expect(prisma.$transaction).toHaveBeenCalledWith([
+        expect.anything(),  // prisma.user.update
+        expect.anything(),  // prisma.scanHistory.deleteMany
+      ]);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: { allergies: {} },
       });
-
-      await repository.update('user-1', {
-        allergies: mockAllergies,
-        locale: 'en',
+      expect(prisma.scanHistory.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
       });
-
-      const updateCalls2 = prisma.user.update.mock.calls as Array<
-        [{ data: Record<string, unknown> }]
-      >;
-      const callArg = updateCalls2[0][0];
-      expect(callArg.data).not.toHaveProperty('onboardingDone');
-      expect(callArg.data.allergies).toEqual(mockAllergies);
-      expect(callArg.data.locale).toBe('en');
     });
   });
 });

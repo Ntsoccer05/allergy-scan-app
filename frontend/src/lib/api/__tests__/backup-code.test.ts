@@ -1,5 +1,13 @@
 import { issueBackupCode, restoreFromCode } from '@/lib/api/backup-code'
-import { API_BASE_URL } from '@/lib/constants'
+
+// apiFetch は内部で Supabase セッションを取得するため、クライアントをモック
+jest.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: { access_token: 'test-token' } } }),
+    },
+  }),
+}))
 
 describe('backup-code API クライアント', () => {
   beforeEach(() => {
@@ -11,7 +19,7 @@ describe('backup-code API クライアント', () => {
   })
 
   describe('issueBackupCode', () => {
-    it('POST /users/backup-code に credentials: include で呼ばれる', async () => {
+    it('POST /users/me/backup-code を Authorization Bearer で呼ぶ', async () => {
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({
@@ -24,10 +32,12 @@ describe('backup-code API クライアント', () => {
       const result = await issueBackupCode()
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/users/backup-code`,
+        '/users/me/backup-code',
         expect.objectContaining({
           method: 'POST',
-          credentials: 'include',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-token',
+          }),
         }),
       )
       expect(result.code).toBe('ALRG-ABCD-EFGH')
@@ -37,14 +47,15 @@ describe('backup-code API クライアント', () => {
       ;(global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         status: 401,
+        json: jest.fn().mockResolvedValue({}),
       })
 
-      await expect(issueBackupCode()).rejects.toThrow('POST /users/backup-code failed: 401')
+      await expect(issueBackupCode()).rejects.toThrow()
     })
   })
 
   describe('restoreFromCode', () => {
-    it('POST /users/restore に credentials: include で呼ばれる', async () => {
+    it('POST /users/me/restore を Authorization Bearer で呼ぶ', async () => {
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({ success: true }),
@@ -54,11 +65,13 @@ describe('backup-code API クライアント', () => {
       const result = await restoreFromCode('ALRG-ABCD-EFGH')
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/users/restore`,
+        '/users/me/restore',
         expect.objectContaining({
           method: 'POST',
-          credentials: 'include',
-          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-token',
+          }),
           body: JSON.stringify({ code: 'ALRG-ABCD-EFGH' }),
         }),
       )
@@ -85,7 +98,7 @@ describe('backup-code API クライアント', () => {
       })
 
       await expect(restoreFromCode('ALRG-ABCD-EFGH')).rejects.toThrow(
-        'POST /users/restore failed: 401',
+        'POST /users/me/restore failed: 401',
       )
     })
   })

@@ -1,20 +1,19 @@
 'use client'
 
 export type ScanState =
-  | 'idle'
-  | 'detecting'
-  | 'stable'
-  | 'processing'
-  | 'result'
-  | 'error'
+  | 'idle'        // カメラ起動・待機（撮影ボタン有効）
+  | 'preview'     // 撮影プレビュー表示（撮り直し / 確定）
+  | 'processing'  // API 送信中
+  | 'result'      // 結果表示
+  | 'error'       // エラー
 
 export type ScanError =
-  | 'dark'
-  | 'blur'
-  | 'motion'
+  | 'quality_check_failed'
   | 'incomplete'
   | 'confidence_low'
   | 'api_error'
+  | 'daily_limit_exceeded'  // 日次上限超過（429）
+  | 'cooldown'              // 3秒クールダウン中
 
 export type Confidence = 'high' | 'medium' | 'low'
 
@@ -72,6 +71,7 @@ export type OcrScanResponse = {
   price: number | null
   price_with_tax: number | null
   price_confidence: 'high' | 'low' | null
+  product_name?: string | null
 }
 
 /** 店舗候補の型（Places API から返される） */

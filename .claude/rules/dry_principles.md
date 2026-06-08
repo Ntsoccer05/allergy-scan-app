@@ -17,6 +17,7 @@
 | S3 クライアント | `src/shared/s3.client.ts` |
 | Google Places クライアント | `src/shared/places.client.ts` |
 | みんなのスキャン判定導出（ng/partial/ok） | `src/products/products.service.ts` の `deriveJudgment` |
+| allergen の judgment_type 導出（category から推論） | `AllergensService.deriveJudgmentType()`（`mandatory`/`recommended` → `'allergy'`、`addiction`/`skin` → `'caution'`） |
 
 ### フロントエンド（Next.js）
 

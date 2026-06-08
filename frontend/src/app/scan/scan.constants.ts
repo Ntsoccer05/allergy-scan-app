@@ -1,3 +1,6 @@
+/** 1日あたりのデフォルトスキャン上限（サブスクリプション情報が取得できない場合に使用） */
+export const DEFAULT_DAILY_SCAN_LIMIT = 20
+
 /** カメラズームの設定 */
 export const ZOOM_MIN = 1.0
 export const ZOOM_MAX = 5.0
@@ -47,8 +50,8 @@ export const VIBRATE_SHARE_MS = 50
 /** OCR 送信前リサイズの長辺上限 (px)。食品ラベル OCR に 4K は不要。Gemini 処理時間短縮のため。 */
 export const OCR_MAX_DIMENSION = 1024
 
-/** OCR 送信用 JPEG 品質 (0〜1)。テキスト認識にロスレス品質は不要。ファイルサイズ削減のため。 */
-export const OCR_JPEG_QUALITY = 0.85
+/** OCR 送信用 JPEG 品質 (0〜1)。日本語細字のエッジ保護のため 0.92 に引き上げ。 */
+export const OCR_JPEG_QUALITY = 0.92
 
 /**
  * スキャン状態・エラー種別に対応するガイドメッセージ。
@@ -56,17 +59,16 @@ export const OCR_JPEG_QUALITY = 0.85
  */
 export const GUIDE_MESSAGES = {
   idle: 'バーコードまたは原材料欄にかざしてください',
-  detecting: '読み取り中...',
-  stable: '読み取り中...',
+  preview: '撮影しました。確定またはやり直しを選んでください',
   processing: '確認中...',
   result: '',
   manual: 'タップして読み取る',
   error: {
-    dark: '⚠️ 明るい場所に移動してください',
-    blur: '⚠️ もう少し近づけるか静止してください',
-    motion: '⚠️ カメラを安定させてください',
+    quality_check_failed: '⚠️ 画質を確認してください',
     incomplete: '⚠️ ラベル全体が映るように離してください',
     confidence_low: '⚠️ もう少し近づけて再スキャンしてください',
     api_error: '通信エラーが発生しました。再度お試しください',
+    daily_limit_exceeded: '本日の利用上限に達しました。明日またお試しください',
+    cooldown: 'しばらく待ってから再度お試しください',
   },
 } as const

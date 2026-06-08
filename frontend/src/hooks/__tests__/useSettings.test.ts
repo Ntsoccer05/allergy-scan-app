@@ -1,7 +1,7 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
-import { useSettings } from '@/hooks/useSettings'
+import { useSettings, _locationHelpers } from '@/hooks/useSettings'
 import { getAllergens } from '@/lib/api/allergens.api'
-import { getUser, updateUser, deleteUser } from '@/lib/api/users.api'
+import { getUser, updateUser, resetUserData } from '@/lib/api/users.api'
 import type { AllergenGroup, UserProfile } from '@/app/settings/settings.types'
 
 jest.mock('@/lib/api/allergens.api')
@@ -10,7 +10,7 @@ jest.mock('@/lib/api/users.api')
 const mockGetAllergens = getAllergens as jest.MockedFunction<typeof getAllergens>
 const mockGetUser = getUser as jest.MockedFunction<typeof getUser>
 const mockUpdateUser = updateUser as jest.MockedFunction<typeof updateUser>
-const mockDeleteUser = deleteUser as jest.MockedFunction<typeof deleteUser>
+const mockResetUserData = resetUserData as jest.MockedFunction<typeof resetUserData>
 
 const makeAllergenGroups = (): AllergenGroup[] => [
   {
@@ -39,6 +39,7 @@ const makeUser = (): UserProfile => ({
   },
   locale: 'ja',
   onboarding_done: true,
+  subscription: null,
 })
 
 beforeEach(() => {
@@ -46,7 +47,7 @@ beforeEach(() => {
   jest.useFakeTimers()
   mockGetAllergens.mockResolvedValue(makeAllergenGroups())
   mockGetUser.mockResolvedValue(makeUser())
-  mockUpdateUser.mockResolvedValue(makeUser())
+  mockUpdateUser.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -144,8 +145,8 @@ describe('useSettings', () => {
     )
   })
 
-  it('handleDeleteUser 呼び出し後に deleteUser API が呼ばれる', async () => {
-    mockDeleteUser.mockResolvedValue(undefined)
+  it('handleResetData 呼び出し後に resetUserData API が呼ばれる', async () => {
+    mockResetUserData.mockResolvedValue(undefined)
 
     const { result } = renderHook(() => useSettings())
 
@@ -154,9 +155,84 @@ describe('useSettings', () => {
     })
 
     await act(async () => {
-      await result.current.handleDeleteUser()
+      await result.current.handleResetData()
     })
 
-    expect(mockDeleteUser).toHaveBeenCalledTimes(1)
+    expect(mockResetUserData).toHaveBeenCalledTimes(1)
+  })
+
+  describe('handleLocaleChange', () => {
+    let reloadSpy: jest.SpyInstance
+    let getProtocolSpy: jest.SpyInstance
+    let cookieSetSpy: jest.SpyInstance
+
+    beforeEach(() => {
+      // _locationHelpers をスパイすることで jsdom の window.location 制約を回避する
+      reloadSpy = jest.spyOn(_locationHelpers, 'reload').mockImplementation(jest.fn())
+      getProtocolSpy = jest.spyOn(_locationHelpers, 'getProtocol').mockReturnValue('http:')
+      // document.cookie の setter をスパイして書き込み値を記録する
+      cookieSetSpy = jest.spyOn(document, 'cookie', 'set').mockImplementation(jest.fn())
+    })
+
+    afterEach(() => {
+      reloadSpy.mockRestore()
+      getProtocolSpy.mockRestore()
+      cookieSetSpy.mockRestore()
+    })
+
+    it('API 成功時に NEXT_LOCALE cookie をセットしてリロードする', async () => {
+      mockUpdateUser.mockResolvedValue(undefined)
+
+      const { result } = renderHook(() => useSettings())
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+      })
+
+      await act(async () => {
+        await result.current.handleLocaleChange('en')
+      })
+
+      expect(mockUpdateUser).toHaveBeenCalledWith({ locale: 'en' })
+      expect(cookieSetSpy).toHaveBeenCalledWith(expect.stringContaining('NEXT_LOCALE=en'))
+      expect(reloadSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('API 失敗時にロケールをロールバックしてエラーをセット・リロードしない', async () => {
+      mockUpdateUser.mockRejectedValue(new Error('fail'))
+
+      const { result } = renderHook(() => useSettings())
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+      })
+
+      const initialLocale = result.current.locale
+
+      await act(async () => {
+        await result.current.handleLocaleChange('en')
+      })
+
+      expect(result.current.locale).toBe(initialLocale)
+      expect(result.current.error).toBe('error.localeChangeFailed')
+      expect(reloadSpy).not.toHaveBeenCalled()
+    })
+
+    it('HTTPS 環境では cookie に Secure フラグが付く', async () => {
+      getProtocolSpy.mockReturnValue('https:')
+      mockUpdateUser.mockResolvedValue(undefined)
+
+      const { result } = renderHook(() => useSettings())
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+      })
+
+      await act(async () => {
+        await result.current.handleLocaleChange('en')
+      })
+
+      expect(cookieSetSpy).toHaveBeenCalledWith(expect.stringContaining('Secure'))
+    })
   })
 })

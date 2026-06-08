@@ -83,6 +83,29 @@ const makeMultiAllergenResult = (
   },
 })
 
+/** OCR 結果に product_name と価格情報を付与したファクトリ */
+const makeOcrResultWithPrice = (
+  priceOpts: {
+    price?: number | null
+    price_with_tax?: number | null
+    price_confidence?: 'high' | 'low' | null
+    product_name?: string | null
+  } = {},
+): ScanResult => ({
+  type: 'ocr',
+  data: {
+    raw_text: '原材料: 大豆',
+    confidence: 'high',
+    results: [],
+    highlights: [],
+    incomplete: false,
+    price: priceOpts.price ?? null,
+    price_with_tax: priceOpts.price_with_tax ?? null,
+    price_confidence: priceOpts.price_confidence ?? null,
+    product_name: priceOpts.product_name ?? null,
+  },
+})
+
 describe('ResultCard', () => {
   beforeEach(() => {
     onClose.mockClear()
@@ -355,6 +378,72 @@ describe('ResultCard', () => {
         />,
       )
       expect(screen.getByText(/✅ 問題なし/)).toBeInTheDocument()
+    })
+  })
+
+  describe('OCR 商品名表示（R5）', () => {
+    it('product_name: "テスト商品" が含まれる場合に商品名が DOM に表示される', () => {
+      renderWithI18n(
+        <ResultCard
+          result={makeOcrResultWithPrice({ product_name: 'テスト商品' })}
+          onClose={onClose}
+        />,
+      )
+      expect(screen.getByText('テスト商品')).toBeInTheDocument()
+    })
+
+    it('product_name: null の場合に商品名ラベルが DOM に表示されない', () => {
+      renderWithI18n(
+        <ResultCard
+          result={makeOcrResultWithPrice({ product_name: null })}
+          onClose={onClose}
+        />,
+      )
+      expect(screen.queryByText('テスト商品')).toBeNull()
+    })
+  })
+
+  describe('価格表示（R6: price_confidence === "high" のみ表示）', () => {
+    it('price_confidence: "high" かつ price_with_tax: 321 の場合に 321 を含むテキストが DOM に存在する', () => {
+      renderWithI18n(
+        <ResultCard
+          result={makeOcrResultWithPrice({ price_with_tax: 321, price_confidence: 'high' })}
+          onClose={onClose}
+        />,
+      )
+      expect(screen.getByText(/321/)).toBeInTheDocument()
+    })
+
+    it('price_confidence: "high" かつ price_with_tax がなく price: 298 の場合に 298 を含むテキストが DOM に存在する', () => {
+      renderWithI18n(
+        <ResultCard
+          result={makeOcrResultWithPrice({ price: 298, price_with_tax: null, price_confidence: 'high' })}
+          onClose={onClose}
+        />,
+      )
+      expect(screen.getByText(/298/)).toBeInTheDocument()
+    })
+
+    it('price_confidence: "low" の場合に価格数値が DOM に存在しない', () => {
+      renderWithI18n(
+        <ResultCard
+          result={makeOcrResultWithPrice({ price: 298, price_with_tax: 321, price_confidence: 'low' })}
+          onClose={onClose}
+        />,
+      )
+      expect(screen.queryByText(/321/)).toBeNull()
+      expect(screen.queryByText(/298/)).toBeNull()
+    })
+
+    it('price_confidence: null の場合に価格数値が DOM に存在しない', () => {
+      renderWithI18n(
+        <ResultCard
+          result={makeOcrResultWithPrice({ price: 298, price_with_tax: 321, price_confidence: null })}
+          onClose={onClose}
+        />,
+      )
+      expect(screen.queryByText(/321/)).toBeNull()
+      expect(screen.queryByText(/298/)).toBeNull()
     })
   })
 })

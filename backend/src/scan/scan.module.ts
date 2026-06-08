@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScanController } from './scan.controller';
 import { ScanService } from './scan.service';
+import { DailyScanLimitGuard } from './daily-scan-limit.guard';
 import { ProductsModule } from '../products/products.module';
 import { AllergensModule } from '../allergens/allergens.module';
 import { HistoryModule } from '../history/history.module';
@@ -31,6 +32,7 @@ import { CACHE_TTL_MEMORY_SEC } from './scan.constants';
   controllers: [ScanController],
   providers: [
     ScanService,
+    DailyScanLimitGuard,
     OpenFoodFactsClient,
     S3Client,
     GeminiClient,

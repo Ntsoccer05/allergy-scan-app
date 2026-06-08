@@ -1,4 +1,20 @@
 {
+  "processing": "Analyzing...",
+  "caution": "⚠️ Always check the actual label before purchasing.",
+  "capture": "Capture",
+  "preview": {
+    "title": "Scan this image?",
+    "retake": "Retake",
+    "confirm": "Start Scan"
+  },
+  "error": {
+    "api_error": "An error occurred. Please try again.",
+    "incomplete": "Move back so the entire label is visible.",
+    "confidence_low": "Image quality too low. Please try in better lighting.",
+    "quality_check_failed": "Quality check failed. Please try again.",
+    "daily_limit_exceeded": "Daily scan limit reached.",
+    "cooldown": "Please wait a moment."
+  },
   "result": {
     "appTitle": "Allergy Scan App",
     "confidenceLow": "⚠️ Image quality is low — judgment accuracy may be reduced. Always verify with the actual label.",
@@ -7,7 +23,12 @@
     "rawTextCollapse": "Check ingredients ▲",
     "caution": "⚠️ Always check the actual label before purchasing.",
     "ngDisclaimer": "This app's judgment is for reference only. If you are at risk of anaphylaxis, please always verify the actual label.",
-    "share": "Share",
+    "share": {
+      "button": "Share",
+      "title": "Allergy Scan App",
+      "defaultProductName": "product",
+      "text": "{name} has no allergens (checked by {title})"
+    },
     "scanAgain": "Scan again",
     "noAllergenSetting": "No allergen settings",
     "allergenListLabel": "Allergen judgment results",
@@ -32,13 +53,35 @@
     "unreadableTitle": "📷 Could not read any text",
     "unreadableMessage": "Please move closer to the label, face it directly, and try again in better lighting.",
     "lowConfidenceTitle": "⚠️ Image quality too low for AI judgment",
-    "lowConfidenceMessage": "The extracted ingredient text is shown below. Please check for your allergens manually."
+    "lowConfidenceMessage": "The extracted ingredient text is shown below. Please check for your allergens manually.",
+    "productNameLabel": "Product:",
+    "priceLabel": "Est. price:",
+    "priceValue": "¥{price}",
+    "regionLabel": "Scan result",
+    "productInfo": {
+      "title": "Product Info",
+      "productName": "Product name",
+      "productNamePlaceholder": "Enter product name",
+      "storeName": "Store name",
+      "storeNamePlaceholder": "Enter store name",
+      "memo": "Notes",
+      "memoPlaceholder": "Add notes",
+      "thumbnail": "Thumbnail",
+      "retakeThumbnail": "Retake"
+    }
   },
   "camera": {
     "switchCamera": "Switch Camera",
     "videoLabel": "Camera view",
     "zoomLabel": "Zoom level",
     "processingTitle": "Photo captured",
-    "processingSubtitle": "Analyzing... You can move the product away."
+    "processingSubtitle": "Analyzing... You can move the product away.",
+    "uploadButton": "Analyze from image",
+    "cameraButton": "Capture"
+  },
+  "tabs": {
+    "camera": "Camera",
+    "upload": "Image",
+    "uploadHint": "Select a food label from your gallery or photos"
   }
 }

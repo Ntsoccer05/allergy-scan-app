@@ -1,12 +1,14 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'crypto'; // presigned URL の s3_key 生成にのみ使用
 import type { ProductAllergens } from '../shared/types/db.types';
 import type { OpenFoodFactsProductFields } from '../shared/types/open-food-facts.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
@@ -17,6 +19,7 @@ import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
 import { S3Client } from '../shared/s3.client';
 import { GeminiClient } from '../shared/gemini.client';
 import { UsersRepository } from '../users/users.repository';
+import { UserDailyScansService } from '../users/user-daily-scans.service';
 import {
   PLACES_PROVIDER_TOKEN,
   type StoreCandidate,
@@ -28,7 +31,11 @@ import {
   CACHE_TTL_MEMORY_SEC,
   RAW_TEXT_PREFIX_LENGTH,
   S3_KEY_PREFIX,
+  SCAN_COOLDOWN_MS,
 } from './scan.constants';
+
+// Lambda 再起動でリセットされる短期クールダウン用 Map（TTL: 3秒）
+const lastScanTimestamps = new Map<string, number>();
 
 /** POST /scan/barcode のレスポンス型（openapi.yaml BarcodeScanResponse 準拠）。 */
 export type BarcodeScanResult = {
@@ -47,9 +54,10 @@ export type PresignedUrlResult = {
   s3_key: string;
 };
 
-/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates を追加。 */
+/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates・history_id を追加。 */
 export type OcrScanResult = GeminiOcrResponse & {
   storeCandidates?: StoreCandidate[];
+  history_id?: string;
 };
 
 /** POST /scan/ocr-stream の SSE イベント型。 */
@@ -73,6 +81,7 @@ export class ScanService {
     private readonly s3Client: S3Client,
     private readonly geminiClient: GeminiClient,
     private readonly usersRepository: UsersRepository,
+    private readonly userDailyScansService: UserDailyScansService,
     @Inject(PLACES_PROVIDER_TOKEN) private readonly placesClient: StoreCandidateProvider,
   ) {}
 
@@ -83,7 +92,8 @@ export class ScanService {
    * 3. Open Food Facts API 照合
    * 4. 全ミス → { found: false }
    */
-  async scanBarcode(janCode: string): Promise<BarcodeScanResult> {
+  async scanBarcode(janCode: string, userId?: string): Promise<BarcodeScanResult> {
+    if (userId) this.checkCooldown(userId);
     const cacheKey = `jan:${janCode}`;
 
     // Step 1: メモリキャッシュ確認
@@ -107,6 +117,7 @@ export class ScanService {
         result,
         CACHE_TTL_MEMORY_SEC * 1000,
       );
+      if (userId) await this.userDailyScansService.incrementScanCount(userId);
       return result;
     }
 
@@ -130,10 +141,11 @@ export class ScanService {
         result,
         CACHE_TTL_MEMORY_SEC * 1000,
       );
+      if (userId) await this.userDailyScansService.incrementScanCount(userId);
       return result;
     }
 
-    // Step 4: 全ミス
+    // Step 4: 全ミス（found:false は OCR フォールバックへ。OCR 側でカウントする）
     this.logger.log(`No result found for JAN: ${janCode}`);
     return { found: false, from_cache: false };
   }
@@ -142,7 +154,7 @@ export class ScanService {
    * S3 Presigned PUT URL を発行する（R1）。
    * s3_key はリクエストごとに UUID ベースで一意に生成する。
    */
-  async getPresignedUrl(): Promise<PresignedUrlResult> {
+  async getPresignedUrl(_userId?: string): Promise<PresignedUrlResult> {
     const s3Key = `${S3_KEY_PREFIX}${randomUUID()}.jpg`;
     const url = await this.s3Client.generatePresignedPutUrl(s3Key);
     this.logger.log(`Presigned URL issued for key: ${s3Key}`);
@@ -222,7 +234,7 @@ export class ScanService {
     );
     const allergens = this.buildAllergensFromGemini(geminiResult);
     const product = await this.productRepository.upsertByHash(labelHash, {
-      productName: null,
+      productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
@@ -246,15 +258,22 @@ export class ScanService {
     }
     // 候補 0 件 または 2 件以上: location: null で保存（2件以上はユーザー選択後に PATCH）
 
-    await this.scanHistoryRepository.create({
-      userId: userId ?? randomUUID(),
-      productId: product.id,
-      productName: null,
-      judgment,
-      detected: allDetected,
-      location,
-      thumbnailUrl: null,
-    });
+    // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
+    let historyId: string | undefined;
+    if (userId) {
+      const saved = await this.scanHistoryRepository.create({
+        userId,
+        productId: product.id,
+        productName: geminiResult.product_name ?? null,
+        judgment,
+        detected: allDetected,
+        location,
+        thumbnailUrl: null,
+        rawText: geminiResult.raw_text,
+      });
+      historyId = saved.id;
+      await this.userDailyScansService.incrementScanCount(userId);
+    }
 
     this.logger.log(
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
@@ -262,9 +281,9 @@ export class ScanService {
 
     // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
     if (storeCandidates.length >= 2) {
-      return { ...geminiResult, storeCandidates };
+      return { ...geminiResult, storeCandidates, history_id: historyId };
     }
-    return geminiResult;
+    return { ...geminiResult, history_id: historyId };
   }
 
   /**
@@ -327,7 +346,7 @@ export class ScanService {
     );
     const allergens = this.buildAllergensFromGemini(geminiResult);
     const product = await this.productRepository.upsertByHash(labelHash, {
-      productName: null,
+      productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
@@ -347,23 +366,46 @@ export class ScanService {
       location = { store_name: storeCandidates[0].name, lat, lng };
     }
 
-    await this.scanHistoryRepository.create({
-      userId: userId ?? randomUUID(),
-      productId: product.id,
-      productName: null,
-      judgment,
-      detected: allDetected,
-      location,
-      thumbnailUrl: null,
-    });
+    // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
+    let historyId: string | undefined;
+    if (userId) {
+      const saved = await this.scanHistoryRepository.create({
+        userId,
+        productId: product.id,
+        productName: geminiResult.product_name ?? null,
+        judgment,
+        detected: allDetected,
+        location,
+        thumbnailUrl: null,
+        rawText: geminiResult.raw_text,
+      });
+      historyId = saved.id;
+      await this.userDailyScansService.incrementScanCount(userId);
+    }
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
 
     if (storeCandidates.length >= 2) {
-      yield { type: 'result', data: { ...geminiResult, storeCandidates } };
+      yield { type: 'result', data: { ...geminiResult, storeCandidates, history_id: historyId } };
     } else {
-      yield { type: 'result', data: geminiResult };
+      yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
     }
+  }
+
+  /**
+   * ユーザーの連続スキャンを 3 秒のクールダウンで制限する。
+   * Lambda 再起動でリセットされるのは意図的（短期制御のみ）。
+   */
+  private checkCooldown(userId: string): void {
+    const last = lastScanTimestamps.get(userId) ?? 0;
+    const elapsed = Date.now() - last;
+    if (elapsed < SCAN_COOLDOWN_MS) {
+      throw new HttpException(
+        { message: 'scan.error.cooldown', remaining_ms: SCAN_COOLDOWN_MS - elapsed },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    lastScanTimestamps.set(userId, Date.now());
   }
 
   /**

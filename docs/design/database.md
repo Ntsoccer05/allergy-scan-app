@@ -14,7 +14,155 @@
 | allergen_components | 派生成分・除外リストマスター |
 | products | 商品・アレルギー情報 |
 | scan_histories | スキャン履歴 |
-| users | ユーザー・アレルギー設定 |
+| users | ユーザー・アレルギー設定（Supabase Auth UID = id） |
+| plans | プラン定義（free / premium） |
+| user_subscriptions | ユーザーサブスクリプション |
+| user_daily_scans | ユーザー日次スキャン数 |
+| stripe_customers | Stripe 顧客情報 |
+| backup_codes | 引継ぎ用バックアップコード |
+| judgment_reports | 誤判定報告 |
+
+---
+
+## ER図
+
+```mermaid
+erDiagram
+  allergens ||--o{ allergen_components : "name -> allergen_name"
+  users ||--o{ scan_histories : "id -> user_id"
+  products ||--o{ scan_histories : "id -> product_id"
+  users ||--o{ user_subscriptions : "id -> user_id"
+  plans ||--o{ user_subscriptions : "id -> plan_id"
+  users ||--o{ user_daily_scans : "id -> user_id"
+  users ||--o| stripe_customers : "id -> user_id"
+  users ||--o{ backup_codes : "id -> user_id"
+  products ||--o{ judgment_reports : "id -> product_id"
+  scan_histories ||--o{ judgment_reports : "id -> scan_history_id"
+
+  allergens {
+    uuid id PK
+    varchar name UK
+    varchar display_name
+    varchar category "mandatory/recommended/addiction/skin"
+    varchar judgment_type "allergy/caution"
+    int display_order
+    varchar emoji
+    timestamp deleted_at
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  allergen_components {
+    uuid id PK
+    varchar allergen_name FK
+    varchar canonical_name
+    jsonb aliases
+    varchar component_type "direct/derivative/processed/compound/additive/contains_label/exclude"
+    varchar detection_type "contains/partial/may_contain"
+    varchar risk_level "high/medium/low/ignore"
+    text note
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  products {
+    uuid id PK
+    varchar id_type "jan/hash"
+    varchar id_value UK
+    varchar product_name
+    varchar store_name
+    varchar image_url
+    jsonb allergens
+    text raw_text
+    int scan_count
+    varchar confidence
+    timestamp expires_at
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  scan_histories {
+    uuid id PK
+    varchar user_id FK
+    uuid product_id FK
+    varchar product_name
+    varchar judgment "ng/partial/ok"
+    jsonb detected
+    jsonb location
+    varchar thumbnail_url
+    varchar ocr_image_url
+    boolean is_public
+    text memo
+    timestamp scanned_at
+  }
+
+  users {
+    varchar id PK "Supabase Auth UID"
+    jsonb allergies
+    varchar locale "ja/en"
+    boolean onboarding_done
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  backup_codes {
+    uuid id PK
+    varchar user_id FK
+    varchar code_hash "SHA-256 ハッシュ"
+    timestamp expires_at
+    timestamp used_at "NULL = 未使用"
+    timestamp created_at
+  }
+
+  plans {
+    uuid id PK
+    varchar name UK "free/premium"
+    varchar display_name
+    int daily_scan_limit
+    int price_monthly_jpy
+    int price_yearly_jpy
+    boolean is_active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  user_subscriptions {
+    uuid id PK
+    varchar user_id FK
+    uuid plan_id FK
+    varchar status "active/canceled/past_due"
+    timestamp current_period_start
+    timestamp current_period_end
+    varchar stripe_subscription_id
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  user_daily_scans {
+    uuid id PK
+    varchar user_id FK
+    date scan_date
+    int scan_count
+  }
+
+  stripe_customers {
+    uuid id PK
+    varchar user_id FK "UNIQUE"
+    varchar stripe_customer_id UK
+    timestamp created_at
+  }
+
+  judgment_reports {
+    uuid id PK
+    varchar user_id
+    uuid product_id FK
+    uuid scan_history_id FK
+    varchar reported_judgment "ng/partial/ok"
+    text comment
+    varchar status "pending/confirmed/rejected"
+    timestamp created_at
+  }
+```
 
 ---
 
@@ -51,42 +199,60 @@ INSERT INTO allergens (id, name, display_name, category, judgment_type, display_
   -- 特定原材料（9品目・表示義務あり）
   (gen_random_uuid(), 'えび',          'えび',               'mandatory',   'allergy', 1,  '🦐'),
   (gen_random_uuid(), 'かに',          'かに',               'mandatory',   'allergy', 2,  '🦀'),
-  (gen_random_uuid(), 'カシューナッツ', 'カシューナッツ',     'mandatory',   'allergy', 3,  '🌰'),
-  (gen_random_uuid(), 'くるみ',        'くるみ',             'mandatory',   'allergy', 4,  '🌰'),
+  (gen_random_uuid(), 'カシューナッツ', 'カシューナッツ',     'mandatory',   'allergy', 3,  '🟤'),
+  -- カシュー: 専用絵文字未存在。🟤（茶色丸）は焙煎カシューの暖かいベージュ・タン色を表現
+  (gen_random_uuid(), 'くるみ',        'くるみ',             'mandatory',   'allergy', 4,  '🧠'),
+  -- くるみ: 🧠（脳）はくるみの断面が脳のしわに酷似することで知られる（脳健康食としても有名）
   (gen_random_uuid(), '小麦',          '小麦',               'mandatory',   'allergy', 5,  '🌾'),
   (gen_random_uuid(), 'そば',          'そば',               'mandatory',   'allergy', 6,  '🍜'),
   (gen_random_uuid(), '卵',            '卵',                 'mandatory',   'allergy', 7,  '🥚'),
   (gen_random_uuid(), '乳',            '乳',                 'mandatory',   'allergy', 8,  '🥛'),
+  -- 乳: 🥛（牛乳グラス）は乳アレルゲン表示の標準的アイコン。🍼（哺乳瓶）より認識度が高い
   (gen_random_uuid(), '落花生',        '落花生（ピーナッツ）','mandatory',   'allergy', 9,  '🥜'),
   -- 準ずるもの（20品目・表示推奨）
-  (gen_random_uuid(), 'アーモンド',       'アーモンド',       'recommended', 'allergy', 10, '🌰'),
-  (gen_random_uuid(), 'あわび',           'あわび',           'recommended', 'allergy', 11, '🐚'),
+  (gen_random_uuid(), 'アーモンド',       'アーモンド',       'recommended', 'allergy', 10, '🫘'),
+  -- アーモンド: 専用絵文字未存在。🫘（豆）はアーモンド種仁の楕円・丸みのある形状を表現
+  (gen_random_uuid(), 'あわび',           'あわび',           'recommended', 'allergy', 11, '🦪'),
+  -- あわび: 平らな殻の貝類。巻き貝🐚より平貝🦪（oyster）の方が形状が近い
   (gen_random_uuid(), 'いか',             'いか',             'recommended', 'allergy', 12, '🦑'),
-  (gen_random_uuid(), 'いくら',           'いくら',           'recommended', 'allergy', 13, '🐟'),
+  -- いか: 🦑は各プラットフォームで白〜淡色表示が多い（iOS/Android共に白色シルエット）
+  (gen_random_uuid(), 'いくら',           'いくら',           'recommended', 'allergy', 13, '🟠'),
+  -- いくら: 専用絵文字未存在。🟠（橙色丸）はいくらの鮮やかなオレンジ色・粒状の形を直接表現
   (gen_random_uuid(), 'オレンジ',         'オレンジ',         'recommended', 'allergy', 14, '🍊'),
   (gen_random_uuid(), 'キウイフルーツ',   'キウイフルーツ',   'recommended', 'allergy', 15, '🥝'),
-  (gen_random_uuid(), '牛肉',             '牛肉',             'recommended', 'allergy', 16, '🥩'),
-  (gen_random_uuid(), 'ごま',             'ごま',             'recommended', 'allergy', 17, '🌿'),
-  (gen_random_uuid(), 'さけ',             'さけ',             'recommended', 'allergy', 18, '🐟'),
-  (gen_random_uuid(), 'さば',             'さば',             'recommended', 'allergy', 19, '🐟'),
-  (gen_random_uuid(), '大豆',             '大豆',             'recommended', 'allergy', 20, '🫘'),
-  (gen_random_uuid(), '鶏肉',             '鶏肉',             'recommended', 'allergy', 21, '🍗'),
+  (gen_random_uuid(), '牛肉',             '牛肉',             'recommended', 'allergy', 16, '🐄'),
+  (gen_random_uuid(), 'ごま',             'ごま',             'recommended', 'allergy', 17, '✨'),
+  -- ごま: 専用絵文字未存在。✨（きらきら）は金ごまが料理に散りばめられた輝くイメージを表現
+  (gen_random_uuid(), 'さけ',             'さけ',             'recommended', 'allergy', 18, '🐠'),
+  -- さけ: 🐠（熱帯魚）はオレンジ色系の魚でさけの切身の橙色に近い。切身専用絵文字は未存在
+  (gen_random_uuid(), 'さば',             'さば',             'recommended', 'allergy', 19, '🥫'),
+  -- さば: 🥫（缶詰）はさば缶として日本で最も認知度の高い食品。青魚の視覚表現より直感的
+  (gen_random_uuid(), '大豆',             '大豆',             'recommended', 'allergy', 20, '🟡'),
+  -- 大豆: 🟡（黄色丸）は乾燥大豆の黄色い丸い形を表現。いくら（🟠）と色で区別
+  (gen_random_uuid(), '鶏肉',             '鶏肉',             'recommended', 'allergy', 21, '🐔'),
   (gen_random_uuid(), 'バナナ',           'バナナ',           'recommended', 'allergy', 22, '🍌'),
-  (gen_random_uuid(), 'ピスタチオ',       'ピスタチオ',       'recommended', 'allergy', 23, '🌰'),
-  (gen_random_uuid(), '豚肉',             '豚肉',             'recommended', 'allergy', 24, '🥩'),
-  (gen_random_uuid(), 'マカダミアナッツ', 'マカダミアナッツ', 'recommended', 'allergy', 25, '🌰'),
+  (gen_random_uuid(), 'ピスタチオ',       'ピスタチオ',       'recommended', 'allergy', 23, '🟢'),
+  -- ピスタチオ: 専用絵文字未存在。🟢（緑丸）はピスタチオ特有の鮮やかな緑色を直接表現
+  (gen_random_uuid(), '豚肉',             '豚肉',             'recommended', 'allergy', 24, '🐷'),
+  (gen_random_uuid(), 'マカダミアナッツ', 'マカダミアナッツ', 'recommended', 'allergy', 25, '⚪'),
+  -- マカダミア: 専用絵文字未存在。⚪（白丸）はマカダミアの真っ白で丸い外観を直接表現
   (gen_random_uuid(), 'もも',             'もも',             'recommended', 'allergy', 26, '🍑'),
+  -- もも: 桃専用絵文字は🍑のみ（Unicode唯一の桃絵文字）
   (gen_random_uuid(), 'りんご',           'りんご',           'recommended', 'allergy', 27, '🍎'),
-  (gen_random_uuid(), 'やまいも',         'やまいも',         'recommended', 'allergy', 28, '🌿'),
-  (gen_random_uuid(), 'ゼラチン',         'ゼラチン',         'recommended', 'allergy', 29, '🫙'),
+  (gen_random_uuid(), 'やまいも',         'やまいも',         'recommended', 'allergy', 28, '🥔'),
+  -- やまいも: 🥔（じゃがいも）は根菜として幅広く認識される。🫜はEmoji 16.0未対応端末で表示不可
+  (gen_random_uuid(), 'ゼラチン',         'ゼラチン',         'recommended', 'allergy', 29, '🧊'),
+  -- ゼラチン: 🧊（氷）は透明な固体という点でゼリー・ゼラチンの質感に近い。🍮（プリン）より適切
   -- 依存性への配慮
   (gen_random_uuid(), 'アルコール',       'アルコール',       'addiction',   'caution', 30, '🍺'),
   (gen_random_uuid(), 'カフェイン',       'カフェイン',       'addiction',   'caution', 31, '☕'),
   (gen_random_uuid(), '糖質',             '糖質・甘味料',     'addiction',   'caution', 32, '🍚'),
   -- 肌への配慮（アトピー）
-  (gen_random_uuid(), '食品添加物',       '食品添加物',       'skin',        'caution', 33, '⚗️'),
-  (gen_random_uuid(), 'トランス脂肪酸',   'トランス脂肪酸',   'skin',        'caution', 34, '🛢️'),
-  (gen_random_uuid(), '砂糖',             '砂糖',             'skin',        'caution', 35, '🍬');
+  (gen_random_uuid(), '食品添加物',       '食品添加物',       'skin',        'caution', 33, '🧪'),
+  -- 食品添加物: 🧪（test tube）は化学物質・合成添加物の研究・検査を連想させる
+  (gen_random_uuid(), 'トランス脂肪酸',   'トランス脂肪酸',   'skin',        'caution', 34, '🍟'),
+  -- トランス脂肪酸: 🍟（フライドポテト）は揚げ物に含まれるトランス脂肪酸の代表食品。🧈（バター）との混同を避ける
+  (gen_random_uuid(), '砂糖',             '砂糖',             'skin',        'caution', 35, '🍭');
 ```
 
 ---
@@ -348,12 +514,16 @@ CREATE TABLE scan_histories (
   --   "lat": 35.658,
   --   "lng": 139.701
   -- }
-  thumbnail_url VARCHAR(500),           -- 惣菜のみ
+  thumbnail_url  VARCHAR(500),          -- 惣菜のみ S3 キー
+  ocr_image_url  VARCHAR(500),          -- OCR スキャン画像 S3 キー
+  is_public      BOOLEAN DEFAULT true,  -- みんなの履歴に公開するか
+  memo           TEXT,                  -- ユーザーメモ（最大500文字）
   scanned_at    TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX scan_histories_user_idx ON scan_histories(user_id, scanned_at DESC);
-CREATE INDEX scan_histories_store_idx ON scan_histories(store_name, scanned_at DESC);
+-- location JSONB 内の store_name を対象にした関数インデックス（migration SQL 手動編集）
+-- CREATE INDEX scan_histories_store_idx ON scan_histories((location->>'store_name'), scanned_at DESC);
 ```
 
 ---
@@ -362,79 +532,114 @@ CREATE INDEX scan_histories_store_idx ON scan_histories(store_name, scanned_at D
 
 ```sql
 CREATE TABLE users (
-  id           VARCHAR(255) PRIMARY KEY,  -- MVPはデバイスID（localStorage UUID）
-  allergies    JSONB NOT NULL DEFAULT '{}',
+  id               VARCHAR(255) PRIMARY KEY,  -- Supabase Auth UID
+  allergies        JSONB NOT NULL DEFAULT '{}',
   -- {
   --   "乳": { "enabled": true,  "partialAlert": true },
   --   "卵": { "enabled": true,  "partialAlert": true },
   --   "小麦": { "enabled": false, "partialAlert": false }
   -- }
   -- ※キーはallergensテーブルのnameと対応
-  locale            VARCHAR(10) DEFAULT 'ja',      -- 多言語対応用（'ja' / 'en' 等）
-  onboarding_done   BOOLEAN DEFAULT false,          -- オンボーディング完了フラグ（server-side 永続化）
-  created_at        TIMESTAMP DEFAULT NOW(),
-  last_used_at      TIMESTAMP DEFAULT NOW()
+  locale           VARCHAR(10) DEFAULT 'ja',    -- 多言語対応用（'ja' / 'en' 等）
+  onboarding_done  BOOLEAN DEFAULT false,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
 );
 ```
 
 ---
 
-## backup_codesテーブル（デバイス引き継ぎ）
+## plansテーブル
+
+```sql
+CREATE TABLE plans (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             VARCHAR(50) NOT NULL UNIQUE,  -- 'free' | 'premium'
+  display_name     VARCHAR(100) NOT NULL,
+  daily_scan_limit INT NOT NULL,                 -- 日次スキャン上限（free=50, premium=無制限等）
+  price_monthly_jpy INT DEFAULT 0,
+  price_yearly_jpy  INT DEFAULT 0,
+  is_active        BOOLEAN DEFAULT true,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## user_subscriptionsテーブル
+
+```sql
+CREATE TABLE user_subscriptions (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_id                UUID NOT NULL REFERENCES plans(id),
+  status                 VARCHAR(20) DEFAULT 'active',  -- 'active' | 'canceled' | 'past_due'
+  current_period_start   TIMESTAMP DEFAULT NOW(),
+  current_period_end     TIMESTAMP,
+  stripe_subscription_id VARCHAR(255),
+  created_at             TIMESTAMP DEFAULT NOW(),
+  updated_at             TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX user_subscriptions_user_idx ON user_subscriptions(user_id, status);
+```
+
+---
+
+## user_daily_scansテーブル
+
+```sql
+CREATE TABLE user_daily_scans (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scan_date  DATE NOT NULL,
+  scan_count INT DEFAULT 0,
+
+  UNIQUE(user_id, scan_date)
+);
+```
+
+---
+
+## stripe_customersテーブル
+
+```sql
+CREATE TABLE stripe_customers (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            VARCHAR(255) NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  stripe_customer_id VARCHAR(255) NOT NULL UNIQUE,
+  created_at         TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## backup_codesテーブル（引継ぎ用バックアップコード）
 
 ```sql
 CREATE TABLE backup_codes (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      VARCHAR(255) NOT NULL REFERENCES users(id),
-  code         VARCHAR(12) NOT NULL UNIQUE,
-  -- 例：「ALRG-4829-KXMZ」形式（覚えやすい・入力しやすい）
-  is_used      BOOLEAN DEFAULT false,
-  used_at      TIMESTAMP,
-  expires_at   TIMESTAMP NOT NULL,  -- 発行から7日で失効
-  created_at   TIMESTAMP DEFAULT NOW()
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash  VARCHAR(64) NOT NULL,   -- SHA-256 ハッシュ（生コードは保存しない）
+  expires_at TIMESTAMP NOT NULL,     -- 発行から 30 日
+  used_at    TIMESTAMP,              -- NULL = 未使用。セット済み = 使用済み or 無効化済み
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX backup_codes_code_idx ON backup_codes(code);
+CREATE INDEX backup_codes_user_idx ON backup_codes(user_id);
+CREATE INDEX backup_codes_hash_idx ON backup_codes(code_hash);
 ```
 
-### コード発行・引き継ぎフロー
+### バックアップコードの設計
 
-```
-【発行】
-設定画面 → 「バックアップコードを発行」
-      ↓
-ランダム12文字のコード生成（例：ALRG-4829-KXMZ）
-      ↓
-backup_codesテーブルに保存（有効期限7日）
-      ↓
-ユーザーに表示・スクショ保存を促す
-
-【引き継ぎ（新デバイス）】
-初回起動時 → 「引き継ぎコードをお持ちの方」リンク
-      ↓
-コード入力（ALRG-XXXX-XXXX形式）
-      ↓
-backup_codesで照合
-  → 期限切れ or 使用済み → エラー「コードが無効です」
-  → 有効 → 旧user_idのデータを新デバイスIDに移行
-           is_used:true に更新
-      ↓
-アレルギー設定・スキャン履歴が引き継がれた状態でスタート
-```
-
-### コード設計のポイント
-
-```
-形式：ALRG-XXXX-XXXX（英数字4文字×2ブロック）
-  → 紙にメモしやすい
-  → 誤入力しにくい（O/0, I/1 は使わない）
-
-有効期限：7日
-  → 機種変更の直前に発行して使う想定
-  → 期限切れ前に再発行可能
-
-1コード1回のみ使用可能
-  → 使い回しによる乗っ取り防止
-```
+| 項目 | 内容 |
+|---|---|
+| コード形式 | `ALRG-XXXX-XXXX`（X = 英数字大文字。紛らわしい O/0/I/1 を除外） |
+| 保存方法 | SHA-256 ハッシュのみ保存（生コードはレスポンスにのみ返す） |
+| 有効期限 | 発行から 30 日 |
+| 有効コード数 | 1 ユーザーにつき 1 件のみ（再発行時は既存コードを `used_at = NOW()` で無効化） |
+| restore の動作 | コード照合 → 発行元ユーザーの allergies を現在ログインユーザーにコピー → `used_at` をセット |
 
 ---
 

@@ -14,5 +14,57 @@
   "othersEmpty": "No products have been scanned yet",
   "loadMore": "Load more",
   "loading": "Loading...",
-  "expiredTag": "May be outdated"
+  "expiredTag": "May be outdated",
+  "storeName": "📍 {store}",
+  "editButton": "Edit",
+  "deleteButton": "Delete",
+  "deleteConfirm": "Are you sure you want to delete this entry? This action cannot be undone.",
+  "deleteDeleting": "Deleting...",
+  "memoLabel": "Memo",
+  "public_badge": "Public",
+  "private_badge": "Private",
+  "memo_label": "Memo",
+  "edit_memo": "Edit memo",
+  "is_public_label": "Share to public history",
+  "select": {
+    "enter": "Select",
+    "cancel": "Cancel",
+    "count": "{count} selected",
+    "selectAll": "Select All",
+    "delete": "Delete ({count})",
+    "confirmDelete": "Delete {count} history item(s)? This action cannot be undone.",
+    "deleting": "Deleting..."
+  },
+  "editModal": {
+    "title": "Edit History",
+    "productName": "Product Name",
+    "storeName": "Store Name",
+    "memo": "Memo",
+    "thumbnail": "Thumbnail",
+    "retake": "Retake",
+    "retakeCapture": "Retake",
+    "confirm": "Confirm",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "public": {
+    "title": "Community History",
+    "newItems": "New scans available",
+    "refresh": "Refresh"
+  },
+  "unnamed": "Unnamed product",
+  "detail": {
+    "close": "Close",
+    "edit": "Edit",
+    "delete": "Delete",
+    "detected": "Detected Allergens",
+    "noDetected": "None detected",
+    "memo": "Memo",
+    "rawTextLabel": "Ingredients Text",
+    "rawTextExpand": "View ingredients ▼",
+    "rawTextCollapse": "Hide ingredients ▲",
+    "ariaLabel": "View details",
+    "editAriaLabel": "Edit",
+    "deleteAriaLabel": "Delete"
+  }
 }

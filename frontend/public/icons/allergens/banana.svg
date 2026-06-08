@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?><svg id="_レイヤー_2" xmlns="http://www.w3.org/2000/svg" width="130" height="88" viewBox="0 0 130 88"><defs><style>.cls-1{fill:none;}.cls-1,.cls-2,.cls-3,.cls-4{stroke-width:0px;}.cls-2{fill:#ffda00;}.cls-3{fill:#c8960a;}.cls-4{fill:#4a7a1a;}</style></defs><g id="_レイヤー_1-2">
+<!-- 茎 --><path class="cls-4" d="M60,10 Q65,7 70,10 L68,20 Q65,16 62,20 Z"/>
+<!-- バナナ1（最左） --><path class="cls-3" d="M60,20 Q28,22 14,58 Q16,70 26,72 Q34,68 30,58 Q44,36 62,28 Z"/><path class="cls-2" d="M62,20 Q30,22 16,56 Q18,68 26,70 Q32,66 28,56 Q44,34 62,26 Z"/>
+<!-- バナナ2（左中） --><path class="cls-3" d="M63,20 Q46,22 38,68 Q42,78 54,78 Q62,74 58,64 Q64,44 65,28 Z"/><path class="cls-2" d="M65,20 Q48,22 40,66 Q44,76 54,76 Q60,72 56,62 Q64,42 65,26 Z"/>
+<!-- バナナ3（右中） --><path class="cls-3" d="M67,20 Q82,22 88,68 Q84,78 74,78 Q66,74 70,64 Q66,44 67,28 Z"/><path class="cls-2" d="M67,20 Q80,22 86,66 Q82,76 74,76 Q68,72 72,62 Q66,42 67,26 Z"/>
+<!-- バナナ4（最右） --><path class="cls-3" d="M68,20 Q98,22 114,56 Q112,70 102,72 Q94,68 98,58 Q86,36 68,28 Z"/><path class="cls-2" d="M70,20 Q100,22 112,54 Q110,68 102,70 Q96,66 100,56 Q86,34 70,26 Z"/>
+<rect class="cls-1" width="130" height="88"/></g></svg>

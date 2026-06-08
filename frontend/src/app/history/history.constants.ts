@@ -1,0 +1,2 @@
+export const PUBLIC_HISTORY_PAGE_LIMIT = 20
+export const DIGEST_REFETCH_INTERVAL_MS = 60 * 1000

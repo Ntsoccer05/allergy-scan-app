@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { HistoryService } from './history.service';
 import { ScanHistoryRepository } from './scan-history.repository';
+import { ProductRepository } from '../products/product.repository';
 import type { ScanHistoryRecord } from './scan-history.repository';
 
 const makeRecord = (
@@ -15,6 +16,9 @@ const makeRecord = (
   detected: [],
   location: null,
   thumbnailUrl: null,
+  isPublic: false,
+  memo: null,
+  rawText: null,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
   ...overrides,
 });
@@ -26,6 +30,9 @@ describe('HistoryService', () => {
     create: jest.Mock;
     findById: jest.Mock;
     updateLocation: jest.Mock;
+    update: jest.Mock;
+    deleteById: jest.Mock;
+    deleteManyByIds: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -34,12 +41,16 @@ describe('HistoryService', () => {
       create: jest.fn(),
       findById: jest.fn(),
       updateLocation: jest.fn(),
+      update: jest.fn(),
+      deleteById: jest.fn(),
+      deleteManyByIds: jest.fn(),
     };
 
     const module = await Test.createTestingModule({
       providers: [
         HistoryService,
         { provide: ScanHistoryRepository, useValue: repository },
+        { provide: ProductRepository, useValue: { updateProductName: jest.fn() } },
       ],
     }).compile();
 
@@ -176,6 +187,7 @@ describe('HistoryService', () => {
         detected: [],
         location: { store_name: 'セブン', lat: 35.6, lng: 139.7 },
         thumbnailUrl: 'https://example.com/thumb.jpg',
+        rawText: null,
       });
     });
   });
@@ -209,6 +221,115 @@ describe('HistoryService', () => {
         service.updateLocation('rec-uuid', 'user-1', location),
       ).rejects.toThrow(ForbiddenException);
       expect(repository.updateLocation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateHistory', () => {
+    it('正常系: findById → repository.update が呼ばれる', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'user-1' }));
+      repository.update.mockResolvedValue(undefined);
+
+      await service.updateHistory('rec-uuid', 'user-1', {
+        product_name: '新商品名',
+        store_name: null,
+        memo: 'テストメモ',
+      });
+
+      expect(repository.findById).toHaveBeenCalledWith('rec-uuid');
+      expect(repository.update).toHaveBeenCalledWith('rec-uuid', {
+        productName: '新商品名',
+        storeName: null,
+        memo: 'テストメモ',
+        isPublic: undefined,
+        thumbnailUrl: undefined,
+      });
+    });
+
+    it('履歴が存在しない場合 NotFoundException を throw する', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateHistory('nonexistent', 'user-1', { product_name: '商品名' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('is_public: true と thumbnail_url が repository.update に正しくマッピングされる', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'user-1' }));
+      repository.update.mockResolvedValue(undefined);
+
+      await service.updateHistory('rec-uuid', 'user-1', {
+        is_public: true,
+        thumbnail_url: 'https://s3.example.com/thumb.jpg',
+      });
+
+      expect(repository.update).toHaveBeenCalledWith('rec-uuid', {
+        productName: undefined,
+        storeName: undefined,
+        memo: undefined,
+        isPublic: true,
+        thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+      });
+    });
+
+    it('他ユーザーの履歴は ForbiddenException を throw する', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'other-user' }));
+
+      await expect(
+        service.updateHistory('rec-uuid', 'user-1', { product_name: '商品名' }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('bulkDeleteHistory', () => {
+    it('正常系: deleteManyByIds を呼ぶ', async () => {
+      const mockDeleteMany = jest.fn().mockResolvedValue(undefined);
+      repository['deleteManyByIds'] = mockDeleteMany;
+
+      await service.bulkDeleteHistory('user-1', { ids: ['id-1', 'id-2'] });
+
+      expect(mockDeleteMany).toHaveBeenCalledWith('user-1', ['id-1', 'id-2']);
+    });
+
+    it('ids が空配列のとき deleteManyByIds を呼ばずに正常終了する', async () => {
+      const mockDeleteMany = jest.fn().mockResolvedValue(undefined);
+      repository['deleteManyByIds'] = mockDeleteMany;
+
+      await expect(
+        service.bulkDeleteHistory('user-1', { ids: [] }),
+      ).resolves.toBeUndefined();
+      expect(mockDeleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteHistory', () => {
+    it('正常系: findById → repository.deleteById が呼ばれる', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'user-1' }));
+      repository.deleteById.mockResolvedValue(undefined);
+
+      await service.deleteHistory('rec-uuid', 'user-1');
+
+      expect(repository.findById).toHaveBeenCalledWith('rec-uuid');
+      expect(repository.deleteById).toHaveBeenCalledWith('rec-uuid');
+    });
+
+    it('履歴が存在しない場合 NotFoundException を throw する', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.deleteHistory('nonexistent', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(repository.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('他ユーザーの履歴は ForbiddenException を throw する', async () => {
+      repository.findById.mockResolvedValue(makeRecord({ userId: 'other-user' }));
+
+      await expect(
+        service.deleteHistory('rec-uuid', 'user-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(repository.deleteById).not.toHaveBeenCalled();
     });
   });
 });

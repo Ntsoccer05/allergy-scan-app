@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 88">
+  <!-- 尾びれ -->
+  <path d="M10,24 L30,44 L10,64 Q20,44 10,24Z" fill="#d96b40"/>
+  <!-- 胴体（サーモンピンク） -->
+  <path d="M28,44 Q32,16 80,14 Q114,16 120,34 Q126,44 120,54 Q114,72 80,74 Q32,72 28,44Z" fill="#f4957a"/>
+  <!-- 腹部（明るめ） -->
+  <path d="M34,54 Q68,70 114,58 Q112,70 68,74 Q36,72 30,58Z" fill="#fad4b8"/>
+  <!-- 背びれ -->
+  <path d="M60,16 Q72,4 90,15 Z" fill="#d96b40"/>
+  <!-- 胸びれ -->
+  <path d="M84,56 Q104,72 90,78 Q76,70 84,56Z" fill="#e8856a"/>
+  <!-- ピンクの帯（サーモン特有） -->
+  <path d="M36,40 Q76,32 114,40" stroke="#e07055" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <!-- 目 -->
+  <circle cx="114" cy="40" r="6" fill="#1a0800"/>
+  <circle cx="116" cy="38" r="2.2" fill="white"/>
+  <!-- 口 -->
+  <path d="M122,42 Q127,44 122,48" stroke="#c06040" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

@@ -116,10 +116,15 @@ export const useCamera = (): UseCameraReturn => {
         video: withFocus,
       })
     } catch {
-      // advanced constraints が非対応ブラウザ向けにフォールバック
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: baseVideo,
-      })
+      try {
+        // advanced constraints 非対応ブラウザ向けフォールバック
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: baseVideo,
+        })
+      } catch {
+        // カメラ利用不可（権限拒否・デバイスなし等）。ファイルアップロードで代替可能なため静かに終了
+        return
+      }
     }
 
     await applyStreamToVideo(stream)

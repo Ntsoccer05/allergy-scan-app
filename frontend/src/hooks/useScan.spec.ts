@@ -27,13 +27,6 @@ jest.mock('./useBarcode', () => ({
   }),
 }))
 
-jest.mock('./useFrameCheck', () => ({
-  useFrameCheck: () => ({
-    // 常に品質 OK を返す → CONSECUTIVE_FRAMES_REQUIRED 回で stable 遷移
-    isQualityOk: jest.fn().mockReturnValue({ ok: true, reasons: [] }),
-  }),
-}))
-
 const mockScanOcrStream = jest.fn()
 const mockSaveHistory = jest.fn().mockResolvedValue({ id: 'hist-1' })
 const mockPatchLocation = jest.fn().mockResolvedValue(undefined)
@@ -50,6 +43,14 @@ jest.mock('./useScanApi', () => ({
     putS3: mockPutS3,
     scanBarcodeWithCache: mockScanBarcodeWithCache,
   }),
+}))
+
+jest.mock('@/lib/thumbnail', () => ({
+  generateThumbnail: jest.fn().mockResolvedValue(new Blob(['thumb'], { type: 'image/jpeg' })),
+}))
+
+jest.mock('@/lib/s3.utils', () => ({
+  getPublicUrlFromPresigned: jest.fn().mockReturnValue('https://s3.example.com/thumb.jpg'),
 }))
 
 // @tanstack/react-query の useQueryClient をモック（useScanApi の実装が使用）
@@ -78,27 +79,38 @@ describe('scanReducer', () => {
     expect(initialState.scanState).toBe('idle')
   })
 
-  it('START_CAMERA アクションで detecting に遷移する', () => {
-    const state = scanReducer(initialState, { type: 'START_CAMERA' })
-    expect(state.scanState).toBe('detecting')
+  it('START_CAMERA → idle with error/result cleared', () => {
+    const state = scanReducer(
+      { scanState: 'error', error: 'api_error', result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null, thumbnailUrl: null },
+      { type: 'START_CAMERA' },
+    )
+    expect(state.scanState).toBe('idle')
+    expect(state.error).toBeNull()
   })
 
-  it('STABLE アクションで detecting → stable に遷移する', () => {
-    const detectingState: State = { ...initialState, scanState: 'detecting' }
-    const state = scanReducer(detectingState, { type: 'STABLE' })
-    expect(state.scanState).toBe('stable')
+  it('PREVIEW → preview state with imageDataUrl', () => {
+    const state = scanReducer(
+      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null, thumbnailUrl: null },
+      { type: 'PREVIEW', imageDataUrl: 'data:image/jpeg;base64,...' },
+    )
+    expect(state.scanState).toBe('preview')
+    expect(state.previewDataUrl).toBe('data:image/jpeg;base64,...')
   })
 
-  it('detecting 以外の状態で STABLE を受けてもそのままの状態を返す', () => {
-    const processingState: State = { ...initialState, scanState: 'processing' }
-    const state = scanReducer(processingState, { type: 'STABLE' })
+  it('ERROR daily_limit_exceeded → error state', () => {
+    const state = scanReducer(
+      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null, thumbnailUrl: null },
+      { type: 'ERROR', error: 'daily_limit_exceeded' }
+    )
+    expect(state.scanState).toBe('error')
+    expect(state.error).toBe('daily_limit_exceeded')
+  })
+
+  it('PROCESSING アクションで processing に遷移し previewDataUrl がクリアされる', () => {
+    const previewState: State = { ...initialState, scanState: 'preview', previewDataUrl: 'data:image/jpeg;base64,...' }
+    const state = scanReducer(previewState, { type: 'PROCESSING' })
     expect(state.scanState).toBe('processing')
-  })
-
-  it('PROCESSING アクションで processing に遷移する', () => {
-    const stableState: State = { ...initialState, scanState: 'stable' }
-    const state = scanReducer(stableState, { type: 'PROCESSING' })
-    expect(state.scanState).toBe('processing')
+    expect(state.previewDataUrl).toBeNull()
   })
 
   it('RESULT アクションで result に遷移する', () => {
@@ -123,57 +135,32 @@ describe('scanReducer', () => {
     expect(state.result).toEqual(resultPayload)
   })
 
-  it('api_error 発生時に idle に遷移する', () => {
+  it('api_error 発生時に error 状態に遷移する', () => {
     const processingState: State = { ...initialState, scanState: 'processing' }
     const state = scanReducer(processingState, {
       type: 'ERROR',
       error: 'api_error',
     })
-    expect(state.scanState).toBe('idle')
+    expect(state.scanState).toBe('error')
     expect(state.error).toBe('api_error')
   })
 
-  it('dark エラー発生時に detecting 継続（state が detecting のまま）', () => {
-    const detectingState: State = { ...initialState, scanState: 'detecting' }
-    const state = scanReducer(detectingState, {
-      type: 'ERROR',
-      error: 'dark',
-    })
-    expect(state.scanState).toBe('detecting')
-    expect(state.error).toBe('dark')
-  })
-
-  it('blur エラー発生時に detecting 継続', () => {
-    const detectingState: State = { ...initialState, scanState: 'detecting' }
-    const state = scanReducer(detectingState, { type: 'ERROR', error: 'blur' })
-    expect(state.scanState).toBe('detecting')
-  })
-
-  it('motion エラー発生時に detecting 継続', () => {
-    const detectingState: State = { ...initialState, scanState: 'detecting' }
-    const state = scanReducer(detectingState, {
-      type: 'ERROR',
-      error: 'motion',
-    })
-    expect(state.scanState).toBe('detecting')
-  })
-
-  it('incomplete エラー発生時に detecting 継続', () => {
-    const detectingState: State = { ...initialState, scanState: 'detecting' }
-    const state = scanReducer(detectingState, {
+  it('incomplete エラー発生時に error 状態に遷移する', () => {
+    const processingState: State = { ...initialState, scanState: 'processing' }
+    const state = scanReducer(processingState, {
       type: 'ERROR',
       error: 'incomplete',
     })
-    expect(state.scanState).toBe('detecting')
+    expect(state.scanState).toBe('error')
   })
 
-  it('confidence_low エラー発生時に detecting 継続', () => {
-    const detectingState: State = { ...initialState, scanState: 'detecting' }
-    const state = scanReducer(detectingState, {
+  it('confidence_low エラー発生時に error 状態に遷移する', () => {
+    const processingState: State = { ...initialState, scanState: 'processing' }
+    const state = scanReducer(processingState, {
       type: 'ERROR',
       error: 'confidence_low',
     })
-    expect(state.scanState).toBe('detecting')
+    expect(state.scanState).toBe('error')
     expect(state.error).toBe('confidence_low')
   })
 
@@ -185,8 +172,10 @@ describe('scanReducer', () => {
         type: 'barcode',
         data: { found: true, from_cache: false },
       },
+      previewDataUrl: null,
       storeCandidates: [],
-      partialRawText: null,
+      capturedImageUrl: null,
+      thumbnailUrl: null,
     }
     const state = scanReducer(resultState, { type: 'RESET' })
     expect(state).toEqual(initialState)
@@ -197,8 +186,10 @@ describe('scanReducer', () => {
       scanState: 'result',
       error: null,
       result: null,
+      previewDataUrl: null,
       storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
-      partialRawText: null,
+      capturedImageUrl: null,
+      thumbnailUrl: null,
     }
     const state = scanReducer(stateWithCandidates, { type: 'STORE_SELECTED' })
     expect(state.storeCandidates).toHaveLength(0)
@@ -248,21 +239,23 @@ describe('scanReducer', () => {
       scanState: 'result',
       error: null,
       result: null,
+      previewDataUrl: null,
       storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
-      partialRawText: null,
+      capturedImageUrl: null,
+      thumbnailUrl: null,
     }
     const state = scanReducer(stateWithCandidates, { type: 'START_CAMERA' })
     expect(state.storeCandidates).toHaveLength(0)
   })
 
-  it('idle → detecting → stable → processing → result の一連の遷移', () => {
+  it('idle → preview → processing → result の一連の遷移', () => {
     let state = initialState
 
     state = scanReducer(state, { type: 'START_CAMERA' })
-    expect(state.scanState).toBe('detecting')
+    expect(state.scanState).toBe('idle')
 
-    state = scanReducer(state, { type: 'STABLE' })
-    expect(state.scanState).toBe('stable')
+    state = scanReducer(state, { type: 'PREVIEW', imageDataUrl: 'data:image/jpeg;base64,...' })
+    expect(state.scanState).toBe('preview')
 
     state = scanReducer(state, { type: 'PROCESSING' })
     expect(state.scanState).toBe('processing')
@@ -483,6 +476,123 @@ describe('useScan - geolocation 連携', () => {
     const callArg = mockScanOcrStream.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
     expect(callArg.lat).toBeUndefined()
     expect(callArg.lng).toBeUndefined()
+
+    unmount()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// uploadAndScanImage テスト
+// ---------------------------------------------------------------------------
+
+describe('useScan - uploadAndScanImage', () => {
+  beforeEach(() => {
+    mockScanOcrStream.mockReset()
+    mockScanOcrStream.mockImplementation(() => (async function* () {
+      yield { type: 'result' as const, data: makeOcrResponse() }
+    })())
+    mockSaveHistory.mockResolvedValue({ id: 'hist-1' })
+    mockFetchPresignedUrl.mockResolvedValue({ url: 'https://s3.example.com/upload', s3_key: 'key-1' })
+    mockPutS3.mockResolvedValue(undefined)
+
+    // createImageBitmap は jsdom でサポートされていないためモックする
+    global.createImageBitmap = jest.fn().mockResolvedValue({
+      width: 640,
+      height: 480,
+    })
+
+    // jsdom では HTMLCanvasElement.toBlob が未実装のためモックする
+    const originalCreateElement = document.createElement.bind(document)
+    jest.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'canvas') {
+        const canvas = originalCreateElement('canvas') as HTMLCanvasElement
+        canvas.toBlob = (callback: BlobCallback) => {
+          callback(new Blob(['fake-image'], { type: 'image/jpeg' }))
+        }
+        jest.spyOn(canvas, 'getContext').mockReturnValue({
+          putImageData: jest.fn(),
+          drawImage: jest.fn(),
+          getImageData: jest.fn().mockReturnValue({
+            data: new Uint8ClampedArray(4),
+            width: 640,
+            height: 480,
+          }),
+        } as unknown as CanvasRenderingContext2D)
+        return canvas
+      }
+      return originalCreateElement(tagName)
+    })
+
+    // jsdom では window.matchMedia が未実装のためモックする
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      })),
+    })
+
+    jest.spyOn(global, 'setInterval').mockImplementation((_callback, _interval) => {
+      return 1 as unknown as ReturnType<typeof setInterval>
+    })
+    jest.spyOn(global, 'clearInterval').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('uploadAndScanImage が呼ばれると scanState が processing → result に遷移する', async () => {
+    const { result, unmount } = renderHook(() => useScan())
+
+    await act(async () => {
+      await result.current.startScan()
+    })
+
+    const fakeFile = new File(['fake-image'], 'test.jpg', { type: 'image/jpeg' })
+
+    await act(async () => {
+      await result.current.uploadAndScanImage(fakeFile)
+    })
+
+    await waitFor(() => {
+      expect(result.current.scanState).toBe('result')
+    })
+
+    expect(mockFetchPresignedUrl).toHaveBeenCalled()
+    expect(mockPutS3).toHaveBeenCalled()
+    expect(mockScanOcrStream).toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('OCR ストリームがエラーを返した場合、scanState が error に遷移する', async () => {
+    mockScanOcrStream.mockReset()
+    mockScanOcrStream.mockImplementation(() => (async function* () {
+      yield { type: 'error' as const, code: 'UNKNOWN_ERROR', message: 'Server error' }
+    })())
+
+    const { result, unmount } = renderHook(() => useScan())
+
+    await act(async () => {
+      await result.current.startScan()
+    })
+
+    const fakeFile = new File(['fake-image'], 'test.jpg', { type: 'image/jpeg' })
+
+    await act(async () => {
+      await result.current.uploadAndScanImage(fakeFile)
+    })
+
+    await waitFor(() => {
+      expect(result.current.scanState).toBe('error')
+    })
 
     unmount()
   })

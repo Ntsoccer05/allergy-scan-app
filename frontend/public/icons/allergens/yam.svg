@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 88">
+  <!-- 器の影 -->
+  <ellipse cx="65" cy="83" rx="36" ry="4" fill="#c8b89a" opacity="0.4"/>
+  <!-- 器の下部 -->
+  <path d="M20,54 Q24,80 65,82 Q106,80 110,54 Z" fill="#c49a6a"/>
+  <!-- 器の縁 -->
+  <ellipse cx="65" cy="54" rx="45" ry="11" fill="#b08858"/>
+  <!-- 器の縁ハイライト -->
+  <ellipse cx="65" cy="53" rx="41" ry="9" fill="#d4aa78"/>
+  <!-- とろろ（白い山盛り） -->
+  <path d="M24,48 Q30,26 50,30 Q58,18 65,26 Q72,16 80,26 Q98,22 106,36 Q114,46 110,52 Q88,44 65,46 Q42,46 24,48Z" fill="#f8f5ee"/>
+  <!-- とろろのテクスチャ波 -->
+  <path d="M34,44 Q50,34 65,38 Q80,32 98,40" stroke="#ece8df" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M30,48 Q50,40 65,42 Q82,38 100,44" stroke="#ece8df" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.7"/>
+  <!-- 光沢 -->
+  <ellipse cx="50" cy="38" rx="10" ry="5" fill="white" opacity="0.45"/>
+  <ellipse cx="82" cy="33" rx="8" ry="4" fill="white" opacity="0.38"/>
+  <!-- 薬味（ねぎ） -->
+  <path d="M60,32 Q63,20 66,32" stroke="#4a8a3a" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M67,30 Q71,18 74,30" stroke="#5aaa48" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>

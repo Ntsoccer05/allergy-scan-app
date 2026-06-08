@@ -1,7 +1,7 @@
 import {
-  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,41 +10,23 @@ import {
   Post,
   Query,
   Req,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
-import { IsNumber, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
 import { HistoryService } from './history.service';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
+import { PatchHistoryDto } from './dto/patch-history.dto';
+import { BulkDeleteHistoryDto } from './dto/bulk-delete-history.dto';
 import type { HistoryListResult } from './history.service';
 import type { ScanHistoryRecord } from './scan-history.repository';
-import { COOKIE_NAME } from '../users/users.constants';
+import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
 } from '../shared/throttler.constants';
 
-/** PATCH /history/:id のリクエストボディ内 location DTO */
-class PatchLocationDto {
-  @IsString()
-  store_name!: string;
-
-  @IsNumber()
-  lat!: number;
-
-  @IsNumber()
-  lng!: number;
-}
-
-/** PATCH /history/:id のリクエストボディ DTO */
-class PatchHistoryDto {
-  @ValidateNested()
-  @Type(() => PatchLocationDto)
-  location!: PatchLocationDto;
-}
+type AuthRequest = Request & { user: SupabaseJwtPayload };
 
 @Controller('history')
 export class HistoryController {
@@ -56,51 +38,50 @@ export class HistoryController {
     default: { ttl: THROTTLE_HISTORY_TTL, limit: THROTTLE_HISTORY_LIMIT },
   })
   async getHistory(
-    @Req() req: Request,
+    @Req() req: AuthRequest,
     @Query() query: GetHistoryDto,
   ): Promise<HistoryListResult> {
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
-    if (!userId) {
-      throw new BadRequestException({
-        message: 'userId Cookie が必要です',
-        code: 'MISSING_USER_ID',
-      });
-    }
-    return this.historyService.getHistory(userId, query);
+    return this.historyService.getHistory(req.user.sub, query);
   }
 
   /** POST /history: スキャン履歴を1件保存する。 */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createHistory(
-    @Req() req: Request,
+    @Req() req: AuthRequest,
     @Body() body: CreateHistoryDto,
   ): Promise<ScanHistoryRecord> {
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
-    if (!userId) {
-      throw new BadRequestException({
-        message: 'userId Cookie が必要です',
-        code: 'MISSING_USER_ID',
-      });
-    }
-    return this.historyService.createHistory(userId, body);
+    return this.historyService.createHistory(req.user.sub, body);
   }
 
-  /** PATCH /history/:id: 履歴の location を更新する。Cookie 認証必須。 */
+  /** PATCH /history/:id: 履歴の product_name・store_name・memo を更新する。 */
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  async updateLocation(
-    @Req() req: Request,
+  async updateHistory(
+    @Req() req: AuthRequest,
     @Param('id') id: string,
     @Body() body: PatchHistoryDto,
   ): Promise<void> {
-    const userId = req.cookies?.[COOKIE_NAME] as string | undefined;
-    if (!userId) {
-      throw new UnauthorizedException({
-        message: '認証が必要です',
-        code: 'UNAUTHORIZED',
-      });
-    }
-    await this.historyService.updateLocation(id, userId, body.location);
+    await this.historyService.updateHistory(id, req.user.sub, body);
+  }
+
+  /** DELETE /history/bulk: 複数履歴を一括削除する。成功時 204 を返す（最大 100 件）。 */
+  @Delete('bulk')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async bulkDelete(
+    @Req() req: AuthRequest,
+    @Body() dto: BulkDeleteHistoryDto,
+  ): Promise<void> {
+    await this.historyService.bulkDeleteHistory(req.user.sub, dto);
+  }
+
+  /** DELETE /history/:id: 履歴を物理削除する。成功時 204 を返す。 */
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteHistory(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.historyService.deleteHistory(id, req.user.sub);
   }
 }

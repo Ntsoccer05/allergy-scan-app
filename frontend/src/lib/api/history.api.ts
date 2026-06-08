@@ -3,8 +3,10 @@ import type {
   HistoryFilter,
   HistoryItem,
   HistoryListResponse,
+  PatchHistoryBody,
 } from '@/app/history/history.types'
-import { API_BASE_URL } from '@/lib/constants'
+import type { JudgmentShort } from '@/app/scan/scan.types'
+import { apiFetch } from './api-client'
 
 type GetHistoryParams = {
   filter?: HistoryFilter
@@ -22,26 +24,18 @@ export const getHistory = async (
     query.set('before', params.before)
   }
 
-  const url = `${API_BASE_URL}/history${query.toString() ? `?${query.toString()}` : ''}`
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) {
-    throw new Error(`GET /history failed: ${res.status}`)
-  }
+  const path = `/history${query.toString() ? `?${query.toString()}` : ''}`
+  const res = await apiFetch(path)
   return res.json() as Promise<HistoryListResponse>
 }
 
 export const postHistory = async (
   body: CreateHistoryBody,
 ): Promise<HistoryItem> => {
-  const res = await fetch(`${API_BASE_URL}/history`, {
+  const res = await apiFetch('/history', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    throw new Error(`POST /history failed: ${res.status}`)
-  }
   return res.json() as Promise<HistoryItem>
 }
 
@@ -49,13 +43,68 @@ export const patchHistoryLocation = async (
   historyId: string,
   location: { store_name: string; lat: number; lng: number },
 ): Promise<void> => {
-  const res = await fetch(`${API_BASE_URL}/history/${historyId}`, {
+  await apiFetch(`/history/${historyId}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ location }),
   })
-  if (!res.ok) {
-    throw new Error(`PATCH /history/${historyId} failed: ${res.status}`)
-  }
+}
+
+export const patchHistory = async (
+  historyId: string,
+  data: PatchHistoryBody,
+): Promise<void> => {
+  await apiFetch(`/history/${historyId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export const deleteHistory = async (historyId: string): Promise<void> => {
+  await apiFetch(`/history/${historyId}`, {
+    method: 'DELETE',
+    // DELETE has no body, override Content-Type to avoid sending it
+    headers: {},
+  })
+}
+
+export const bulkDeleteHistory = async (ids: string[]): Promise<void> => {
+  await apiFetch('/history/bulk', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
+}
+
+export type PublicHistoryItem = {
+  id: string
+  product_name: string | null
+  judgment: JudgmentShort
+  thumbnail_url: string | null
+  store_name: string | null
+  scanned_at: string
+}
+
+export const getPublicHistory = async (
+  limit: number,
+  before?: string,
+): Promise<{ items: PublicHistoryItem[]; next_before: string | null }> => {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    ...(before ? { before } : {}),
+  })
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/public/history?${params}`,
+  )
+  if (!res.ok) throw new Error('Failed to fetch public history')
+  return res.json() as Promise<{ items: PublicHistoryItem[]; next_before: string | null }>
+}
+
+export const getPublicHistoryDigest = async (): Promise<{
+  count: number
+  last_updated_at: string | null
+}> => {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/public/history/digest`,
+  )
+  if (!res.ok) throw new Error('Failed to fetch digest')
+  return res.json() as Promise<{ count: number; last_updated_at: string | null }>
 }

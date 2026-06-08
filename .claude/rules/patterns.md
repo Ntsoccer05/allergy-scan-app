@@ -72,32 +72,33 @@ LIMIT 20
 
 ```typescript
 type ScanState =
-  | 'idle'        // カメラ起動中・待機
-  | 'detecting'   // バーコード or テキスト検出中
-  | 'stable'      // 品質チェックOK・キャプチャ直前
-  | 'processing'  // API送信中
+  | 'idle'        // カメラ起動・待機（撮影ボタン有効）
+  | 'preview'     // 撮影プレビュー表示（撮り直し / 確定）
+  | 'processing'  // API 送信中（S3 アップロード → OCR / バーコード）
   | 'result'      // 結果表示中
-  | 'error'       // エラー（暗い・ぼやけ等）
+  | 'error'       // エラー
 ```
 
 状態遷移は必ず `useScan` Hook 内の reducer で管理する。コンポーネントが `setScanState` を直接呼ばない。
 
-### パターン6: フレーム品質チェック（3フレーム連続 OK）
+### パターン6: タップ撮影フロー（手動キャプチャ）
 
 ```typescript
-// useFrameCheck Hook 内
-const isQualityOk = (frame: ImageData): boolean => {
-  return (
-    checkBlur(frame) &&
-    checkBrightness(frame) &&
-    checkSharpness(frame) &&
-    checkTextRegion(frame)
-  )
-}
+// useScan Hook の撮影フロー（タップ撮影・プレビュー確認あり）
+// 1. idle   : カメラ映像ライブ表示 + 撮影ボタン（📷）
+// 2. タップ → captureFrame() でフレームを JPEG キャプチャ
+// 3. preview: 撮影画像表示 + 「撮り直す」「確定する」ボタン
+// 4. 確定   → S3 Presigned URL へ PUT → POST /scan/ocr or /scan/barcode
+// 5. result : 結果カードがスライドイン
+// 6. エラー → idle に戻す（api_error はユーザー操作が必要なため自動リトライしない）
 
-// 3フレーム連続 OK で stable に遷移
-if (consecutiveOkFrames >= CONSECUTIVE_FRAMES_REQUIRED) {
-  dispatch({ type: 'STABLE' })
+const captureFrame = (): void => {
+  const canvas = document.createElement('canvas')
+  canvas.width = videoRef.current!.videoWidth
+  canvas.height = videoRef.current!.videoHeight
+  canvas.getContext('2d')!.drawImage(videoRef.current!, 0, 0)
+  setCapturedImage(canvas.toDataURL('image/jpeg', 0.9))
+  dispatch({ type: 'PREVIEW' })
 }
 ```
 
@@ -221,34 +222,7 @@ type AllergenComponent = {
 
 ---
 
-### パターン15: バックアップコード生成・引き継ぎ
-
-**文字セット**: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`（O/0/I/1 を除外して誤読防止）  
-**フォーマット**: `ALRG-XXXX-XXXX`（正規表現: `/^ALRG-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/`）  
-**有効期限**: 発行から 7 日間（`BACKUP_CODE_EXPIRY_DAYS = 7`）
-
-```typescript
-// ✅ コード発行フロー（backup-code.service.ts）
-// 1. 既存の有効コードを全件無効化
-// 2. 新コードを生成（UNIQUE 制約違反時は最大3回リトライ）
-// 3. DB に INSERT（expires_at = now + 7日）
-
-// ✅ 引き継ぎフロー（restoreFromCode）—トランザクション必須
-// 1. backup_codes テーブルからコードを検索・有効期限確認
-// 2. トランザクション内で以下を実行:
-//    - scan_histories.user_id を新 user_id に UPDATE
-//    - backup_codes.user_id を新 user_id に UPDATE
-//    - 旧 users レコードを DELETE
-// 3. Cookie の user_id を新 user_id で上書き
-```
-
-- `POST /users/backup-code` は Cookie 認証必須（未認証なら 401）
-- `POST /users/restore` は `@Throttle` で **60秒5回** のレートリミットを設ける（ブルートフォース防止）
-- コード照合エンドポイントには必ず厳しいレートリミットを設定する
-
----
-
-### パターン16: Prisma `$queryRaw` による複雑クエリ
+### パターン15: Prisma `$queryRaw` による複雑クエリ
 
 LEFT JOIN + IS NULL フィルタなど、Prisma の型安全クエリビルダーで表現しにくい複雑な SQL は `$queryRaw` と `Prisma.sql` タグ付きテンプレートリテラルを使う。
 
