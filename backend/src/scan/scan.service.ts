@@ -153,8 +153,7 @@ export class ScanService {
    * S3 Presigned PUT URL を発行する（R1）。
    * s3_key はリクエストごとに UUID ベースで一意に生成する。
    */
-  async getPresignedUrl(userId?: string): Promise<PresignedUrlResult> {
-    if (userId) this.checkCooldown(userId);
+  async getPresignedUrl(_userId?: string): Promise<PresignedUrlResult> {
     const s3Key = `${S3_KEY_PREFIX}${randomUUID()}.jpg`;
     const url = await this.s3Client.generatePresignedPutUrl(s3Key);
     this.logger.log(`Presigned URL issued for key: ${s3Key}`);

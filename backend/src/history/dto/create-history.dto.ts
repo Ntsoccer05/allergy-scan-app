@@ -46,6 +46,6 @@ export class CreateHistoryDto {
   location?: ScanHistoryLocation;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   thumbnail_url?: string;
 }
