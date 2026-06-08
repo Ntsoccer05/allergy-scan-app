@@ -60,6 +60,9 @@
     "detected": "Detected Allergens",
     "noDetected": "None detected",
     "memo": "Memo",
+    "rawTextLabel": "Ingredients Text",
+    "rawTextExpand": "View ingredients ▼",
+    "rawTextCollapse": "Hide ingredients ▲",
     "ariaLabel": "View details",
     "editAriaLabel": "Edit",
     "deleteAriaLabel": "Delete"

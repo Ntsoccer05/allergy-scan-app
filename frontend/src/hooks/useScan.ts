@@ -149,6 +149,7 @@ const buildHistoryBody = (result: ScanResult): CreateHistoryBody | null => {
     return {
       judgment,
       detected: allDetected,
+      raw_text: data.raw_text || undefined,
     }
   }
 

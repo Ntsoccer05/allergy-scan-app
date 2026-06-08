@@ -21,6 +21,7 @@ const makeRecord = (
   thumbnailUrl: null,
   isPublic: false,
   memo: null,
+  rawText: null,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
   ...overrides,
 });

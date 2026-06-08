@@ -314,6 +314,7 @@ export default function HistoryPage() {
                           ocrImageUrl: null,
                           isPublic: true,
                           memo: null,
+                          rawText: null,
                           scannedAt: item.updated_at,
                         }}
                         onOpenDetail={handleDetailOpen}
@@ -371,9 +372,20 @@ export default function HistoryPage() {
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">
-              {t('editModal.title')}
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">
+                {t('editModal.title')}
+              </h2>
+              <button
+                type="button"
+                onClick={handleEditClose}
+                disabled={updateHistoryMutation.isPending}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-40"
+                aria-label={t('editModal.cancel')}
+              >
+                ✕
+              </button>
+            </div>
 
             <div className="space-y-3">
               <div>

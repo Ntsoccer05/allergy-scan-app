@@ -48,4 +48,8 @@ export class CreateHistoryDto {
   @IsOptional()
   @IsUrl({ require_tld: false })
   thumbnail_url?: string;
+
+  @IsOptional()
+  @IsString()
+  raw_text?: string;
 }

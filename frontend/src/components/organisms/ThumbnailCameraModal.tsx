@@ -89,8 +89,8 @@ export const ThumbnailCameraModal = ({ onCapture, onClose }: Props) => {
 
       {/* オーバーレイUI（スキャンページと同じ構造） */}
       <div className="absolute inset-0 flex flex-col justify-between p-4">
-        {/* 上部: キャンセル */}
-        <div>
+        {/* 上部: キャンセル（右上に配置） */}
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={handleClose}

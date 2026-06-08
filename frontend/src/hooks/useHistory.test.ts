@@ -20,6 +20,7 @@ const makeItem = (id: string, scannedAt = '2026-05-18T00:00:00.000Z') => ({
   ocrImageUrl: null,
   isPublic: false,
   memo: null,
+  rawText: null,
   scannedAt,
 })
 

@@ -18,6 +18,7 @@ const makeRecord = (
   thumbnailUrl: null,
   isPublic: false,
   memo: null,
+  rawText: null,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
   ...overrides,
 });
@@ -186,6 +187,7 @@ describe('HistoryService', () => {
         detected: [],
         location: { store_name: 'セブン', lat: 35.6, lng: 139.7 },
         thumbnailUrl: 'https://example.com/thumb.jpg',
+        rawText: null,
       });
     });
   });

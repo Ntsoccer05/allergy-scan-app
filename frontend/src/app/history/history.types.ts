@@ -10,6 +10,7 @@ export type HistoryItem = {
   ocrImageUrl: string | null
   isPublic: boolean
   memo: string | null
+  rawText: string | null
   scannedAt: string
   location?: { store_name: string; lat: number; lng: number } | null
 }
@@ -27,6 +28,7 @@ export type CreateHistoryBody = {
   judgment: 'ng' | 'partial' | 'ok'
   detected: string[]
   thumbnail_url?: string
+  raw_text?: string
   location?: { store_name: string; lat: number; lng: number }
 }
 

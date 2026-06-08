@@ -20,6 +20,7 @@ export type CreateScanHistoryData = {
   detected: string[];
   location: ScanHistoryLocation | null;
   thumbnailUrl: string | null;
+  rawText?: string | null;
 };
 
 /** scan_histories テーブルのレコード型（Repository 外部公開用）。 */
@@ -34,6 +35,7 @@ export type ScanHistoryRecord = {
   thumbnailUrl: string | null;
   isPublic: boolean;
   memo: string | null;
+  rawText: string | null;
   scannedAt: Date;
 };
 
@@ -90,6 +92,7 @@ export class ScanHistoryRepository {
         thumbnailUrl: true,
         isPublic: true,
         memo: true,
+        rawText: true,
         scannedAt: true,
       },
     });
@@ -106,6 +109,7 @@ export class ScanHistoryRepository {
       thumbnailUrl: record.thumbnailUrl,
       isPublic: record.isPublic,
       memo: record.memo,
+      rawText: record.rawText,
       scannedAt: record.scannedAt,
     }));
   }
@@ -125,6 +129,7 @@ export class ScanHistoryRepository {
         thumbnailUrl: true,
         isPublic: true,
         memo: true,
+        rawText: true,
         scannedAt: true,
       },
     });
@@ -140,6 +145,7 @@ export class ScanHistoryRepository {
       thumbnailUrl: record.thumbnailUrl,
       isPublic: record.isPublic,
       memo: record.memo,
+      rawText: record.rawText,
       scannedAt: record.scannedAt,
     };
   }
@@ -169,6 +175,7 @@ export class ScanHistoryRepository {
         detected: data.detected,
         location: data.location ?? undefined,
         thumbnailUrl: data.thumbnailUrl,
+        rawText: data.rawText ?? undefined,
       },
       select: {
         id: true,
@@ -181,6 +188,7 @@ export class ScanHistoryRepository {
         thumbnailUrl: true,
         isPublic: true,
         memo: true,
+        rawText: true,
         scannedAt: true,
       },
     });
@@ -196,6 +204,7 @@ export class ScanHistoryRepository {
       thumbnailUrl: record.thumbnailUrl,
       isPublic: record.isPublic,
       memo: record.memo,
+      rawText: record.rawText,
       scannedAt: record.scannedAt,
     };
   }

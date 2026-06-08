@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import type { HistoryItem } from '@/app/history/history.types'
 
@@ -7,6 +8,18 @@ const JUDGMENT_EMOJI: Record<'ng' | 'partial' | 'ok', string> = {
   ng: '🔴',
   partial: '🟡',
   ok: '✅',
+}
+
+const LABEL_SECTION_KEYWORDS = [
+  '原材料名', 'アレルギー物質', '栄養成分', '保存方法',
+  '賞味期限', '製造者', '販売者', '内容量', '名称', '原産国',
+]
+const formatRawText = (text: string): string => {
+  let result = text
+  for (const kw of LABEL_SECTION_KEYWORDS) {
+    result = result.replace(new RegExp(`([^\n])(${kw})`, 'g'), '$1\n$2')
+  }
+  return result
 }
 
 type HistoryDetailModalProps = {
@@ -25,7 +38,8 @@ export const HistoryDetailModal = ({
   onDelete,
 }: HistoryDetailModalProps) => {
   const t = useTranslations('history')
-  const { judgment, productName, detected, scannedAt, location, memo, thumbnailUrl, isPublic } =
+  const [rawTextOpen, setRawTextOpen] = useState(false)
+  const { judgment, productName, detected, scannedAt, location, memo, thumbnailUrl, isPublic, rawText } =
     item
 
   const emoji = JUDGMENT_EMOJI[judgment]
@@ -50,20 +64,21 @@ export const HistoryDetailModal = ({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col justify-end"
-      onClick={onClose}
-    >
-      {/* オーバーレイ */}
-      <div className="absolute inset-0 bg-black/50" />
+    // onClick={onClose} を外容器に置かない — スクロール中の誤クローズを防止
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      {/* オーバーレイ: タップのみで閉じる（onClick は backdrop div に限定） */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
 
       {/* ボトムシート */}
       <div
         className="relative bg-white rounded-t-2xl shadow-xl w-full max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ヘッダー */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
+        {/* ヘッダー：右上に ✕ ボタン */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div className="flex items-center gap-2">
             <span className="text-2xl">{emoji}</span>
             <span
@@ -130,6 +145,25 @@ export const HistoryDetailModal = ({
               <p className="text-sm text-gray-400">{t('detail.noDetected')}</p>
             )}
           </div>
+
+          {/* 原材料テキスト（raw_text） */}
+          {rawText && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setRawTextOpen((prev) => !prev)}
+                className="text-sm text-blue-600 underline text-left"
+                aria-expanded={rawTextOpen}
+              >
+                {rawTextOpen ? t('detail.rawTextCollapse') : t('detail.rawTextExpand')}
+              </button>
+              {rawTextOpen && (
+                <p className="mt-2 text-xs text-gray-600 bg-gray-50 rounded p-2 whitespace-pre-wrap">
+                  {formatRawText(rawText)}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* メモ */}
           {memo && (

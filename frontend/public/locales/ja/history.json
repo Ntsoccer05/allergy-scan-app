@@ -60,6 +60,9 @@
     "detected": "検出アレルゲン",
     "noDetected": "検出なし",
     "memo": "メモ",
+    "rawTextLabel": "原材料テキスト",
+    "rawTextExpand": "原材料を確認する ▼",
+    "rawTextCollapse": "原材料を閉じる ▲",
     "ariaLabel": "詳細を見る",
     "editAriaLabel": "編集する",
     "deleteAriaLabel": "削除する"

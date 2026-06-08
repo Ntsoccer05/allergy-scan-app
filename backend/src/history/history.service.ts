@@ -216,6 +216,7 @@ export class HistoryService {
       detected: body.detected,
       location: body.location ?? null,
       thumbnailUrl: body.thumbnail_url ?? null,
+      rawText: body.raw_text ?? null,
     });
   }
 }
