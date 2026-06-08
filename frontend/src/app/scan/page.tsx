@@ -69,7 +69,7 @@ export default function ScanPage() {
           )}
           <ResultCard
             result={result}
-            onReset={reset}
+            onReset={() => { reset(); void startScan() }}
             storeCandidates={storeCandidates}
             onStoreSelect={onStoreSelect}
             onPatchHistory={onPatchHistory}

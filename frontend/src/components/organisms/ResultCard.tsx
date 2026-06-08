@@ -67,6 +67,19 @@ const isNgJudgment = (judgment: Judgment | null): boolean =>
 const supportsWebShare = (): boolean =>
   typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
+/** 食品ラベルの定型セクション見出し前に改行を挿入して読みやすくする */
+const LABEL_SECTION_KEYWORDS = [
+  '原材料名', 'アレルギー物質', '栄養成分', '保存方法',
+  '賞味期限', '製造者', '販売者', '内容量', '名称', '原産国',
+]
+const formatRawText = (text: string): string => {
+  let result = text
+  for (const kw of LABEL_SECTION_KEYWORDS) {
+    result = result.replace(new RegExp(`([^\n])(${kw})`, 'g'), '$1\n$2')
+  }
+  return result
+}
+
 /** highlights[] を使って raw_text をハイライト表示するコンポーネント（XSS 防止: React コンポーネント配列で安全に実装） */
 const HighlightedText = ({
   rawText,
@@ -75,7 +88,7 @@ const HighlightedText = ({
   rawText: string
   highlights: HighlightItem[]
 }) => {
-  const parts = splitByHighlights(rawText, highlights)
+  const parts = splitByHighlights(formatRawText(rawText), highlights)
   return (
     <p className="mt-2 text-sm lg:text-base text-gray-600 bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">
       {parts.map((part, i) =>
@@ -238,7 +251,7 @@ export const ResultCard = ({
           <p className="text-sm lg:text-base text-gray-600">{t('lowConfidenceMessage')}</p>
           {result.raw_text ? (
             <p className="text-sm lg:text-base text-gray-700 bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">
-              {result.raw_text}
+              {formatRawText(result.raw_text)}
             </p>
           ) : null}
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">

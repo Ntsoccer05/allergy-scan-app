@@ -207,6 +207,10 @@ export const useScan = (): UseScanReturn => {
         const capturedImageUrl = canvas.toDataURL('image/jpeg', OCR_JPEG_QUALITY)
         dispatch({ type: 'PROCESSING', capturedImageUrl })
 
+        // オリジナルカラー画像をサムネイルとして即座にセット（S3 URL は DB 保存のみ使用）
+        // ⚠️ RESULT dispatch 前にセットして結果画面に即表示させる
+        dispatch({ type: 'SET_THUMBNAIL_URL', url: originalColorDataUrl })
+
         // Branch B: サムネイルアップロード（OCR と並列実行。失敗は無視して thumbnail_url=null とする）
         // originalColorDataUrl を使用してOCR前処理（グレースケール化等）が適用されないようにする
         const thumbnailUrlPromise: Promise<string | null> = (async () => {
@@ -280,9 +284,8 @@ export const useScan = (): UseScanReturn => {
         // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
         const historyBody = buildHistoryBody(scanResult)
         if (historyBody) {
-          // Branch A (OCR) 完了後にサムネイル URL を取得（Branch B がまだ実行中なら await で待つ）
+          // Branch B の S3 URL は DB 保存にのみ使用（表示は originalColorDataUrl を使用済み）
           const thumbnailUrl = await thumbnailUrlPromise
-          dispatch({ type: 'SET_THUMBNAIL_URL', url: thumbnailUrl })
           const saved = await saveHistory({
             ...historyBody,
             thumbnail_url: thumbnailUrl ?? undefined,
