@@ -19,6 +19,7 @@
 | user_subscriptions | ユーザーサブスクリプション |
 | user_daily_scans | ユーザー日次スキャン数 |
 | stripe_customers | Stripe 顧客情報 |
+| backup_codes | 引継ぎ用バックアップコード |
 | judgment_reports | 誤判定報告 |
 
 ---
@@ -34,6 +35,7 @@ erDiagram
   plans ||--o{ user_subscriptions : "id -> plan_id"
   users ||--o{ user_daily_scans : "id -> user_id"
   users ||--o| stripe_customers : "id -> user_id"
+  users ||--o{ backup_codes : "id -> user_id"
   products ||--o{ judgment_reports : "id -> product_id"
   scan_histories ||--o{ judgment_reports : "id -> scan_history_id"
 
@@ -98,8 +100,18 @@ erDiagram
     varchar id PK "Supabase Auth UID"
     jsonb allergies
     varchar locale "ja/en"
+    boolean onboarding_done
     timestamp created_at
     timestamp updated_at
+  }
+
+  backup_codes {
+    uuid id PK
+    varchar user_id FK
+    varchar code_hash "SHA-256 ハッシュ"
+    timestamp expires_at
+    timestamp used_at "NULL = 未使用"
+    timestamp created_at
   }
 
   plans {
@@ -520,17 +532,18 @@ CREATE INDEX scan_histories_user_idx ON scan_histories(user_id, scanned_at DESC)
 
 ```sql
 CREATE TABLE users (
-  id           VARCHAR(255) PRIMARY KEY,  -- Supabase Auth UID
-  allergies    JSONB NOT NULL DEFAULT '{}',
+  id               VARCHAR(255) PRIMARY KEY,  -- Supabase Auth UID
+  allergies        JSONB NOT NULL DEFAULT '{}',
   -- {
   --   "乳": { "enabled": true,  "partialAlert": true },
   --   "卵": { "enabled": true,  "partialAlert": true },
   --   "小麦": { "enabled": false, "partialAlert": false }
   -- }
   -- ※キーはallergensテーブルのnameと対応
-  locale       VARCHAR(10) DEFAULT 'ja',  -- 多言語対応用（'ja' / 'en' 等）
-  created_at   TIMESTAMP DEFAULT NOW(),
-  updated_at   TIMESTAMP DEFAULT NOW()
+  locale           VARCHAR(10) DEFAULT 'ja',    -- 多言語対応用（'ja' / 'en' 等）
+  onboarding_done  BOOLEAN DEFAULT false,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
 );
 ```
 
@@ -599,6 +612,34 @@ CREATE TABLE stripe_customers (
   created_at         TIMESTAMP DEFAULT NOW()
 );
 ```
+
+---
+
+## backup_codesテーブル（引継ぎ用バックアップコード）
+
+```sql
+CREATE TABLE backup_codes (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash  VARCHAR(64) NOT NULL,   -- SHA-256 ハッシュ（生コードは保存しない）
+  expires_at TIMESTAMP NOT NULL,     -- 発行から 30 日
+  used_at    TIMESTAMP,              -- NULL = 未使用。セット済み = 使用済み or 無効化済み
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX backup_codes_user_idx ON backup_codes(user_id);
+CREATE INDEX backup_codes_hash_idx ON backup_codes(code_hash);
+```
+
+### バックアップコードの設計
+
+| 項目 | 内容 |
+|---|---|
+| コード形式 | `ALRG-XXXX-XXXX`（X = 英数字大文字。紛らわしい O/0/I/1 を除外） |
+| 保存方法 | SHA-256 ハッシュのみ保存（生コードはレスポンスにのみ返す） |
+| 有効期限 | 発行から 30 日 |
+| 有効コード数 | 1 ユーザーにつき 1 件のみ（再発行時は既存コードを `used_at = NOW()` で無効化） |
+| restore の動作 | コード照合 → 発行元ユーザーの allergies を現在ログインユーザーにコピー → `used_at` をセット |
 
 ---
 

@@ -10,7 +10,7 @@ import { getPublicUrlFromPresigned } from '@/lib/s3.utils'
 type ModalState = 'camera' | 'preview' | 'uploading'
 
 type Props = {
-  onCapture: (thumbnailUrl: string) => void
+  onCapture: (s3Url: string, localDataUrl: string) => void
   onClose: () => void
 }
 
@@ -54,7 +54,7 @@ export const ThumbnailCameraModal = ({ onCapture, onClose }: Props) => {
       const { url: presigned } = await fetchPresignedUrl()
       await putS3(presigned, thumbBlob)
       stopCamera()
-      onCapture(getPublicUrlFromPresigned(presigned))
+      onCapture(getPublicUrlFromPresigned(presigned), capturedDataUrl!)
     } catch {
       // アップロード失敗時はプレビューに戻してユーザーが再試行できるようにする
       setModalState('preview')

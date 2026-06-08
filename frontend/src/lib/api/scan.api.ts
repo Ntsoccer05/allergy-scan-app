@@ -9,6 +9,7 @@ import { apiFetch } from './api-client'
 /** POST /scan/ocr のレスポンス型（storeCandidates は候補 2 件以上のときのみ含まれる）。 */
 export type OcrApiResponse = OcrScanResponse & {
   storeCandidates?: StoreCandidate[]
+  history_id?: string
 }
 
 /** POST /scan/ocr-stream の SSE イベント型。 */

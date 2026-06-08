@@ -54,9 +54,10 @@ export type PresignedUrlResult = {
   s3_key: string;
 };
 
-/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates を追加。 */
+/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates・history_id を追加。 */
 export type OcrScanResult = GeminiOcrResponse & {
   storeCandidates?: StoreCandidate[];
+  history_id?: string;
 };
 
 /** POST /scan/ocr-stream の SSE イベント型。 */
@@ -258,8 +259,9 @@ export class ScanService {
     // 候補 0 件 または 2 件以上: location: null で保存（2件以上はユーザー選択後に PATCH）
 
     // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
+    let historyId: string | undefined;
     if (userId) {
-      await this.scanHistoryRepository.create({
+      const saved = await this.scanHistoryRepository.create({
         userId,
         productId: product.id,
         productName: geminiResult.product_name ?? null,
@@ -267,7 +269,9 @@ export class ScanService {
         detected: allDetected,
         location,
         thumbnailUrl: null,
+        rawText: geminiResult.raw_text,
       });
+      historyId = saved.id;
       await this.userDailyScansService.incrementScanCount(userId);
     }
 
@@ -277,9 +281,9 @@ export class ScanService {
 
     // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
     if (storeCandidates.length >= 2) {
-      return { ...geminiResult, storeCandidates };
+      return { ...geminiResult, storeCandidates, history_id: historyId };
     }
-    return geminiResult;
+    return { ...geminiResult, history_id: historyId };
   }
 
   /**
@@ -363,8 +367,9 @@ export class ScanService {
     }
 
     // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
+    let historyId: string | undefined;
     if (userId) {
-      await this.scanHistoryRepository.create({
+      const saved = await this.scanHistoryRepository.create({
         userId,
         productId: product.id,
         productName: geminiResult.product_name ?? null,
@@ -372,16 +377,18 @@ export class ScanService {
         detected: allDetected,
         location,
         thumbnailUrl: null,
+        rawText: geminiResult.raw_text,
       });
+      historyId = saved.id;
       await this.userDailyScansService.incrementScanCount(userId);
     }
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
 
     if (storeCandidates.length >= 2) {
-      yield { type: 'result', data: { ...geminiResult, storeCandidates } };
+      yield { type: 'result', data: { ...geminiResult, storeCandidates, history_id: historyId } };
     } else {
-      yield { type: 'result', data: geminiResult };
+      yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
     }
   }
 

@@ -97,6 +97,7 @@ type UseScanReturn = {
   capturedImageUrl: string | null
   thumbnailUrl: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
+  setThumbnailUrl: (url: string | null) => void
   startScan: () => Promise<void>
   stopScan: () => void
   reset: () => void
@@ -282,24 +283,35 @@ export const useScan = (): UseScanReturn => {
         }
         dispatch({ type: 'RESULT', payload: scanResult })
 
-        // スキャン完了後に履歴保存（saveHistory の失敗はスキャン状態に影響させない）
-        const historyBody = buildHistoryBody(scanResult)
-        if (historyBody) {
-          // Branch B の S3 URL は DB 保存にのみ使用（表示は originalColorDataUrl を使用済み）
+        // バックエンドが履歴を作成済みのため history_id を使用する。
+        // 未認証の場合（history_id なし）はフォールバックとして POST /history で保存する。
+        const historyIdFromBackend = ocrResult.history_id
+        if (historyIdFromBackend) {
+          scanHistoryIdRef.current = historyIdFromBackend
+          // S3 アップロード完了後に thumbnail_url をパッチ（失敗は無視）
           const thumbnailUrl = await thumbnailUrlPromise
-          const saved = await saveHistory({
-            ...historyBody,
-            thumbnail_url: thumbnailUrl ?? undefined,
-          })
-          if (saved) {
-            scanHistoryIdRef.current = saved.id
+          if (thumbnailUrl) {
+            void patchHistoryFields(historyIdFromBackend, { thumbnail_url: thumbnailUrl })
+          }
+        } else {
+          // 未認証ユーザー: フォールバックとして POST /history で保存
+          const historyBody = buildHistoryBody(scanResult)
+          if (historyBody) {
+            const thumbnailUrl = await thumbnailUrlPromise
+            const saved = await saveHistory({
+              ...historyBody,
+              thumbnail_url: thumbnailUrl ?? undefined,
+            })
+            if (saved) {
+              scanHistoryIdRef.current = saved.id
+            }
           }
         }
       } catch {
         dispatch({ type: 'ERROR', error: 'api_error' })
       }
     },
-    [fetchPresignedUrl, putS3, scanOcrStream, saveHistory],
+    [fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchHistoryFields],
   )
 
   const tick = useCallback(async (): Promise<void> => {
@@ -460,6 +472,10 @@ export const useScan = (): UseScanReturn => {
     [patchLocation],
   )
 
+  const setThumbnailUrl = useCallback((url: string | null) => {
+    dispatch({ type: 'SET_THUMBNAIL_URL', url })
+  }, [])
+
   const onPatchHistory = useCallback(
     (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }): void => {
       const historyId = scanHistoryIdRef.current
@@ -484,6 +500,7 @@ export const useScan = (): UseScanReturn => {
     capturedImageUrl: state.capturedImageUrl,
     thumbnailUrl: state.thumbnailUrl,
     videoRef,
+    setThumbnailUrl,
     startScan,
     stopScan,
     reset,

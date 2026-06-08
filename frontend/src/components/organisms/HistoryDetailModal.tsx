@@ -99,29 +99,29 @@ export const HistoryDetailModal = ({
           </button>
         </div>
 
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-4 py-4 space-y-4 md:px-6 md:py-5 lg:px-8">
           {/* サムネイル + 商品名 */}
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 md:gap-4">
             {thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={thumbnailUrl}
                 alt={productName ?? ''}
-                className="h-20 w-20 rounded-lg object-cover shrink-0"
+                className="h-20 w-20 rounded-lg object-cover shrink-0 md:h-24 md:w-24 lg:h-28 lg:w-28"
               />
             ) : (
-              <div className="h-20 w-20 rounded-lg bg-gray-100 shrink-0" />
+              <div className="h-20 w-20 rounded-lg bg-gray-100 shrink-0 md:h-24 md:w-24 lg:h-28 lg:w-28" />
             )}
             <div className="flex-1 min-w-0 space-y-1">
-              <p className="font-semibold text-gray-900 break-words">
+              <p className="font-semibold text-gray-900 break-words md:text-lg">
                 {productName ?? t('unnamed')}
               </p>
               {location?.store_name && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 md:text-base">
                   {t('storeName', { store: location.store_name })}
                 </p>
               )}
-              <time className="text-xs text-gray-400" dateTime={scannedAt}>
+              <time className="text-xs text-gray-400 md:text-sm" dateTime={scannedAt}>
                 {formattedDate}
               </time>
             </div>
@@ -129,20 +129,20 @@ export const HistoryDetailModal = ({
 
           {/* 検出アレルゲン */}
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-2">{t('detail.detected')}</p>
+            <p className="text-xs font-medium text-gray-500 mb-2 md:text-sm">{t('detail.detected')}</p>
             {detected.length > 0 ? (
-              <ul className="flex flex-wrap gap-1.5">
+              <ul className="flex flex-wrap gap-1.5 md:gap-2">
                 {detected.map((allergen) => (
                   <li
                     key={allergen}
-                    className="text-sm bg-red-50 text-red-700 rounded-full px-3 py-1"
+                    className="text-sm bg-red-50 text-red-700 rounded-full px-3 py-1 md:text-base md:px-4"
                   >
                     {allergen}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-gray-400">{t('detail.noDetected')}</p>
+              <p className="text-sm text-gray-400 md:text-base">{t('detail.noDetected')}</p>
             )}
           </div>
 
@@ -152,13 +152,13 @@ export const HistoryDetailModal = ({
               <button
                 type="button"
                 onClick={() => setRawTextOpen((prev) => !prev)}
-                className="text-sm text-blue-600 underline text-left"
+                className="text-sm text-blue-600 underline text-left md:text-base"
                 aria-expanded={rawTextOpen}
               >
                 {rawTextOpen ? t('detail.rawTextCollapse') : t('detail.rawTextExpand')}
               </button>
               {rawTextOpen && (
-                <p className="mt-2 text-xs text-gray-600 bg-gray-50 rounded p-2 whitespace-pre-wrap">
+                <p className="mt-2 text-sm leading-relaxed text-gray-700 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap md:text-base md:p-4 lg:text-base lg:leading-loose">
                   {formatRawText(rawText)}
                 </p>
               )}
@@ -168,8 +168,8 @@ export const HistoryDetailModal = ({
           {/* メモ */}
           {memo && (
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-1">{t('detail.memo')}</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{memo}</p>
+              <p className="text-xs font-medium text-gray-500 mb-1 md:text-sm">{t('detail.memo')}</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap md:text-base">{memo}</p>
             </div>
           )}
         </div>

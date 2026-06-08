@@ -51,6 +51,7 @@ services:
     ports:
       - '3900:3900'   # S3 API
       - '3901:3901'   # RPC（内部通信）
+      - '3902:3902'   # Website（公開読み取り用）
       - '3903:3903'   # Admin API（garage-webui 用）
     volumes:
       - ./docker/garage.toml:/etc/garage.toml:ro

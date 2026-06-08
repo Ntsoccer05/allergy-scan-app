@@ -26,6 +26,7 @@ export default function ScanPage() {
     storeCandidates,
     capturedImageUrl,
     thumbnailUrl,
+    setThumbnailUrl,
     onStoreSelect,
     onPatchHistory,
     videoRef,
@@ -78,8 +79,9 @@ export default function ScanPage() {
           />
           {showThumbnailCamera && (
             <ThumbnailCameraModal
-              onCapture={(url) => {
-                onPatchHistory({ thumbnail_url: url })
+              onCapture={(s3Url, localDataUrl) => {
+                onPatchHistory({ thumbnail_url: s3Url })
+                setThumbnailUrl(localDataUrl)
                 setShowThumbnailCamera(false)
               }}
               onClose={() => setShowThumbnailCamera(false)}

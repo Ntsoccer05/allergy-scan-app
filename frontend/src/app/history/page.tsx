@@ -360,8 +360,8 @@ export default function HistoryPage() {
       {/* サムネイル再撮影カメラモーダル */}
       {showThumbnailCamera && (
         <ThumbnailCameraModal
-          onCapture={(url) => {
-            setEditForm((prev) => ({ ...prev, thumbnailUrl: url }))
+          onCapture={(s3Url, _localDataUrl) => {
+            setEditForm((prev) => ({ ...prev, thumbnailUrl: s3Url }))
             setShowThumbnailCamera(false)
           }}
           onClose={() => setShowThumbnailCamera(false)}
