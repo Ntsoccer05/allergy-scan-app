@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { HistoryCard } from '@/components/organisms/HistoryCard'
+import { HistoryDetailModal } from '@/components/organisms/HistoryDetailModal'
 import { ThumbnailCameraModal } from '@/components/organisms/ThumbnailCameraModal'
 import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
@@ -17,11 +18,19 @@ const FILTER_TAB_VALUES: HistoryFilter[] = ['all', 'ng', 'partial', 'ok']
 
 /** 編集モーダルのフォームデータ型。 */
 type EditFormData = {
-  product_name: string
-  store_name: string
+  productName: string
+  storeName: string
   memo: string
   isPublic: boolean
   thumbnailUrl: string | null
+}
+
+const INITIAL_EDIT_FORM: EditFormData = {
+  productName: '',
+  storeName: '',
+  memo: '',
+  isPublic: false,
+  thumbnailUrl: null,
 }
 
 export default function HistoryPage() {
@@ -30,14 +39,9 @@ export default function HistoryPage() {
   const userId = user?.id ?? null
 
   const [activeTab, setActiveTab] = useState<HistoryTab>('mine')
+  const [detailItem, setDetailItem] = useState<HistoryItem | null>(null)
   const [editingItem, setEditingItem] = useState<HistoryItem | null>(null)
-  const [editForm, setEditForm] = useState<EditFormData>({
-    product_name: '',
-    store_name: '',
-    memo: '',
-    isPublic: false,
-    thumbnailUrl: null,
-  })
+  const [editForm, setEditForm] = useState<EditFormData>(INITIAL_EDIT_FORM)
   const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -64,11 +68,14 @@ export default function HistoryPage() {
     fetchNextPage: othersFetchNextPage,
   } = useOthersScanned()
 
+  const handleDetailOpen = (item: HistoryItem) => setDetailItem(item)
+  const handleDetailClose = () => setDetailItem(null)
+
   const handleEditOpen = (item: HistoryItem) => {
     setEditingItem(item)
     setEditForm({
-      product_name: item.productName ?? '',
-      store_name: item.location?.store_name ?? '',
+      productName: item.productName ?? '',
+      storeName: item.location?.store_name ?? '',
       memo: item.memo ?? '',
       isPublic: item.isPublic,
       thumbnailUrl: item.thumbnailUrl,
@@ -77,7 +84,7 @@ export default function HistoryPage() {
 
   const handleEditClose = () => {
     setEditingItem(null)
-    setEditForm({ product_name: '', store_name: '', memo: '', isPublic: false, thumbnailUrl: null })
+    setEditForm(INITIAL_EDIT_FORM)
   }
 
   const handleEditSave = () => {
@@ -85,8 +92,8 @@ export default function HistoryPage() {
     updateHistoryMutation.mutate(
       {
         id: editingItem.id,
-        product_name: editForm.product_name || null,
-        store_name: editForm.store_name || null,
+        product_name: editForm.productName || null,
+        store_name: editForm.storeName || null,
         memo: editForm.memo || null,
         is_public: editForm.isPublic,
         thumbnail_url: editForm.thumbnailUrl,
@@ -139,7 +146,7 @@ export default function HistoryPage() {
     <main className="flex flex-col min-h-screen px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-4">{t('title')}</h1>
 
-      {/* みんな/自分 タブ（R1・R10） */}
+      {/* みんな/自分 タブ */}
       <div className="flex gap-2 mb-4 border-b border-gray-200">
         {(['mine', 'others'] as const).map((tab) => (
           <button
@@ -226,6 +233,7 @@ export default function HistoryPage() {
                       <HistoryCard
                         item={item}
                         isOwner={item.userId === userId}
+                        onOpenDetail={!isSelectMode ? handleDetailOpen : undefined}
                         onEdit={isSelectMode ? undefined : handleEditOpen}
                         onDelete={isSelectMode ? undefined : handleDelete}
                         isSelectMode={isSelectMode}
@@ -270,7 +278,7 @@ export default function HistoryPage() {
         </>
       )}
 
-      {/* みんなのスキャンタブ（R7・R8） */}
+      {/* みんなのスキャンタブ */}
       {activeTab === 'others' && (
         <>
           {othersIsLoading && (
@@ -289,7 +297,6 @@ export default function HistoryPage() {
                 <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   {othersItems.map((item) => (
                     <li key={item.id}>
-                      {/* 期限切れタグ（R6・R8） */}
                       {item.is_expired && (
                         <p className="text-xs text-amber-600 mb-1">
                           {t('expiredTag')}
@@ -309,6 +316,7 @@ export default function HistoryPage() {
                           memo: null,
                           scannedAt: item.updated_at,
                         }}
+                        onOpenDetail={handleDetailOpen}
                       />
                     </li>
                   ))}
@@ -329,6 +337,23 @@ export default function HistoryPage() {
             </>
           )}
         </>
+      )}
+
+      {/* 詳細モーダル */}
+      {detailItem && (
+        <HistoryDetailModal
+          item={detailItem}
+          isOwner={detailItem.userId === userId}
+          onClose={handleDetailClose}
+          onEdit={(item) => {
+            handleDetailClose()
+            handleEditOpen(item)
+          }}
+          onDelete={async (id) => {
+            await handleDelete(id)
+            handleDetailClose()
+          }}
+        />
       )}
 
       {/* サムネイル再撮影カメラモーダル */}
@@ -361,9 +386,9 @@ export default function HistoryPage() {
                 <input
                   id="edit-product-name"
                   type="text"
-                  value={editForm.product_name}
+                  value={editForm.productName}
                   onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, product_name: e.target.value }))
+                    setEditForm((prev) => ({ ...prev, productName: e.target.value }))
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   maxLength={200}
@@ -380,9 +405,9 @@ export default function HistoryPage() {
                 <input
                   id="edit-store-name"
                   type="text"
-                  value={editForm.store_name}
+                  value={editForm.storeName}
                   onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, store_name: e.target.value }))
+                    setEditForm((prev) => ({ ...prev, storeName: e.target.value }))
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   maxLength={100}

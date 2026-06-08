@@ -52,5 +52,16 @@
     "newItems": "新しいスキャンがあります",
     "refresh": "更新する"
   },
-  "unnamed": "商品名なし"
+  "unnamed": "商品名なし",
+  "detail": {
+    "close": "閉じる",
+    "edit": "編集",
+    "delete": "削除",
+    "detected": "検出アレルゲン",
+    "noDetected": "検出なし",
+    "memo": "メモ",
+    "ariaLabel": "詳細を見る",
+    "editAriaLabel": "編集する",
+    "deleteAriaLabel": "削除する"
+  }
 }

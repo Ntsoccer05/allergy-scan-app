@@ -52,5 +52,16 @@
     "newItems": "New scans available",
     "refresh": "Refresh"
   },
-  "unnamed": "Unnamed product"
+  "unnamed": "Unnamed product",
+  "detail": {
+    "close": "Close",
+    "edit": "Edit",
+    "delete": "Delete",
+    "detected": "Detected Allergens",
+    "noDetected": "None detected",
+    "memo": "Memo",
+    "ariaLabel": "View details",
+    "editAriaLabel": "Edit",
+    "deleteAriaLabel": "Delete"
+  }
 }
