@@ -10,6 +10,12 @@ export type OthersProductRecord = {
   id: string;
   productName: string | null;
   allergens: ProductAllergens;
+  /** この商品の最新の公開スキャン履歴のサムネイル（なければ null）。 */
+  thumbnailUrl: string | null;
+  /** この商品の最新の公開スキャン履歴の店舗名（なければ null）。 */
+  storeName: string | null;
+  /** 商品の原材料テキスト（詳細表示用）。 */
+  rawText: string | null;
   updatedAt: Date;
   expiresAt: Date | null;
 };
@@ -20,6 +26,10 @@ export type FindOthersOptions = {
   cursor?: Date;
   /** 最大取得件数（limit+1 件取得して次ページ判定に使う）。 */
   limit: number;
+  /** 商品名の部分一致検索キーワード（大文字小文字を区別しない）。 */
+  q?: string;
+  /** 店舗名（公開履歴の location.store_name）の部分一致フィルタ。 */
+  store?: string;
 };
 
 /** products テーブルの検索・UPSERT に必要な入力データ。 */
@@ -136,18 +146,31 @@ export class ProductRepository {
   }
 
   /**
-   * リクエストユーザーが scan_histories に持たない商品一覧を取得する（R3）。
+   * 公開スキャン（is_public = TRUE）が1件以上ある商品一覧を取得する。
+   * 自分がスキャンした商品も、公開されていれば含める（公開した本人にも見える）。
    * カーソルは updated_at の値を使い、updated_at DESC 順で返す（R4）。
    * limit+1 件取得し、超過分の有無で次ページを判定する。
+   * ⚠️ プライバシー: サムネイルも公開履歴のものだけを使う（非公開スキャンの写真を露出させない）。
    */
   async findOthersForUser(
-    userId: string,
     options: FindOthersOptions,
   ): Promise<OthersProductRecord[]> {
-    const { cursor, limit } = options;
+    const { cursor, limit, q, store } = options;
 
     const cursorFragment = cursor
       ? Prisma.sql`AND p.updated_at < ${cursor}::timestamptz`
+      : Prisma.empty;
+    const qFragment = q
+      ? Prisma.sql`AND p.product_name ILIKE ${'%' + q + '%'}`
+      : Prisma.empty;
+    // 店舗フィルタは公開履歴の location.store_name に対して適用する
+    const storeFragment = store
+      ? Prisma.sql`AND EXISTS (
+          SELECT 1 FROM scan_histories s3
+          WHERE s3.product_id = p.id
+            AND s3.is_public = TRUE
+            AND s3.location->>'store_name' ILIKE ${'%' + store + '%'}
+        )`
       : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<
@@ -155,6 +178,9 @@ export class ProductRepository {
         id: string;
         product_name: string | null;
         allergens: unknown;
+        thumbnail_url: string | null;
+        store_name: string | null;
+        raw_text: string | null;
         updated_at: Date;
         expires_at: Date | null;
       }[]
@@ -164,13 +190,37 @@ export class ProductRepository {
         p.id,
         p.product_name,
         p.allergens,
+        t.thumbnail_url,
+        s.store_name,
+        p.raw_text,
         p.updated_at,
         p.expires_at
       FROM products p
-      LEFT JOIN scan_histories sh
-        ON sh.product_id = p.id AND sh.user_id = ${userId}
-      WHERE sh.id IS NULL
+      LEFT JOIN LATERAL (
+        SELECT sh2.thumbnail_url
+        FROM scan_histories sh2
+        WHERE sh2.product_id = p.id
+          AND sh2.thumbnail_url IS NOT NULL
+          AND sh2.is_public = TRUE
+        ORDER BY sh2.scanned_at DESC
+        LIMIT 1
+      ) t ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT sh3.location->>'store_name' AS store_name
+        FROM scan_histories sh3
+        WHERE sh3.product_id = p.id
+          AND sh3.location->>'store_name' IS NOT NULL
+          AND sh3.is_public = TRUE
+        ORDER BY sh3.scanned_at DESC
+        LIMIT 1
+      ) s ON TRUE
+      WHERE EXISTS (
+        SELECT 1 FROM scan_histories pub
+        WHERE pub.product_id = p.id AND pub.is_public = TRUE
+      )
       ${cursorFragment}
+      ${qFragment}
+      ${storeFragment}
       ORDER BY p.updated_at DESC
       LIMIT ${limit + 1}
       `,
@@ -181,9 +231,42 @@ export class ProductRepository {
       productName: row.product_name,
       // JSONB フィールドを ProductAllergens として解釈する（db.types.ts 準拠）
       allergens: row.allergens as ProductAllergens,
+      thumbnailUrl: row.thumbnail_url,
+      storeName: row.store_name,
+      rawText: row.raw_text,
       updatedAt: row.updated_at,
       expiresAt: row.expires_at,
     }));
+  }
+
+  /**
+   * 指定 ID リストの products.raw_text を返す。
+   * scan_histories に raw_text がないバーコードスキャン履歴の再評価に使用する。
+   */
+  async findRawTextsByIds(ids: string[]): Promise<Map<string, string | null>> {
+    if (ids.length === 0) return new Map();
+    const records = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, rawText: true },
+    });
+    return new Map(records.map((r) => [r.id, r.rawText ?? null]));
+  }
+
+  /**
+   * 指定 ID リストの products.allergens を返す。
+   * 履歴一覧を現在のアレルギー設定で再導出するために使用する。
+   */
+  async findAllergensByIds(
+    ids: string[],
+  ): Promise<Map<string, ProductAllergens>> {
+    if (ids.length === 0) return new Map();
+    const records = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, allergens: true },
+    });
+    return new Map(
+      records.map((r) => [r.id, r.allergens as ProductAllergens]),
+    );
   }
 
   /**

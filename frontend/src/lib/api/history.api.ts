@@ -11,6 +11,10 @@ import { apiFetch } from './api-client'
 type GetHistoryParams = {
   filter?: HistoryFilter
   before?: string
+  /** 商品名の部分一致検索キーワード */
+  q?: string
+  /** 店舗名の部分一致フィルタ */
+  store?: string
 }
 
 export const getHistory = async (
@@ -22,6 +26,12 @@ export const getHistory = async (
   }
   if (params.before) {
     query.set('before', params.before)
+  }
+  if (params.q) {
+    query.set('q', params.q)
+  }
+  if (params.store) {
+    query.set('store', params.store)
   }
 
   const path = `/history${query.toString() ? `?${query.toString()}` : ''}`

@@ -13,6 +13,10 @@ import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
 import { BulkDeleteHistoryDto } from './dto/bulk-delete-history.dto';
 import { ProductRepository } from '../products/product.repository';
+import { UsersRepository } from '../users/users.repository';
+import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
+import { deriveProductJudgment } from '../products/products.service';
+import type { UserAllergies } from '../shared/types/db.types';
 
 /** GET /history のレスポンス型。 */
 export type HistoryListResult = {
@@ -36,6 +40,8 @@ export class HistoryService {
   constructor(
     private readonly scanHistoryRepository: ScanHistoryRepository,
     private readonly productRepository: ProductRepository,
+    private readonly usersRepository: UsersRepository,
+    private readonly allergenComponentRepository: AllergenComponentRepository,
   ) {}
 
   /**
@@ -63,11 +69,26 @@ export class HistoryService {
 
     this.logger.log(`履歴取得: userId=${userId}, judgment=${judgment}`);
 
-    const records = await this.scanHistoryRepository.findByUser(userId, {
+    const rawRecords = await this.scanHistoryRepository.findByUser(userId, {
       before,
       judgment,
       limit: HISTORY_PAGE_LIMIT,
+      q: query.q,
+      store: query.store,
     });
+
+    const user = await this.usersRepository.findById(userId);
+    const allergies: UserAllergies = user?.allergies ?? {};
+
+    // Step 1: products.allergens × 現在の設定で judgment / detected を再導出する
+    // （みんなのスキャンと同じ deriveProductJudgment を使用。OFF にしたアレルギーが消え、ON にしたアレルギーが現れる）
+    const derivedRecords = await this.deriveFromProducts(rawRecords, allergies);
+
+    // Step 2: rawText 照合の安全網（旧形式データや products.allergens の取りこぼしを NG に升格する）
+    const records = await this.reevaluateWithCurrentAllergens(
+      allergies,
+      derivedRecords,
+    );
 
     // limit+1 件取得しているため、超過分があれば次ページが存在する
     const hasNextPage = records.length > HISTORY_PAGE_LIMIT;
@@ -199,6 +220,141 @@ export class HistoryService {
     if (dto.ids.length === 0) return;
     this.logger.log(`一括削除: userId=${userId}, count=${dto.ids.length}`);
     await this.scanHistoryRepository.deleteManyByIds(userId, dto.ids);
+  }
+
+  /**
+   * products.allergens と現在のアレルギー設定から judgment / detected を再導出する。
+   * detected はスキャン時点の snapshot だが、表示はみんなのスキャンと同様に
+   * 現在の設定へ追従させる（OFF → 非表示、ON → 表示）。DB は更新しない。
+   * 商品が見つからない履歴（product 削除・productId なし）は snapshot のまま返す。
+   */
+  private async deriveFromProducts(
+    records: ScanHistoryRecord[],
+    allergies: UserAllergies,
+  ): Promise<ScanHistoryRecord[]> {
+    const productIds = [
+      ...new Set(
+        records.map((r) => r.productId).filter((id): id is string => !!id),
+      ),
+    ];
+    if (productIds.length === 0) return records;
+
+    const productAllergens =
+      await this.productRepository.findAllergensByIds(productIds);
+
+    return records.map((record) => {
+      const allergens = record.productId
+        ? productAllergens.get(record.productId)
+        : undefined;
+      // 旧形式の不完全な JSONB（contains/partial が配列でない）は snapshot のまま返す
+      if (
+        !allergens ||
+        !Array.isArray(allergens.contains) ||
+        !Array.isArray(allergens.partial)
+      ) {
+        return record;
+      }
+      const { judgment, detected } = deriveProductJudgment(
+        allergens,
+        allergies,
+      );
+      return { ...record, judgment, detected };
+    });
+  }
+
+  /**
+   * ⚠️ 安全設計: 現在のアレルギー設定で履歴レコードを再評価する。
+   * スキャン時に未設定だったアレルギーが後から追加された場合、
+   * raw_text に成分が含まれていれば judgment を 'ng' に上書きして detected に追加する。
+   * DB は更新しない（レスポンス時のみ適用）。
+   */
+  private async reevaluateWithCurrentAllergens(
+    allergies: UserAllergies,
+    records: ScanHistoryRecord[],
+  ): Promise<ScanHistoryRecord[]> {
+    const enabledAllergens = Object.entries(allergies)
+      .filter(([, v]) => v.enabled)
+      .map(([name]) => name);
+
+    if (enabledAllergens.length === 0) return records;
+
+    const allComponents =
+      await this.allergenComponentRepository.findByAllergens(enabledAllergens);
+    // exclude 型は誤検出防止リストのため再評価の検出対象に含めない（anti_patterns.md #3）
+    const detectionComponents = allComponents.filter(
+      (c) => c.componentType !== 'exclude',
+    );
+
+    if (detectionComponents.length === 0) return records;
+
+    // rawText がない履歴（バーコードスキャン）のために products.raw_text を取得する
+    const productIdsWithoutRawText = [
+      ...new Set(
+        records
+          .filter((r) => !r.rawText && r.productId)
+          .map((r) => r.productId!),
+      ),
+    ];
+    const productRawTexts =
+      await this.productRepository.findRawTextsByIds(productIdsWithoutRawText);
+
+    return records.map((record) => {
+      const textToCheck =
+        record.rawText ??
+        (record.productId
+          ? (productRawTexts.get(record.productId) ?? null)
+          : null);
+
+      if (!textToCheck) return record;
+
+      const textLower = textToCheck.toLowerCase();
+      const detectedLower = record.detected.map((d) => d.toLowerCase());
+
+      // raw_text にアレルゲンが見つかったかどうか（judgment 升格の判断に使う）
+      let shouldUpgradeToNg = false;
+      // detected に未追加のアレルゲン（重複防止）
+      const newlyMatchedAllergens: string[] = [];
+
+      for (const allergen of enabledAllergens) {
+        const components = detectionComponents.filter(
+          (c) => c.allergenName === allergen,
+        );
+
+        // raw_text にこのアレルギーの成分が含まれているかチェック
+        const foundInText = components.some((c) => {
+          if (textLower.includes(c.canonicalName.toLowerCase())) return true;
+          return c.aliases.some(
+            (alias) => alias && textLower.includes(alias.toLowerCase()),
+          );
+        });
+
+        if (!foundInText) continue;
+
+        // raw_text に見つかった → judgment は必ず 'ng' にする
+        // （スキャン時の partial/ok 誤判定を含む安全側への上書き）
+        shouldUpgradeToNg = true;
+
+        // すでに detected に含まれていれば追加しない（重複防止のみ）
+        const alreadyInDetected = components.some((c) => {
+          if (detectedLower.some((d) => d.includes(c.canonicalName.toLowerCase()))) return true;
+          return c.aliases.some(
+            (alias) => alias && detectedLower.some((d) => d.includes(alias.toLowerCase())),
+          );
+        });
+
+        if (!alreadyInDetected) {
+          newlyMatchedAllergens.push(allergen);
+        }
+      }
+
+      if (!shouldUpgradeToNg) return record;
+
+      return {
+        ...record,
+        judgment: 'ng',
+        detected: [...record.detected, ...newlyMatchedAllergens],
+      };
+    });
   }
 
   /** スキャン履歴を1件 INSERT する。 */

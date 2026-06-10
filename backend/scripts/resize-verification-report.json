@@ -1,0 +1,1346 @@
+{
+  "1000008634.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"りんご=含む/contains\"]",
+      "[\"りんご=含む/contains\"]",
+      "[\"りんご=含む/contains\"]",
+      "[\"りんご=含む/contains\"]",
+      "[\"りんご=含む/contains\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "りんご",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "りんご"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:りんご"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 122
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "りんご",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "りんご"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:りんご"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 122
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "りんご",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "りんご"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:りんご"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 122
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "りんご",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "りんご"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:りんご"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 122
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "りんご",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "りんご"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:りんご"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 122
+      }
+    ]
+  },
+  "20260610_090443.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "medium",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 181
+      },
+      {
+        "confidence": "medium",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 181
+      },
+      {
+        "confidence": "medium",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 181
+      },
+      {
+        "confidence": "medium",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 181
+      },
+      {
+        "confidence": "medium",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 181
+      }
+    ]
+  },
+  "20260610_090508.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=一部含む/partial\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=一部含む/partial\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=一部含む/partial\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=一部含む/partial\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=一部含む/partial\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "チキンパウダー",
+              "一部に小麦・大豆・鶏肉を含む"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:チキンパウダー",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 198
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "チキンパウダー",
+              "一部に小麦・大豆・鶏肉を含む"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:チキンパウダー",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 198
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "チキンパウダー",
+              "一部に小麦・大豆・鶏肉を含む"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:チキンパウダー",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 198
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "チキンパウダー",
+              "一部に小麦・大豆・鶏肉を含む"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:チキンパウダー",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 198
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "チキンパウダー",
+              "一部に小麦・大豆・鶏肉を含む"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:チキンパウダー",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 198
+      }
+    ]
+  },
+  "20260610_090537.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"小麦=一部含む/partial\",\"大豆=一部含む/partial\",\"乳=含む/may_contain\",\"落花生=含む/may_contain\",\"卵=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"小麦=一部含む/partial\",\"大豆=一部含む/partial\",\"乳=含む/may_contain\",\"落花生=含む/may_contain\",\"卵=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"小麦=一部含む/partial\",\"大豆=一部含む/partial\",\"乳=含む/may_contain\",\"落花生=含む/may_contain\",\"卵=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"小麦=一部含む/partial\",\"大豆=一部含む/partial\",\"乳=含む/may_contain\",\"落花生=含む/may_contain\",\"卵=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"小麦=一部含む/partial\",\"大豆=一部含む/partial\",\"乳=含む/may_contain\",\"落花生=含む/may_contain\",\"卵=含む/may_contain\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "小麦",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "小麦"
+            ]
+          },
+          {
+            "allergen": "大豆",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "大豆"
+            ]
+          },
+          {
+            "allergen": "乳",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "乳成分"
+            ]
+          },
+          {
+            "allergen": "落花生",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "落花生"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:乳成分",
+          "ng:卵",
+          "ng:大豆",
+          "ng:小麦",
+          "ng:落花生"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 215
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "小麦",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "小麦"
+            ]
+          },
+          {
+            "allergen": "大豆",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "大豆"
+            ]
+          },
+          {
+            "allergen": "乳",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "乳成分"
+            ]
+          },
+          {
+            "allergen": "落花生",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "落花生"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:乳成分",
+          "ng:卵",
+          "ng:大豆",
+          "ng:小麦",
+          "ng:落花生"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 215
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "小麦",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "小麦"
+            ]
+          },
+          {
+            "allergen": "大豆",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "大豆"
+            ]
+          },
+          {
+            "allergen": "乳",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "乳成分"
+            ]
+          },
+          {
+            "allergen": "落花生",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "落花生"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:乳成分",
+          "ng:卵",
+          "ng:大豆",
+          "ng:小麦",
+          "ng:落花生"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 215
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "小麦",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "小麦"
+            ]
+          },
+          {
+            "allergen": "大豆",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "大豆"
+            ]
+          },
+          {
+            "allergen": "乳",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "乳成分"
+            ]
+          },
+          {
+            "allergen": "落花生",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "落花生"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:乳成分",
+          "ng:卵",
+          "ng:大豆",
+          "ng:小麦",
+          "ng:落花生"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 215
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "小麦",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "小麦"
+            ]
+          },
+          {
+            "allergen": "大豆",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "大豆"
+            ]
+          },
+          {
+            "allergen": "乳",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "乳成分"
+            ]
+          },
+          {
+            "allergen": "落花生",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "落花生"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:乳成分",
+          "ng:卵",
+          "ng:大豆",
+          "ng:小麦",
+          "ng:落花生"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 215
+      }
+    ]
+  },
+  "20260610_090546.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 196
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 196
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 196
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 196
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 196
+      }
+    ]
+  },
+  "20260610_090607.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"鶏肉=一部含む/partial\",\"卵=含む/may_contain\"]",
+      "[\"鶏肉=一部含む/partial\",\"卵=含む/may_contain\"]",
+      "[\"鶏肉=一部含む/partial\",\"卵=含む/may_contain\"]",
+      "[\"鶏肉=一部含む/partial\",\"卵=含む/may_contain\"]",
+      "[\"鶏肉=一部含む/partial\",\"卵=含む/may_contain\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "鶏肉"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:卵",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 191
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "鶏肉"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:卵",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 191
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "鶏肉"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:卵",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 191
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "鶏肉"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:卵",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 191
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "鶏肉",
+            "judgment": "一部含む",
+            "detection_type": "partial",
+            "detected": [
+              "鶏肉"
+            ]
+          },
+          {
+            "allergen": "卵",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "卵"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:卵",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": true,
+        "rawTextLength": 191
+      }
+    ]
+  },
+  "20260610_090633.jpg": {
+    "consistent": true,
+    "signatures": [
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=含む/contains\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=含む/contains\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=含む/contains\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=含む/contains\"]",
+      "[\"えび=含む/may_contain\",\"かに=含む/may_contain\",\"鶏肉=含む/contains\"]"
+    ],
+    "runs": [
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "鶏肉"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 160
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "鶏肉"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 160
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "鶏肉"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 160
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "鶏肉"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 160
+      },
+      {
+        "confidence": "high",
+        "incomplete": false,
+        "results": [
+          {
+            "allergen": "えび",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "えび"
+            ]
+          },
+          {
+            "allergen": "かに",
+            "judgment": "含む",
+            "detection_type": "may_contain",
+            "detected": [
+              "かに"
+            ]
+          },
+          {
+            "allergen": "鶏肉",
+            "judgment": "含む",
+            "detection_type": "contains",
+            "detected": [
+              "鶏肉"
+            ]
+          }
+        ],
+        "highlights": [
+          "ng:えび",
+          "ng:かに",
+          "ng:鶏肉"
+        ],
+        "rawTextHasFacilityNote": false,
+        "rawTextLength": 160
+      }
+    ]
+  }
+}

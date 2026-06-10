@@ -9,6 +9,7 @@ import type { Request } from 'express';
 import { ProductsService } from './products.service';
 import type { OthersProductListResult } from './products.service';
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
+import { GetOthersDto } from './dto/get-others.dto';
 import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
@@ -22,7 +23,8 @@ export class ProductsController {
 
   /**
    * GET /products/others:
-   * リクエストユーザーがスキャンしていない商品一覧をカーソルページネーションで返す。
+   * 公開スキャンのある商品一覧をカーソルページネーションで返す。
+   * judgment / q / store で検索・フィルタできる。
    */
   @Get('others')
   @Throttle({
@@ -30,8 +32,13 @@ export class ProductsController {
   })
   async getOthers(
     @Req() req: AuthRequest,
-    @Query('cursor') cursor?: string,
+    @Query() query: GetOthersDto,
   ): Promise<OthersProductListResult> {
-    return this.productsService.getOthersScanned(req.user.sub, cursor);
+    return this.productsService.getOthersScanned(req.user.sub, {
+      cursor: query.cursor,
+      judgment: query.judgment,
+      q: query.q,
+      store: query.store,
+    });
   }
 }

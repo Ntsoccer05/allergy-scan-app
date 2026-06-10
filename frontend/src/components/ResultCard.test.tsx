@@ -219,12 +219,12 @@ describe('ResultCard', () => {
   })
 
   describe('raw_text', () => {
-    it('raw_text のテキストが DOM 内に存在する（展開前でも sr-only で存在）', () => {
+    it('raw_text のテキストが DOM 内に存在する（デフォルト展開のため表示 + sr-only の両方に存在）', () => {
       const rawText = '卵、小麦、乳成分'
       renderWithI18n(
         <ResultCard result={makeOcrResult('なし', rawText)} onClose={onClose} />,
       )
-      expect(screen.getByText(rawText)).toBeInTheDocument()
+      expect(screen.getAllByText(rawText).length).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -314,7 +314,7 @@ describe('ResultCard', () => {
   })
 
   describe('highlights ハイライト表示（R3）', () => {
-    it('原材料展開ボタンをクリックすると raw_text がハイライト付きで表示される', () => {
+    it('raw_text がデフォルト展開でハイライト付きで表示される', () => {
       const rawText = '原材料: 卵、乳成分'
       const highlights: HighlightItem[] = [
         { text: '卵', judgment: 'ng' },
@@ -337,11 +337,7 @@ describe('ResultCard', () => {
         />,
       )
 
-      // 展開ボタンをクリック
-      const expandBtn = screen.getByText(/原材料を確認する/)
-      fireEvent.click(expandBtn)
-
-      // raw_text の一部が mark 要素でハイライトされている
+      // デフォルト展開のため raw_text の一部が mark 要素でハイライトされている
       const marks = document.querySelectorAll('mark')
       expect(marks.length).toBeGreaterThan(0)
     })
@@ -351,9 +347,7 @@ describe('ResultCard', () => {
       renderWithI18n(
         <ResultCard result={makeOcrResult('なし', rawText)} onClose={onClose} />,
       )
-      const expandBtn = screen.getByText(/原材料を確認する/)
-      fireEvent.click(expandBtn)
-      // sr-only 以外でも表示されること
+      // デフォルト展開のため sr-only 以外でも表示されること
       const allText = screen.getAllByText(rawText)
       expect(allText.length).toBeGreaterThanOrEqual(1)
     })

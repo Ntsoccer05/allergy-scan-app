@@ -11,6 +11,10 @@
     "ok": "OK"
   },
   "empty": "No history found",
+  "search": {
+    "productPlaceholder": "Search by product name",
+    "storePlaceholder": "Filter by store"
+  },
   "othersEmpty": "No products have been scanned yet",
   "loadMore": "Load more",
   "loading": "Loading...",

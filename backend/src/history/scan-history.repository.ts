@@ -57,6 +57,10 @@ export type FindByUserOptions = {
   before?: Date;
   judgment?: string;
   limit: number;
+  /** 商品名の部分一致検索キーワード（大文字小文字を区別しない）。 */
+  q?: string;
+  /** 店舗名（location.store_name）の部分一致フィルタ。 */
+  store?: string;
 };
 
 @Injectable()
@@ -71,13 +75,18 @@ export class ScanHistoryRepository {
     userId: string,
     options: FindByUserOptions,
   ): Promise<ScanHistoryRecord[]> {
-    const { before, judgment, limit } = options;
+    const { before, judgment, limit, q, store } = options;
 
     const records = await this.prisma.scanHistory.findMany({
       where: {
         userId,
         ...(judgment !== undefined && judgment !== 'all' ? { judgment } : {}),
         ...(before !== undefined ? { scannedAt: { lt: before } } : {}),
+        ...(q ? { productName: { contains: q, mode: 'insensitive' } } : {}),
+        // location JSONB の store_name キーを部分一致で絞り込む
+        ...(store
+          ? { location: { path: ['store_name'], string_contains: store } }
+          : {}),
       },
       orderBy: { scannedAt: 'desc' },
       take: limit + 1,

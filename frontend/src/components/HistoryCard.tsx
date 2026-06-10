@@ -92,11 +92,11 @@ export const HistoryCard = ({ item, isOwner = false, onEdit, onDelete }: History
       )}
 
       {detected.length > 0 && (
-        <ul className="flex flex-wrap gap-1">
+        <ul className="flex flex-wrap gap-1.5">
           {detected.map((allergen) => (
             <li
               key={allergen}
-              className="text-xs bg-red-50 text-red-700 rounded-full px-2 py-0.5"
+              className="text-sm md:text-sm lg:text-base font-medium bg-red-50 text-red-700 rounded-full px-3 py-1"
             >
               {allergen}
             </li>

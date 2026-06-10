@@ -26,13 +26,34 @@ import {
   type StoreCandidateProvider,
 } from '../shared/places.interface';
 import { buildGeminiPrompt } from './gemini-prompt.builder';
+import { normalizeOffTags } from './off-allergen-map';
 import { buildLabelHash } from '../products/label-hash.util';
 import {
   CACHE_TTL_MEMORY_SEC,
+  IMAGE_MAGIC_BYTES,
+  MAX_IMAGE_SIZE_BYTES,
   RAW_TEXT_PREFIX_LENGTH,
   S3_KEY_PREFIX,
   SCAN_COOLDOWN_MS,
 } from './scan.constants';
+
+/**
+ * base64 エンコードされた画像のマジックバイトを検証する。
+ * JPEG / PNG / WebP 以外は拒否する。
+ */
+function isValidImageMagicBytes(base64: string): boolean {
+  // 先頭 20 バイト（= base64 で約 28 文字）で全フォーマットのシグネチャを網羅できる
+  const header = Buffer.from(base64.slice(0, 28), 'base64');
+  if (header.length < 4) return false;
+  if (header.subarray(0, 3).equals(IMAGE_MAGIC_BYTES.JPEG)) return true;
+  if (header.length >= 8 && header.subarray(0, 8).equals(IMAGE_MAGIC_BYTES.PNG)) return true;
+  if (
+    header.length >= 12 &&
+    header.subarray(0, 4).equals(IMAGE_MAGIC_BYTES.WEBP_RIFF) &&
+    header.subarray(8, 12).equals(IMAGE_MAGIC_BYTES.WEBP_BODY)
+  ) return true;
+  return false;
+}
 
 // Lambda 再起動でリセットされる短期クールダウン用 Map（TTL: 3秒）
 const lastScanTimestamps = new Map<string, number>();
@@ -104,8 +125,9 @@ export class ScanService {
     }
 
     // Step 2: DB の expires_at 確認
+    // ⚠️ 安全設計: アレルゲン情報が空の jan 商品（OFF 未入力由来）はヒット扱いにしない
     const dbProduct = await this.productRepository.findByJan(janCode);
-    if (dbProduct) {
+    if (dbProduct && !this.hasNoAllergenInfo(dbProduct.allergens)) {
       this.logger.log(`DB hit for JAN: ${janCode}`);
       const result = this.buildResultFromDb(
         dbProduct.productName,
@@ -126,6 +148,15 @@ export class ScanService {
     if (offProduct) {
       this.logger.log(`Open Food Facts hit for JAN: ${janCode}`);
       const allergens = this.buildAllergensFromOff(offProduct);
+      // ⚠️ 安全設計: OFF はアレルゲン欄未入力の商品が多い（特に日本商品）。
+      // 「未入力」を「アレルゲンなし」と解釈すると誤った ✅なし 表示になるため、
+      // 情報が1件もない場合は found: false を返して OCR にフォールバックさせる
+      if (this.hasNoAllergenInfo(allergens)) {
+        this.logger.log(
+          `OFF hit but no allergen info for JAN: ${janCode} → OCR フォールバック`,
+        );
+        return { found: false, from_cache: false };
+      }
       await this.productRepository.upsertByJan(janCode, {
         productName: this.extractProductName(offProduct),
         allergens,
@@ -201,6 +232,23 @@ export class ScanService {
       });
     }
 
+    // base64 → 実バイト数を計算してサイズ上限チェック（MAX_IMAGE_SIZE_BYTES: 5MB）
+    const byteCount = Math.floor((imageBase64.length * 3) / 4);
+    if (byteCount > MAX_IMAGE_SIZE_BYTES) {
+      throw new BadRequestException({
+        message: '画像サイズが大きすぎます。再スキャンしてください。',
+        code: 'IMAGE_TOO_LARGE',
+      });
+    }
+
+    // マジックバイト検証（JPEG / PNG / WebP 以外は拒否）
+    if (!isValidImageMagicBytes(imageBase64)) {
+      throw new BadRequestException({
+        message: '無効なファイル形式です。',
+        code: 'INVALID_IMAGE_FORMAT',
+      });
+    }
+
     // Step 4: Gemini Flash API に送信
     this.logger.log(`OCR 処理開始: s3Key=${s3Key}`);
     const geminiResult = await this.geminiClient.analyzeImage(
@@ -249,7 +297,7 @@ export class ScanService {
     // Step 9: 候補数に応じて location を分岐し scan_histories に記録
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
-    const allDetected = geminiResult.results.flatMap((r) => r.detected);
+    const allDetected = this.buildDetectedAllergenNames(geminiResult.results);
 
     let location: { store_name: string; lat: number; lng: number } | null = null;
     if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
@@ -312,6 +360,17 @@ export class ScanService {
       return;
     }
 
+    const byteCount = Math.floor((imageBase64.length * 3) / 4);
+    if (byteCount > MAX_IMAGE_SIZE_BYTES) {
+      yield { type: 'error', code: 'IMAGE_TOO_LARGE', message: '画像サイズが大きすぎます。再スキャンしてください。' };
+      return;
+    }
+
+    if (!isValidImageMagicBytes(imageBase64)) {
+      yield { type: 'error', code: 'INVALID_IMAGE_FORMAT', message: '無効なファイル形式です。' };
+      return;
+    }
+
     this.logger.log(`OCR stream 開始: s3Key=${s3Key}`);
     const geminiStream = this.geminiClient.analyzeImageStream(imageBase64, prompt);
 
@@ -359,7 +418,7 @@ export class ScanService {
 
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
-    const allDetected = geminiResult.results.flatMap((r) => r.detected);
+    const allDetected = this.buildDetectedAllergenNames(geminiResult.results);
 
     let location: { store_name: string; lat: number; lng: number } | null = null;
     if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
@@ -431,18 +490,48 @@ export class ScanService {
     }
   }
 
-  /** Gemini レスポンスから ProductAllergens を生成する。 */
+  /**
+   * Gemini レスポンスから ProductAllergens を生成する。
+   * contains / partial にはアレルゲン名を保存する（成分テキストは components へ）。
+   * 名前で保存しないと deriveJudgment（みんなのスキャン・履歴の設定追従）の
+   * アレルゲン名照合が機能しないため。
+   * ⚠️ 安全設計: may_contain（製造ラインコンタミ）は contains（NG）ではなく partial に分類する
+   */
   private buildAllergensFromGemini(
     result: GeminiOcrResponse,
   ): ProductAllergens {
     const contains = result.results
-      .filter((r) => r.judgment === '含む')
-      .flatMap((r) => r.detected);
+      .filter(
+        (r) => r.judgment === '含む' && r.detection_type !== 'may_contain',
+      )
+      .map((r) => r.allergen);
     const partial = result.results
-      .filter((r) => r.judgment === '一部含む')
-      .flatMap((r) => r.detected);
+      .filter(
+        (r) =>
+          r.judgment === '一部含む' ||
+          (r.judgment === '含む' && r.detection_type === 'may_contain'),
+      )
+      .map((r) => r.allergen);
     const components = result.results.flatMap((r) => r.detected);
-    return { contains, partial, components };
+    return {
+      contains: [...new Set(contains)],
+      partial: [...new Set(partial)],
+      components,
+    };
+  }
+
+  /**
+   * 履歴の detected に保存するアレルゲン名リストを生成する。
+   * 成分テキストではなく名前を保存する（現在のアレルギー設定との照合に必要）。
+   */
+  private buildDetectedAllergenNames(
+    results: GeminiOcrResponse['results'],
+  ): string[] {
+    return [
+      ...new Set(
+        results.filter((r) => r.judgment !== 'なし').map((r) => r.allergen),
+      ),
+    ];
   }
 
   /**
@@ -459,6 +548,15 @@ export class ScanService {
     if (results.some((r) => r.judgment === '一部含む')) return '一部含む';
     if (results.some((r) => r.judgment === '判定不能')) return '判定不能';
     return 'なし';
+  }
+
+  /** アレルゲン情報が1件もない ProductAllergens かどうか（OFF 未入力商品の安全側判定に使う）。 */
+  private hasNoAllergenInfo(allergens: ProductAllergens): boolean {
+    return (
+      allergens.contains.length === 0 &&
+      allergens.partial.length === 0 &&
+      allergens.components.length === 0
+    );
   }
 
   /** Gemini の judgment を JudgmentShort に変換する。 */
@@ -503,16 +601,15 @@ export class ScanService {
     };
   }
 
-  /** Open Food Facts のアレルギータグから ProductAllergens を生成する。 */
+  /**
+   * Open Food Facts のアレルギータグから ProductAllergens を生成する。
+   * タグは日本語アレルゲン名に正規化する（名前一致での判定導出に必要）。
+   */
   private buildAllergensFromOff(
     product: OpenFoodFactsProductFields,
   ): ProductAllergens {
-    const contains = (product.allergens_tags ?? []).map((tag) =>
-      tag.replace(/^[a-z]{2}:/, ''),
-    );
-    const partial = (product.traces_tags ?? []).map((tag) =>
-      tag.replace(/^[a-z]{2}:/, ''),
-    );
+    const contains = normalizeOffTags(product.allergens_tags ?? []);
+    const partial = normalizeOffTags(product.traces_tags ?? []);
     return { contains, partial, components: [] };
   }
 

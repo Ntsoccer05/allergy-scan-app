@@ -31,6 +31,10 @@ const mockProductRecord = {
   expiresAt: new Date(Date.now() + 86400000),
 };
 
+// マジックバイト検証を通過する最小 JPEG の base64（FF D8 FF で始まる）
+const VALID_JPEG_BASE64 =
+  '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDA==';
+
 const validGeminiResponse: GeminiOcrResponse = {
   raw_text: '乳、卵、小麦',
   confidence: 'high',
@@ -171,6 +175,88 @@ describe('ScanService.scanBarcode', () => {
     });
   });
 
+  describe('OFF ヒットだがアレルゲン情報なし（安全設計）', () => {
+    it('allergens_tags / traces_tags が空なら found: false を返して OCR にフォールバックさせる', async () => {
+      cacheManager.get.mockResolvedValue(null);
+      productRepository.findByJan.mockResolvedValue(null);
+      // OFF に商品は登録されているがアレルゲン欄が未入力（日本商品で頻発）
+      offClient.fetchByJanCode.mockResolvedValue({
+        product_name: 'Pure Premium Grape',
+        allergens_tags: [],
+        traces_tags: [],
+        ingredients_text: null,
+      });
+
+      const result = await service.scanBarcode(JAN);
+
+      // ⚠️ 未入力を「アレルゲンなし」と解釈すると誤った ✅なし 表示になるため、
+      // 安全側に倒して found: false（OCR フォールバック）とする
+      expect(result.found).toBe(false);
+      expect(productRepository.upsertByJan).not.toHaveBeenCalled();
+    });
+
+    it('DB の jan 商品もアレルゲン情報が空なら DB ヒット扱いにしない', async () => {
+      cacheManager.get.mockResolvedValue(null);
+      productRepository.findByJan.mockResolvedValue({
+        ...mockProductRecord,
+        allergens: { contains: [], partial: [], components: [] },
+      });
+      offClient.fetchByJanCode.mockResolvedValue(null);
+
+      const result = await service.scanBarcode(JAN);
+
+      expect(result.found).toBe(false);
+    });
+  });
+
+  describe('OFF アレルゲンタグの日本語正規化', () => {
+    it('英語タグを日本語アレルゲン名に変換し、未知タグは値をそのまま保持する', async () => {
+      cacheManager.get.mockResolvedValue(null);
+      productRepository.findByJan.mockResolvedValue(null);
+      offClient.fetchByJanCode.mockResolvedValue({
+        product_name: 'OFF商品',
+        // en:crustaceans（甲殻類）は えび・かに の両方に展開する（安全側）
+        allergens_tags: ['en:milk', 'en:gluten', 'en:crustaceans', 'en:some-unknown'],
+        traces_tags: ['en:peanuts', 'ja:そば'],
+        ingredients_text: '牛乳、小麦粉',
+      });
+      productRepository.upsertByJan.mockResolvedValue(mockProductRecord);
+
+      await service.scanBarcode(JAN);
+
+      expect(productRepository.upsertByJan).toHaveBeenCalledWith(
+        JAN,
+        expect.objectContaining({
+          allergens: expect.objectContaining({
+            contains: ['乳', '小麦', 'えび', 'かに', 'some-unknown'],
+            partial: ['落花生', 'そば'],
+          }),
+        }),
+      );
+    });
+
+    it('en:apple は りんご に正規化される', async () => {
+      cacheManager.get.mockResolvedValue(null);
+      productRepository.findByJan.mockResolvedValue(null);
+      offClient.fetchByJanCode.mockResolvedValue({
+        product_name: 'グミ',
+        allergens_tags: ['en:apple'],
+        traces_tags: [],
+        ingredients_text: 'りんご果汁',
+      });
+      productRepository.upsertByJan.mockResolvedValue(mockProductRecord);
+
+      await service.scanBarcode(JAN);
+
+      expect(productRepository.upsertByJan).toHaveBeenCalledWith(
+        JAN,
+        expect.objectContaining({
+          allergens: expect.objectContaining({ contains: ['りんご'] }),
+        }),
+      );
+    });
+  });
+
   describe('全ミス', () => {
     it('{ found: false } を返す。例外は投げない', async () => {
       cacheManager.get.mockResolvedValue(null);
@@ -221,7 +307,7 @@ describe('ScanService.processOcr', () => {
     };
     s3Client = {
       generatePresignedPutUrl: jest.fn(),
-      getImageAsBase64: jest.fn().mockResolvedValue('base64imagedata'),
+      getImageAsBase64: jest.fn().mockResolvedValue(VALID_JPEG_BASE64),
     };
     geminiClient = {
       analyzeImage: jest.fn().mockResolvedValue(validGeminiResponse),
@@ -299,11 +385,13 @@ describe('ScanService.processOcr', () => {
       const result = await service.processOcr(S3_KEY, 'user-1');
 
       expect(scanHistoryRepository.create).toHaveBeenCalledTimes(1);
+      // detected にはアレルゲン名を保存する（成分テキストではない）。
+      // 現在のアレルギー設定との照合（履歴の設定追従）に名前一致が必要なため
       expect(scanHistoryRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           productId: mockProductRecord.id,
           judgment: 'ng',
-          detected: validGeminiResponse.results[0]?.detected ?? [],
+          detected: ['乳'],
         }),
       );
       expect(result.raw_text).toBe(validGeminiResponse.raw_text);
@@ -316,6 +404,69 @@ describe('ScanService.processOcr', () => {
       await service.processOcr(S3_KEY, undefined);
 
       expect(productRepository.upsertByHash).toHaveBeenCalledTimes(1);
+    });
+
+    it('products.allergens にアレルゲン名を保存し、may_contain は contains ではなく partial に分類する', async () => {
+      geminiClient.analyzeImage.mockResolvedValue({
+        ...validGeminiResponse,
+        results: [
+          {
+            allergen: '乳',
+            judgment: '含む',
+            detection_type: 'contains',
+            detected: ['カゼイン'],
+            risk_level: 'high',
+            reason: 'カゼインを検出',
+          },
+          {
+            allergen: '小麦',
+            judgment: '一部含む',
+            detection_type: 'partial',
+            detected: ['一部に小麦を含む'],
+            risk_level: 'medium',
+            reason: '一括表示',
+          },
+          {
+            // ⚠️ 安全設計: may_contain（製造ラインコンタミ）は NG（contains）にしない
+            allergen: 'えび',
+            judgment: '含む',
+            detection_type: 'may_contain',
+            detected: ['えびを含む製品と共通の設備で製造'],
+            risk_level: 'medium',
+            reason: '製造ライン注意書き',
+          },
+          {
+            allergen: 'りんご',
+            judgment: 'なし',
+            detection_type: 'contains',
+            detected: [],
+            risk_level: 'ignore',
+            reason: '',
+          },
+        ],
+      });
+
+      await service.processOcr(S3_KEY, 'user-1');
+
+      expect(productRepository.upsertByHash).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          allergens: {
+            contains: ['乳'],
+            partial: ['小麦', 'えび'],
+            components: [
+              'カゼイン',
+              '一部に小麦を含む',
+              'えびを含む製品と共通の設備で製造',
+            ],
+          },
+        }),
+      );
+
+      // 履歴の detected もアレルゲン名（judgment: なし は含まない）
+      expect(scanHistoryRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ detected: ['乳', '小麦', 'えび'] }),
+      );
     });
   });
 

@@ -12,7 +12,8 @@ export type HistoryItem = {
   memo: string | null
   rawText: string | null
   scannedAt: string
-  location?: { store_name: string; lat: number; lng: number } | null
+  // lat/lng はみんなのスキャン由来のアイテムでは取得できないため省略可
+  location?: { store_name: string; lat?: number; lng?: number } | null
 }
 
 /** GET /history のレスポンス型。 */
@@ -55,9 +56,22 @@ export type OthersProductItem = {
   }
   judgment: 'ng' | 'partial' | 'ok'
   detected: string[]
+  /** この商品の最新の公開スキャン履歴に紐づくサムネイル（なければ null）。 */
+  thumbnail_url: string | null
+  /** この商品の最新の公開スキャン履歴の店舗名（なければ null）。 */
+  store_name: string | null
+  /** 商品の原材料テキスト（詳細表示用）。 */
+  raw_text: string | null
   updated_at: string
   /** expires_at < NOW() の場合 true（R6）。 */
   is_expired: boolean
+}
+
+/** GET /products/others の検索・フィルタ条件。 */
+export type OthersSearchParams = {
+  filter?: HistoryFilter
+  q?: string
+  store?: string
 }
 
 /** GET /products/others のレスポンス型。 */

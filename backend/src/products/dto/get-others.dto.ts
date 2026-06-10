@@ -1,15 +1,16 @@
 import { IsIn, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
 
-/** GET /history のクエリパラメータ DTO。 */
-export class GetHistoryDto {
+/** GET /products/others のクエリパラメータ DTO。 */
+export class GetOthersDto {
   @IsOptional()
   @IsISO8601()
-  before?: string;
+  cursor?: string;
 
+  /** ユーザー設定で導出した judgment によるフィルタ。 */
   @IsOptional()
   @IsString()
   @IsIn(['all', 'ng', 'partial', 'ok'])
-  judgment?: string;
+  judgment?: 'all' | 'ng' | 'partial' | 'ok';
 
   /** 商品名の部分一致検索キーワード。 */
   @IsOptional()
@@ -17,7 +18,7 @@ export class GetHistoryDto {
   @MaxLength(100)
   q?: string;
 
-  /** 店舗名（location.store_name）の部分一致フィルタ。 */
+  /** 店舗名の部分一致フィルタ。 */
   @IsOptional()
   @IsString()
   @MaxLength(100)

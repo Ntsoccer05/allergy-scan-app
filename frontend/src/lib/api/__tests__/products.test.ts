@@ -45,7 +45,7 @@ describe('getOthersScanned', () => {
     })
 
     const cursor = '2026-05-18T00:00:00.000Z'
-    await getOthersScanned(cursor)
+    await getOthersScanned({ cursor })
 
     expect(global.fetch).toHaveBeenCalledWith(
       `/products/others?cursor=${encodeURIComponent(cursor)}`,
@@ -55,6 +55,21 @@ describe('getOthersScanned', () => {
         }),
       }),
     )
+  })
+
+  it('filter / q / store がクエリパラメータとして付与される（filter=all は省略）', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeResponse()),
+    })
+
+    await getOthersScanned({ filter: 'ng', q: 'グミ', store: 'セブン' })
+
+    const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const params = new URLSearchParams(calledUrl.split('?')[1])
+    expect(params.get('judgment')).toBe('ng')
+    expect(params.get('q')).toBe('グミ')
+    expect(params.get('store')).toBe('セブン')
   })
 
   it('レスポンスが ok でない場合 Error を throw する', async () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { HistoryCard } from '@/components/organisms/HistoryCard'
 import { HistoryDetailModal } from '@/components/organisms/HistoryDetailModal'
@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
 import { useOthersScanned } from '@/hooks/useOthersScanned'
 import { useAuthContext } from '@/providers/AuthProvider'
+import { HISTORY_TAB_STORAGE_KEY } from './history.constants'
 import type { HistoryFilter, HistoryItem } from './history.types'
 
 /** 履歴ページのタブ識別子。 */
@@ -33,12 +34,84 @@ const INITIAL_EDIT_FORM: EditFormData = {
   thumbnailUrl: null,
 }
 
+/** 判定フィルタチップ（自分のスキャン / みんなのスキャン 共通）。 */
+const FilterChips = ({
+  value,
+  onChange,
+  labels,
+}: {
+  value: HistoryFilter
+  onChange: (filter: HistoryFilter) => void
+  labels: (filter: HistoryFilter) => string
+}) => (
+  <>
+    {FILTER_TAB_VALUES.map((filter) => (
+      <button
+        key={filter}
+        type="button"
+        onClick={() => onChange(filter)}
+        className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          value === filter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+        }`}
+      >
+        {labels(filter)}
+      </button>
+    ))}
+  </>
+)
+
+/** 商品名検索 + 店舗名フィルタ入力（自分のスキャン / みんなのスキャン 共通）。 */
+const SearchFields = ({
+  search,
+  onChange,
+  productPlaceholder,
+  storePlaceholder,
+}: {
+  search: { q: string; store: string }
+  onChange: (search: { q: string; store: string }) => void
+  productPlaceholder: string
+  storePlaceholder: string
+}) => (
+  <div className="flex gap-2 mb-4">
+    <input
+      type="search"
+      value={search.q}
+      onChange={(e) => onChange({ ...search, q: e.target.value })}
+      placeholder={productPlaceholder}
+      aria-label={productPlaceholder}
+      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg
+        focus:outline-none focus:border-blue-400"
+    />
+    <input
+      type="search"
+      value={search.store}
+      onChange={(e) => onChange({ ...search, store: e.target.value })}
+      placeholder={storePlaceholder}
+      aria-label={storePlaceholder}
+      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg
+        focus:outline-none focus:border-blue-400"
+    />
+  </div>
+)
+
 export default function HistoryPage() {
   const t = useTranslations('history')
   const { user } = useAuthContext()
   const userId = user?.id ?? null
 
   const [activeTab, setActiveTab] = useState<HistoryTab>('mine')
+
+  // リロード後もタブ選択を維持する（SSR ハイドレーション不一致を避けるため useEffect で復元）
+  useEffect(() => {
+    if (localStorage.getItem(HISTORY_TAB_STORAGE_KEY) === 'others') {
+      setActiveTab('others')
+    }
+  }, [])
+
+  const handleTabChange = (tab: HistoryTab): void => {
+    setActiveTab(tab)
+    localStorage.setItem(HISTORY_TAB_STORAGE_KEY, tab)
+  }
   const [detailItem, setDetailItem] = useState<HistoryItem | null>(null)
   const [editingItem, setEditingItem] = useState<HistoryItem | null>(null)
   const [editForm, setEditForm] = useState<EditFormData>(INITIAL_EDIT_FORM)
@@ -55,6 +128,8 @@ export default function HistoryPage() {
     fetchNextPage: myFetchNextPage,
     filter,
     setFilter,
+    search,
+    setSearch,
     updateHistoryMutation,
     deleteHistoryMutation,
     bulkDeleteHistoryMutation,
@@ -66,6 +141,10 @@ export default function HistoryPage() {
     isFetchingNextPage: othersIsFetchingNextPage,
     hasNextPage: othersHasNextPage,
     fetchNextPage: othersFetchNextPage,
+    filter: othersFilter,
+    setFilter: setOthersFilter,
+    search: othersSearch,
+    setSearch: setOthersSearch,
   } = useOthersScanned()
 
   const handleDetailOpen = (item: HistoryItem) => setDetailItem(item)
@@ -152,7 +231,7 @@ export default function HistoryPage() {
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => handleTabChange(tab)}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab
                 ? 'border-blue-600 text-blue-600'
@@ -187,20 +266,13 @@ export default function HistoryPage() {
             )}
 
             {/* フィルタボタン群（通常モードのみ） */}
-            {!isSelectMode && FILTER_TAB_VALUES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  filter === value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {t(`filter.${value}`)}
-              </button>
-            ))}
+            {!isSelectMode && (
+              <FilterChips
+                value={filter}
+                onChange={setFilter}
+                labels={(f) => t(`filter.${f}`)}
+              />
+            )}
 
             {/* 選択ボタン（通常モードのみ右端に表示） */}
             {!isSelectMode && (
@@ -213,6 +285,16 @@ export default function HistoryPage() {
               </button>
             )}
           </div>
+
+          {/* 商品名検索 + 店舗名フィルタ（選択モード中は非表示） */}
+          {!isSelectMode && (
+            <SearchFields
+              search={search}
+              onChange={setSearch}
+              productPlaceholder={t('search.productPlaceholder')}
+              storePlaceholder={t('search.storePlaceholder')}
+            />
+          )}
 
           {myIsLoading && (
             <div className="flex justify-center items-center py-12">
@@ -281,6 +363,21 @@ export default function HistoryPage() {
       {/* みんなのスキャンタブ */}
       {activeTab === 'others' && (
         <>
+          {/* 判定フィルタ + 検索（自分のスキャンと同等） */}
+          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
+            <FilterChips
+              value={othersFilter}
+              onChange={setOthersFilter}
+              labels={(f) => t(`filter.${f}`)}
+            />
+          </div>
+          <SearchFields
+            search={othersSearch}
+            onChange={setOthersSearch}
+            productPlaceholder={t('search.productPlaceholder')}
+            storePlaceholder={t('search.storePlaceholder')}
+          />
+
           {othersIsLoading && (
             <div className="flex justify-center items-center py-12">
               <LoadingSpinner />
@@ -310,12 +407,15 @@ export default function HistoryPage() {
                           productName: item.product_name,
                           judgment: item.judgment,
                           detected: item.detected,
-                          thumbnailUrl: null,
+                          thumbnailUrl: item.thumbnail_url,
                           ocrImageUrl: null,
                           isPublic: true,
                           memo: null,
-                          rawText: null,
+                          rawText: item.raw_text,
                           scannedAt: item.updated_at,
+                          location: item.store_name
+                            ? { store_name: item.store_name }
+                            : null,
                         }}
                         onOpenDetail={handleDetailOpen}
                       />

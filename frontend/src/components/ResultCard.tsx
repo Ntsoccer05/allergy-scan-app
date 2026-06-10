@@ -133,7 +133,7 @@ export const ResultCard = ({
   storeCandidates = [],
   onStoreSelect,
 }: ResultCardProps) => {
-  const [rawTextOpen, setRawTextOpen] = useState(false)
+  const [rawTextOpen, setRawTextOpen] = useState(true)
   const t = useTranslations('result')
 
   /**

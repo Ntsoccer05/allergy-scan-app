@@ -6,6 +6,7 @@ import type { CreateHistoryBody } from '@/app/history/history.types'
 import {
   FRAME_CHECK_INTERVAL_MS,
   GEO_TIMEOUT_MS,
+  MAX_UPLOAD_SIZE_BYTES,
   OCR_MAX_DIMENSION,
   OCR_JPEG_QUALITY,
 } from '@/app/scan/scan.constants'
@@ -232,6 +233,11 @@ export const useScan = (): UseScanReturn => {
             else reject(new Error('toBlob failed'))
           }, 'image/jpeg', OCR_JPEG_QUALITY)
         })
+
+        if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
+          dispatch({ type: 'ERROR', error: 'api_error' })
+          return
+        }
 
         const { url, s3_key } = await fetchPresignedUrl()
         await putS3(url, blob)

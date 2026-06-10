@@ -1,9 +1,18 @@
 'use client'
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { HistoryFilter, HistoryItem, HistoryListResponse, PatchHistoryBody } from '@/app/history/history.types'
+import { SEARCH_DEBOUNCE_MS } from '@/app/history/history.constants'
 import { bulkDeleteHistory, deleteHistory, getHistory, patchHistory } from '@/lib/api/history.api'
+
+/** 履歴検索の入力値（商品名キーワード + 店舗名フィルタ）。 */
+export type HistorySearch = {
+  q: string
+  store: string
+}
+
+const EMPTY_SEARCH: HistorySearch = { q: '', store: '' }
 
 type UseHistoryReturn = {
   items: HistoryItem[]
@@ -13,6 +22,8 @@ type UseHistoryReturn = {
   fetchNextPage: () => void
   filter: HistoryFilter
   setFilter: (filter: HistoryFilter) => void
+  search: HistorySearch
+  setSearch: (search: HistorySearch) => void
   updateHistoryMutation: ReturnType<typeof useMutation<void, Error, { id: string } & PatchHistoryBody>>
   deleteHistoryMutation: ReturnType<typeof useMutation<void, Error, string>>
   bulkDeleteHistoryMutation: ReturnType<typeof useMutation<void, Error, string[]>>
@@ -20,7 +31,15 @@ type UseHistoryReturn = {
 
 export const useHistory = (): UseHistoryReturn => {
   const [filter, setFilter] = useState<HistoryFilter>('all')
+  // search: 入力値（即時反映・UI 用）/ debouncedSearch: API クエリに使う値
+  const [search, setSearch] = useState<HistorySearch>(EMPTY_SEARCH)
+  const [debouncedSearch, setDebouncedSearch] = useState<HistorySearch>(EMPTY_SEARCH)
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [search])
 
   const {
     data,
@@ -32,11 +51,17 @@ export const useHistory = (): UseHistoryReturn => {
     HistoryListResponse,
     Error,
     HistoryListResponse[],
-    [string, HistoryFilter],
+    [string, HistoryFilter, string, string],
     string | undefined
   >({
-    queryKey: ['history', filter],
-    queryFn: ({ pageParam }) => getHistory({ filter, before: pageParam }),
+    queryKey: ['history', filter, debouncedSearch.q, debouncedSearch.store],
+    queryFn: ({ pageParam }) =>
+      getHistory({
+        filter,
+        before: pageParam,
+        q: debouncedSearch.q || undefined,
+        store: debouncedSearch.store || undefined,
+      }),
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => lastPage.next_before ?? undefined,
     select: (data) => data.pages,
@@ -73,6 +98,8 @@ export const useHistory = (): UseHistoryReturn => {
     fetchNextPage,
     filter,
     setFilter,
+    search,
+    setSearch,
     updateHistoryMutation,
     deleteHistoryMutation,
     bulkDeleteHistoryMutation,

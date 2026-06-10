@@ -119,6 +119,57 @@ describeWithGemini('Gemini API 統合テスト（実 API・要 GEMINI_API_KEY）
       },
       30_000,
     );
+
+    it(
+      'アレルゲンの全出現箇所がハイライトされ、主語のない製造ライン注意書きは出力されない',
+      async () => {
+        const result = await geminiClient.analyzeImage(
+          foodLabelImageBase64,
+          allergenDetectionPrompt,
+        );
+
+        // フロントエンドの splitByHighlights と同じ「全出現マッチ」方式でカバー範囲を計算
+        const coveredSpans: Array<[number, number]> = [];
+        for (const hi of result.highlights) {
+          if (!hi.text) continue;
+          let from = 0;
+          while (from < result.raw_text.length) {
+            const idx = result.raw_text.indexOf(hi.text, from);
+            if (idx === -1) break;
+            coveredSpans.push([idx, idx + hi.text.length]);
+            from = idx + hi.text.length;
+          }
+        }
+        const isCovered = (start: number, end: number): boolean =>
+          coveredSpans.some(([s, e]) => s <= start && end <= e);
+
+        // raw_text 中の「りんご」全出現箇所を列挙（一括宣言欄 +「りんご由来」の2箇所以上）
+        const occurrences: Array<[number, number]> = [];
+        let from = 0;
+        while (from < result.raw_text.length) {
+          const idx = result.raw_text.indexOf('りんご', from);
+          if (idx === -1) break;
+          occurrences.push([idx, idx + 'りんご'.length]);
+          from = idx + 'りんご'.length;
+        }
+        expect(occurrences.length).toBeGreaterThanOrEqual(2);
+
+        // 一括宣言欄の「りんご」もハイライト対象に含まれること（全出現箇所がカバーされる）
+        const uncovered = occurrences.filter(([s, e]) => !isCovered(s, e));
+        expect(uncovered).toEqual([]);
+
+        // 主語（どのアレルゲンか）がフレーム外で読み取れない製造ライン注意書きの断片は
+        // raw_text に含めない（推測でアレルゲンを割り当てられない断片は表示しない）
+        expect(result.raw_text).not.toContain('共通の設備');
+
+        // 主語不明の断片から may_contain 判定を生成しない
+        const mayContainResults = result.results.filter(
+          (r) => r.detection_type === 'may_contain' && r.judgment !== 'なし',
+        );
+        expect(mayContainResults).toEqual([]);
+      },
+      30_000,
+    );
   });
 
   // -----------------------------------------------------------------------
@@ -236,8 +287,8 @@ describe('ScanService.scanBarcode 正常系（OFact モック）', () => {
     expect(result.found).toBe(true);
     expect(result.product_name).toBe('グミキャンデー');
     expect(result.from_cache).toBe(false);
-    // en:apple タグが apple に正規化されること
-    expect(result.allergens?.contains).toContain('apple');
+    // en:apple タグが日本語アレルゲン名 りんご に正規化されること
+    expect(result.allergens?.contains).toContain('りんご');
     // OFact API が正しい JAN コードで呼ばれること
     expect(offClient.fetchByJanCode).toHaveBeenCalledWith(TEST_JAN);
     // UPSERT が商品名付きで呼ばれること
