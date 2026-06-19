@@ -22,4 +22,13 @@ export class OcrScanDto {
   @IsOptional()
   @IsBoolean()
   allow_low_confidence?: boolean;
+
+  /**
+   * 撮影フレームから検出済みの JAN コード（00310 JAN キャッシュ用）。
+   * 指定時は OCR 結果を jan キーで products に保存し、次回以降バーコードだけで判定できるようにする。
+   */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{8}$|^\d{13}$/, { message: 'jan_code は 8 桁または 13 桁の数字です' })
+  jan_code?: string;
 }

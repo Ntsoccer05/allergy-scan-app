@@ -1,0 +1,15 @@
+{
+  "title": "購入場所マップ",
+  "toggle": {
+    "mine": "自分のピン",
+    "public": "みんなのピン"
+  },
+  "error": "マップ情報の取得に失敗しました",
+  "empty": "場所が登録されたスキャンがまだありません",
+  "storeName": "📍 {store}",
+  "card": {
+    "close": "閉じる",
+    "unnamed": "商品名なし",
+    "publicBadge": "みんなのスキャン"
+  }
+}

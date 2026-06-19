@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScanController } from './scan.controller';
 import { ScanService } from './scan.service';
+import { PlacesController } from './places.controller';
+import { PlacesService } from './places.service';
 import { DailyScanLimitGuard } from './daily-scan-limit.guard';
 import { ProductsModule } from '../products/products.module';
 import { AllergensModule } from '../allergens/allergens.module';
@@ -13,6 +15,7 @@ import { GeminiClient } from '../shared/gemini.client';
 import { GooglePlacesClient } from '../shared/google-places.client';
 import { OverpassPlacesClient } from '../shared/overpass-places.client';
 import { HybridPlacesClient } from '../shared/hybrid-places.client';
+import { GsiGeocoderClient } from '../shared/gsi-geocoder.client';
 import {
   PLACES_PROVIDER_TOKEN,
   type StoreCandidateProvider,
@@ -29,9 +32,10 @@ import { CACHE_TTL_MEMORY_SEC } from './scan.constants';
       ttl: CACHE_TTL_MEMORY_SEC * 1000,
     }),
   ],
-  controllers: [ScanController],
+  controllers: [ScanController, PlacesController],
   providers: [
     ScanService,
+    PlacesService,
     DailyScanLimitGuard,
     OpenFoodFactsClient,
     S3Client,
@@ -39,6 +43,7 @@ import { CACHE_TTL_MEMORY_SEC } from './scan.constants';
     GooglePlacesClient,
     OverpassPlacesClient,
     HybridPlacesClient,
+    GsiGeocoderClient,
     {
       provide: PLACES_PROVIDER_TOKEN,
       useFactory: (

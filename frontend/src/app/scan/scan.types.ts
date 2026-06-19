@@ -55,6 +55,8 @@ export type BarcodeScanResponse = {
   detected?: string[] | null
   risk_level?: 'high' | 'medium' | 'low' | 'ignore' | null
   from_cache: boolean
+  /** 商品の原材料テキスト（OCR 由来 JAN キャッシュ・OFF の ingredients。検証表示用） */
+  raw_text?: string | null
 }
 
 export type PresignedUrlResponse = {
@@ -74,7 +76,7 @@ export type OcrScanResponse = {
   product_name?: string | null
 }
 
-/** 店舗候補の型（Places API から返される） */
+/** 店舗候補の型（GET /places/candidates から返される） */
 export type StoreCandidate = {
   name: string
   placeId: string
@@ -83,5 +85,5 @@ export type StoreCandidate = {
 /** バーコードスキャン結果または OCR スキャン結果 */
 export type ScanResult =
   | { type: 'barcode'; data: BarcodeScanResponse }
-  | { type: 'ocr'; data: OcrScanResponse; storeCandidates?: StoreCandidate[] }
+  | { type: 'ocr'; data: OcrScanResponse }
   | { type: 'low_confidence'; raw_text: string }

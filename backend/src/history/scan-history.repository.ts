@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ScanHistoryLocation } from '../shared/types/db.types';
 
@@ -50,6 +51,43 @@ export type PublicHistoryRecord = {
   thumbnailUrl: string | null;
   storeName: string | null;
   scannedAt: Date;
+};
+
+/** マップ用ピン（自分の履歴）。location に有効な lat/lng を持つ履歴のみ。 */
+export type LocationPinRecord = {
+  id: string;
+  productName: string | null;
+  judgment: string;
+  detected: string[];
+  thumbnailUrl: string | null;
+  storeName: string | null;
+  lat: number;
+  lng: number;
+  scannedAt: Date;
+  rawText: string | null;
+};
+
+/**
+ * マップ用ピン（公開履歴）。
+ * ⚠️ プライバシー: userId・detected・rawText・memo を含まない。
+ */
+export type PublicLocationPinRecord = Omit<
+  LocationPinRecord,
+  'detected' | 'rawText'
+>;
+
+/** $queryRaw が返すマップピン行の型（snake_case カラム名）。 */
+type LocationPinRow = {
+  id: string;
+  product_name: string | null;
+  judgment: string;
+  detected: unknown;
+  thumbnail_url: string | null;
+  store_name: string | null;
+  lat: number;
+  lng: number;
+  scanned_at: Date;
+  raw_text: string | null;
 };
 
 /** findByUser のオプション型。 */
@@ -231,11 +269,11 @@ export class ScanHistoryRepository {
     }
 
     if (data.storeName !== undefined) {
-      // storeName 更新時は既存の lat/lng を維持するため findById で取得して merge する
+      // storeName 更新時は既存の lat/lng（および place_id）を維持するため findById で取得して merge する
       const existing = await this.findById(id);
       const existingLocation = existing?.location;
       updateData.location = existingLocation
-        ? { store_name: data.storeName, lat: existingLocation.lat, lng: existingLocation.lng }
+        ? { ...existingLocation, store_name: data.storeName }
         : { store_name: data.storeName };
     }
 
@@ -316,6 +354,90 @@ export class ScanHistoryRepository {
       }),
     ]);
     return { count, last_updated_at: latest?.scannedAt ?? null };
+  }
+
+  /**
+   * マップ表示用: location に有効な lat/lng を持つ自分の履歴を最新順に取得する。
+   * JSONB キーの数値型判定は Prisma クエリビルダーで表現できないため
+   * $queryRaw + Prisma.sql を使う（patterns.md パターン15）。
+   */
+  async findLocationPinsByUser(
+    userId: string,
+    limit: number,
+  ): Promise<LocationPinRecord[]> {
+    const rows = await this.prisma.$queryRaw<LocationPinRow[]>(Prisma.sql`
+      SELECT
+        id,
+        product_name,
+        judgment,
+        detected,
+        thumbnail_url,
+        location->>'store_name' AS store_name,
+        (location->>'lat')::float8 AS lat,
+        (location->>'lng')::float8 AS lng,
+        scanned_at,
+        raw_text
+      FROM scan_histories
+      WHERE user_id = ${userId}
+        AND jsonb_typeof(location->'lat') = 'number'
+        AND jsonb_typeof(location->'lng') = 'number'
+      ORDER BY scanned_at DESC
+      LIMIT ${limit}
+    `);
+    return rows.map((row) => ({
+      id: row.id,
+      productName: row.product_name,
+      judgment: row.judgment,
+      // JSONB フィールドを string[] として解釈する（db.types.ts 準拠）
+      detected: (row.detected as string[]) ?? [],
+      thumbnailUrl: row.thumbnail_url,
+      storeName: row.store_name,
+      lat: row.lat,
+      lng: row.lng,
+      scannedAt: row.scanned_at,
+      rawText: row.raw_text,
+    }));
+  }
+
+  /**
+   * マップ表示用: 公開履歴のピンを最新順に取得する。
+   * ⚠️ プライバシー: 店舗名が確定している履歴のみ公開ピン化する
+   * （自宅等でスキャンした座標をそのまま公開しないための設計判断。task 00320 参照）。
+   * ⚠️ anti_patterns.md #4: OK 判定のみ公開可能（findPublicHistory と同一ポリシー）。
+   * userId・detected・rawText・memo は返却しない。
+   */
+  async findPublicLocationPins(
+    limit: number,
+  ): Promise<PublicLocationPinRecord[]> {
+    const rows = await this.prisma.$queryRaw<LocationPinRow[]>(Prisma.sql`
+      SELECT
+        id,
+        product_name,
+        judgment,
+        thumbnail_url,
+        location->>'store_name' AS store_name,
+        (location->>'lat')::float8 AS lat,
+        (location->>'lng')::float8 AS lng,
+        scanned_at
+      FROM scan_histories
+      WHERE is_public = true
+        AND judgment = 'ok'
+        AND COALESCE(location->>'store_name', '') <> ''
+        AND jsonb_typeof(location->'lat') = 'number'
+        AND jsonb_typeof(location->'lng') = 'number'
+      ORDER BY scanned_at DESC
+      LIMIT ${limit}
+    `);
+    return rows.map((row) => ({
+      id: row.id,
+      productName: row.product_name,
+      judgment: row.judgment,
+      thumbnailUrl: row.thumbnail_url,
+      storeName: row.store_name,
+      lat: row.lat,
+      lng: row.lng,
+      scannedAt: row.scanned_at,
+    }));
   }
 
   /**

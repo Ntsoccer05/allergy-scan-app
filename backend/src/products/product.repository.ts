@@ -52,6 +52,10 @@ export type ProductRecord = {
   allergens: ProductAllergens;
   scanCount: number;
   expiresAt: Date | null;
+  /** OCR 由来の場合の読み取り信頼度（OFF 由来は null）。JAN キャッシュの配信可否判定に使う。 */
+  confidence: string | null;
+  /** 原材料テキスト（OCR 由来 JAN キャッシュの検証表示用）。 */
+  rawText: string | null;
 };
 
 @Injectable()
@@ -72,6 +76,8 @@ export class ProductRepository {
         allergens: true,
         scanCount: true,
         expiresAt: true,
+        confidence: true,
+        rawText: true,
       },
     });
     if (!product) return null;
@@ -84,6 +90,8 @@ export class ProductRepository {
       allergens: product.allergens as ProductAllergens,
       scanCount: product.scanCount,
       expiresAt: product.expiresAt,
+      confidence: product.confidence,
+      rawText: product.rawText,
     };
   }
 
@@ -133,6 +141,8 @@ export class ProductRepository {
         allergens: true,
         scanCount: true,
         expiresAt: true,
+        confidence: true,
+        rawText: true,
       },
     });
 
@@ -142,6 +152,8 @@ export class ProductRepository {
       allergens: product.allergens as ProductAllergens,
       scanCount: product.scanCount,
       expiresAt: product.expiresAt,
+      confidence: product.confidence,
+      rawText: product.rawText,
     };
   }
 
@@ -326,6 +338,8 @@ export class ProductRepository {
         allergens: true,
         scanCount: true,
         expiresAt: true,
+        confidence: true,
+        rawText: true,
       },
     });
 
@@ -335,6 +349,8 @@ export class ProductRepository {
       allergens: product.allergens as ProductAllergens,
       scanCount: product.scanCount,
       expiresAt: product.expiresAt,
+      confidence: product.confidence,
+      rawText: product.rawText,
     };
   }
 }

@@ -118,15 +118,20 @@ GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ
 PUT  /users/me               アレルギー設定更新
 DELETE /users/me             ユーザーデータ削除
 GET  /scan/presigned-url     S3 Presigned URL 発行
-POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
-GET  /history                履歴一覧（カーソルページネーション）
+POST /scan/barcode           JANコード照合（DB JAN キャッシュ → OFF。アレルゲン情報なしは found:false）
+POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック。jan_code 指定で JAN キャッシュ保存）
+POST /scan/ocr-stream        OCR の SSE ストリーミング版
+GET  /scan/usage             今日のスキャン使用量（used / limit / remaining）
+GET  /places/candidates      現在地の住所（国土地理院）+ 施設候補（Google Places）。場所登録操作時のみ呼ぶ
+GET  /history                履歴一覧（カーソルページネーション・q / store 検索・現在設定で judgment 再導出）
+GET  /history/locations      マップ用ピン一覧（自分の全ピン + 公開ピン）
 POST /history                履歴保存
-PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public / thumbnail_url）
+PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public / thumbnail_url / location）
 DELETE /history/:id          履歴削除
 DELETE /history/bulk         履歴一括削除（ids: string[]・最大100件）
-GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
-GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用・認証不要）
+GET  /products/others        みんなのスキャン一覧（公開商品のみ・judgment / q / store フィルタ）
+GET  /public/history         公開スキャン一覧（認証不要・カーソルページネーション）
+GET  /public/history/digest  公開スキャン新着件数（ポーリング用・認証不要）
 GET  /allergens              アレルギーマスター取得
 GET  /admin/users            ユーザー一覧（admin 専用）
 GET  /admin/stats            統計情報（admin 専用）
@@ -134,9 +139,9 @@ PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
 POST /webhooks/stripe        Stripe Webhook 受信（@Public）
 ```
 
-**認証方式（現行）**: Cookie ベース認証（`HttpOnly Cookie` の `COOKIE_NAME`）。`req.cookies?.[COOKIE_NAME]` で `userId` を取得。`/admin/*` は `AdminGuard` が Supabase Auth の `app_metadata.role === 'admin'` を追加チェック。`@Public()` デコレータで認証バイパス。
+**認証方式（現行）**: Supabase Auth の **JWT Bearer Token**。`SupabaseJwtGuard` がグローバル適用され、`Authorization: Bearer <token>` を Supabase の `auth.getUser(token)` で検証し `req.user`（`sub` = userId）にセットする。フロントエンドは `apiFetch` が Supabase セッションのアクセストークンを自動付与する。`@Public()` デコレータで認証バイパス。`/admin/*` は `app_metadata.role === 'admin'` を追加チェック。
 
-> ⚠️ Phase 1（pending）で Supabase Auth JWT Bearer Token に統一予定。移行後は `SupabaseJwtGuard` がグローバル適用され、フロントエンドは `apiFetch` 経由で `Authorization: Bearer <token>` を自動付与する。
+> 旧 Cookie ベース認証（`COOKIE_NAME`）は廃止済み。Cookie で API を叩いても 401 になる。
 
 フロントエンドは上記エンドポイントのみを使う。DB に直接アクセスしない。
 スキーマ詳細 → `docs/design/api.md`

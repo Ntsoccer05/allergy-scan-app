@@ -6,13 +6,14 @@ import { useTranslations } from 'next-intl'
 
 type NavItem = {
   href: string
-  labelKey: 'nav.scan' | 'nav.history' | 'nav.settings'
+  labelKey: 'nav.scan' | 'nav.history' | 'nav.map' | 'nav.settings'
   icon: string
 }
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/scan', labelKey: 'nav.scan', icon: '📷' },
   { href: '/history', labelKey: 'nav.history', icon: '🕐' },
+  { href: '/map', labelKey: 'nav.map', icon: '🗺️' },
   { href: '/settings', labelKey: 'nav.settings', icon: '⚙️' },
 ]
 

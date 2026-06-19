@@ -6,7 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ScanHistoryRepository } from './scan-history.repository';
-import type { ScanHistoryRecord, PublicHistoryRecord } from './scan-history.repository';
+import type {
+  ScanHistoryRecord,
+  PublicHistoryRecord,
+  LocationPinRecord,
+  PublicLocationPinRecord,
+} from './scan-history.repository';
 import type { ScanHistoryLocation } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
@@ -30,8 +35,61 @@ export type PublicHistoryListResult = {
   next_before: string | null;
 };
 
+/** マップ用ピン1件のレスポンス型（自分の履歴。raw_text・detected を含む）。 */
+export type MapPin = {
+  id: string;
+  product_name: string | null;
+  judgment: 'ng' | 'partial' | 'ok';
+  detected: string[];
+  thumbnail_url: string | null;
+  store_name: string | null;
+  lat: number;
+  lng: number;
+  scanned_at: string;
+  raw_text: string | null;
+};
+
+/**
+ * マップ用ピン1件のレスポンス型（公開履歴）。
+ * ⚠️ プライバシー: raw_text・detected・user_id・memo を含めない。
+ */
+export type PublicMapPin = Omit<MapPin, 'detected' | 'raw_text'>;
+
+/** GET /history/locations のレスポンス型。 */
+export type MapLocationsResult = {
+  mine: MapPin[];
+  public: PublicMapPin[];
+};
+
 /** GET /history の1ページあたりの最大件数。 */
 const HISTORY_PAGE_LIMIT = 20;
+
+/** GET /history/locations で返すピンの最大件数（mine / public それぞれ）。 */
+const MAP_LOCATION_PINS_LIMIT = 500;
+
+const toMapPin = (record: LocationPinRecord): MapPin => ({
+  id: record.id,
+  product_name: record.productName,
+  judgment: record.judgment as MapPin['judgment'],
+  detected: record.detected,
+  thumbnail_url: record.thumbnailUrl,
+  store_name: record.storeName,
+  lat: record.lat,
+  lng: record.lng,
+  scanned_at: record.scannedAt.toISOString(),
+  raw_text: record.rawText,
+});
+
+const toPublicMapPin = (record: PublicLocationPinRecord): PublicMapPin => ({
+  id: record.id,
+  product_name: record.productName,
+  judgment: record.judgment as MapPin['judgment'],
+  thumbnail_url: record.thumbnailUrl,
+  store_name: record.storeName,
+  lat: record.lat,
+  lng: record.lng,
+  scanned_at: record.scannedAt.toISOString(),
+});
 
 @Injectable()
 export class HistoryService {
@@ -99,6 +157,31 @@ export class HistoryService {
         : null;
 
     return { items, next_before };
+  }
+
+  /**
+   * マップ表示用に自分のピンと公開ピンを取得する。
+   * mine: location に lat/lng がある自分の履歴（raw_text・detected を含む）。
+   * public: is_public=true かつ店舗名が確定している全ユーザーの履歴
+   * （⚠️ プライバシー: user_id・memo・raw_text・detected は含めない）。
+   */
+  async getMapLocations(userId: string): Promise<MapLocationsResult> {
+    const [mine, publicPins] = await Promise.all([
+      this.scanHistoryRepository.findLocationPinsByUser(
+        userId,
+        MAP_LOCATION_PINS_LIMIT,
+      ),
+      this.scanHistoryRepository.findPublicLocationPins(
+        MAP_LOCATION_PINS_LIMIT,
+      ),
+    ]);
+    this.logger.log(
+      `マップピン取得: userId=${userId}, mine=${mine.length}, public=${publicPins.length}`,
+    );
+    return {
+      mine: mine.map(toMapPin),
+      public: publicPins.map(toPublicMapPin),
+    };
   }
 
   /**

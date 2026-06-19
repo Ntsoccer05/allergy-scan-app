@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   HttpException,
   HttpStatus,
@@ -13,6 +13,7 @@ import type { ProductAllergens } from '../shared/types/db.types';
 import type { OpenFoodFactsProductFields } from '../shared/types/open-food-facts.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
 import { ProductRepository } from '../products/product.repository';
+import type { ProductRecord } from '../products/product.repository';
 import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
 import { ScanHistoryRepository } from '../history/scan-history.repository';
 import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
@@ -20,11 +21,6 @@ import { S3Client } from '../shared/s3.client';
 import { GeminiClient } from '../shared/gemini.client';
 import { UsersRepository } from '../users/users.repository';
 import { UserDailyScansService } from '../users/user-daily-scans.service';
-import {
-  PLACES_PROVIDER_TOKEN,
-  type StoreCandidate,
-  type StoreCandidateProvider,
-} from '../shared/places.interface';
 import { buildGeminiPrompt } from './gemini-prompt.builder';
 import { normalizeOffTags } from './off-allergen-map';
 import { buildLabelHash } from '../products/label-hash.util';
@@ -67,6 +63,8 @@ export type BarcodeScanResult = {
   detected?: string[] | null;
   risk_level?: 'high' | 'medium' | 'low' | 'ignore' | null;
   from_cache: boolean;
+  /** 商品の原材料テキスト（OCR 由来 JAN キャッシュ・OFF の ingredients。検証表示用） */
+  raw_text?: string | null;
 };
 
 /** GET /scan/presigned-url のレスポンス型（openapi.yaml PresignedUrlResponse 準拠）。 */
@@ -75,9 +73,8 @@ export type PresignedUrlResult = {
   s3_key: string;
 };
 
-/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates・history_id を追加。 */
+/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に history_id を追加。 */
 export type OcrScanResult = GeminiOcrResponse & {
-  storeCandidates?: StoreCandidate[];
   history_id?: string;
 };
 
@@ -103,7 +100,6 @@ export class ScanService {
     private readonly geminiClient: GeminiClient,
     private readonly usersRepository: UsersRepository,
     private readonly userDailyScansService: UserDailyScansService,
-    @Inject(PLACES_PROVIDER_TOKEN) private readonly placesClient: StoreCandidateProvider,
   ) {}
 
   /**
@@ -125,14 +121,21 @@ export class ScanService {
     }
 
     // Step 2: DB の expires_at 確認
-    // ⚠️ 安全設計: アレルゲン情報が空の jan 商品（OFF 未入力由来）はヒット扱いにしない
+    // ⚠️ 安全設計: アレルゲン情報が空の jan 商品（OFF 未入力由来）はヒット扱いにしない。
+    // OCR 由来の JAN キャッシュ（confidence あり）は high のみ配信する —
+    // 共有キャッシュであり1人の不確実な読み取りが全ユーザーの判定に影響するため
     const dbProduct = await this.productRepository.findByJan(janCode);
-    if (dbProduct && !this.hasNoAllergenInfo(dbProduct.allergens)) {
+    if (
+      dbProduct &&
+      !this.hasNoAllergenInfo(dbProduct.allergens) &&
+      (dbProduct.confidence === null || dbProduct.confidence === 'high')
+    ) {
       this.logger.log(`DB hit for JAN: ${janCode}`);
       const result = this.buildResultFromDb(
         dbProduct.productName,
         dbProduct.allergens,
         false,
+        dbProduct.rawText,
       );
       await this.cacheManager.set(
         cacheKey,
@@ -166,6 +169,7 @@ export class ScanService {
         this.extractProductName(offProduct),
         allergens,
         false,
+        offProduct.ingredients_text_ja ?? offProduct.ingredients_text ?? null,
       );
       await this.cacheManager.set(
         cacheKey,
@@ -201,16 +205,17 @@ export class ScanService {
    * 5. incomplete: true → 400
    * 6. confidence: low → 422
    * 7. products テーブルに UPSERT（scan_count +1、expires_at 再計算）
-   * 8. GPS + Places API で店舗候補取得（lat/lng が両方揃っている場合のみ）
-   * 9. 候補数に応じて location を分岐し scan_histories に記録
-   * 10. 候補 2 件以上のとき storeCandidates をレスポンスに含める
+   * 8. location: null で scan_histories に記録
+   *    （00320: Places API はコール課金のためスキャン時に呼ばない。
+   *      場所はユーザーの「場所を登録」操作時に GET /places/candidates で取得して PATCH する）
    */
   async processOcr(
     s3Key: string,
     userId: string | undefined,
-    lat?: number,
-    lng?: number,
+    _lat?: number,
+    _lng?: number,
     allowLowConfidence?: boolean,
+    janCode?: string,
   ): Promise<OcrScanResult> {
     const t0 = Date.now();
 
@@ -275,36 +280,34 @@ export class ScanService {
     }
 
     // Step 7: products テーブルに UPSERT
-    const labelHash = buildLabelHash(
-      geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
-      '',
-      geminiResult.raw_text,
-    );
+    // JAN が検出済みの場合は jan キーで保存し、次回以降バーコードだけで判定できるようにする（00310 JAN キャッシュ）
     const allergens = this.buildAllergensFromGemini(geminiResult);
-    const product = await this.productRepository.upsertByHash(labelHash, {
+    const upsertData = {
       productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
-    });
-
-    // Step 8: GPS + Places API で店舗候補取得（lat/lng 両方揃っている場合のみ）
-    let storeCandidates: StoreCandidate[] = [];
-    if (lat !== undefined && lng !== undefined) {
-      storeCandidates = await this.placesClient.getStoreCandidates(lat, lng);
+    };
+    let product: ProductRecord;
+    // ⚠️ 安全設計: JAN キャッシュは全ユーザー共有のため、確実に読めた結果（confidence: high）のみ保存する。
+    // medium は本人の履歴用に hash キーでのみ保存し、他ユーザーの判定に影響させない
+    if (janCode && geminiResult.confidence === 'high') {
+      product = await this.productRepository.upsertByJan(janCode, upsertData);
+      this.logger.log(`JAN キャッシュ保存: jan=${janCode}`);
+    } else {
+      const labelHash = buildLabelHash(
+        geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
+        '',
+        geminiResult.raw_text,
+      );
+      product = await this.productRepository.upsertByHash(labelHash, upsertData);
     }
 
-    // Step 9: 候補数に応じて location を分岐し scan_histories に記録
+    // Step 8: location: null で scan_histories に記録
+    // （場所はユーザーの「場所を登録」操作時に PATCH /history/:id で更新する — 00320）
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
     const allDetected = this.buildDetectedAllergenNames(geminiResult.results);
-
-    let location: { store_name: string; lat: number; lng: number } | null = null;
-    if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
-      // 候補 1 件: 確定として location に保存
-      location = { store_name: storeCandidates[0].name, lat, lng };
-    }
-    // 候補 0 件 または 2 件以上: location: null で保存（2件以上はユーザー選択後に PATCH）
 
     // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
     let historyId: string | undefined;
@@ -315,7 +318,7 @@ export class ScanService {
         productName: geminiResult.product_name ?? null,
         judgment,
         detected: allDetected,
-        location,
+        location: null,
         thumbnailUrl: null,
         rawText: geminiResult.raw_text,
       });
@@ -327,10 +330,6 @@ export class ScanService {
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
     );
 
-    // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
-    if (storeCandidates.length >= 2) {
-      return { ...geminiResult, storeCandidates, history_id: historyId };
-    }
     return { ...geminiResult, history_id: historyId };
   }
 
@@ -341,9 +340,10 @@ export class ScanService {
   async *processOcrStream(
     s3Key: string,
     userId: string | undefined,
-    lat?: number,
-    lng?: number,
+    _lat?: number,
+    _lng?: number,
     allowLowConfidence?: boolean,
+    janCode?: string,
   ): AsyncGenerator<OcrStreamEvent> {
     yield { type: 'started' };
 
@@ -398,32 +398,33 @@ export class ScanService {
       return;
     }
 
-    const labelHash = buildLabelHash(
-      geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
-      '',
-      geminiResult.raw_text,
-    );
+    // JAN が検出済みの場合は jan キーで保存し、次回以降バーコードだけで判定できるようにする（00310 JAN キャッシュ）
     const allergens = this.buildAllergensFromGemini(geminiResult);
-    const product = await this.productRepository.upsertByHash(labelHash, {
+    const upsertData = {
       productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
-    });
-
-    let storeCandidates: StoreCandidate[] = [];
-    if (lat !== undefined && lng !== undefined) {
-      storeCandidates = await this.placesClient.getStoreCandidates(lat, lng);
+    };
+    let product: ProductRecord;
+    // ⚠️ 安全設計: JAN キャッシュは全ユーザー共有のため、確実に読めた結果（confidence: high）のみ保存する。
+    // medium は本人の履歴用に hash キーでのみ保存し、他ユーザーの判定に影響させない
+    if (janCode && geminiResult.confidence === 'high') {
+      product = await this.productRepository.upsertByJan(janCode, upsertData);
+      this.logger.log(`JAN キャッシュ保存: jan=${janCode}`);
+    } else {
+      const labelHash = buildLabelHash(
+        geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
+        '',
+        geminiResult.raw_text,
+      );
+      product = await this.productRepository.upsertByHash(labelHash, upsertData);
     }
 
+    // location: null で保存する（場所登録はユーザー操作時の PATCH に分離 — 00320）
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
     const allDetected = this.buildDetectedAllergenNames(geminiResult.results);
-
-    let location: { store_name: string; lat: number; lng: number } | null = null;
-    if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
-      location = { store_name: storeCandidates[0].name, lat, lng };
-    }
 
     // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
     let historyId: string | undefined;
@@ -434,7 +435,7 @@ export class ScanService {
         productName: geminiResult.product_name ?? null,
         judgment,
         detected: allDetected,
-        location,
+        location: null,
         thumbnailUrl: null,
         rawText: geminiResult.raw_text,
       });
@@ -444,11 +445,7 @@ export class ScanService {
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
 
-    if (storeCandidates.length >= 2) {
-      yield { type: 'result', data: { ...geminiResult, storeCandidates, history_id: historyId } };
-    } else {
-      yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
-    }
+    yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
   }
 
   /**
@@ -570,6 +567,7 @@ export class ScanService {
     productName: string | null,
     allergens: ProductAllergens,
     fromCache: boolean,
+    rawText: string | null = null,
   ): BarcodeScanResult {
     const detected = [...allergens.components];
     let judgment: string | null = null;
@@ -598,6 +596,8 @@ export class ScanService {
       detected,
       risk_level: riskLevel,
       from_cache: fromCache,
+      // ⚠️ 安全設計: 他ユーザーの OCR 結果（JAN キャッシュ）を本人が検証できるよう raw_text を返す
+      raw_text: rawText,
     };
   }
 

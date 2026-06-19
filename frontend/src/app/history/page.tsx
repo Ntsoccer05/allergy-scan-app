@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { HistoryCard } from '@/components/organisms/HistoryCard'
 import { HistoryDetailModal } from '@/components/organisms/HistoryDetailModal'
@@ -9,7 +9,8 @@ import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
 import { useOthersScanned } from '@/hooks/useOthersScanned'
 import { useAuthContext } from '@/providers/AuthProvider'
-import { HISTORY_TAB_STORAGE_KEY } from './history.constants'
+import { sortByDistance } from '@/lib/geo.utils'
+import { HISTORY_TAB_STORAGE_KEY, GEO_SORT_TIMEOUT_MS } from './history.constants'
 import type { HistoryFilter, HistoryItem } from './history.types'
 
 /** 履歴ページのタブ識別子。 */
@@ -112,6 +113,28 @@ export default function HistoryPage() {
     setActiveTab(tab)
     localStorage.setItem(HISTORY_TAB_STORAGE_KEY, tab)
   }
+
+  // 近い順ソート（00320-C）: 現在地基準のクライアントソート。読み込み済みアイテムにのみ適用される
+  const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest')
+  const [sortOrigin, setSortOrigin] = useState<{ lat: number; lng: number } | null>(null)
+
+  const handleSortToggle = (): void => {
+    if (sortMode === 'nearest') {
+      setSortMode('newest')
+      return
+    }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSortOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setSortMode('nearest')
+      },
+      () => {
+        // 現在地が取れない場合は新しい順のまま（エラー表示はしない）
+      },
+      { timeout: GEO_SORT_TIMEOUT_MS },
+    )
+  }
   const [detailItem, setDetailItem] = useState<HistoryItem | null>(null)
   const [editingItem, setEditingItem] = useState<HistoryItem | null>(null)
   const [editForm, setEditForm] = useState<EditFormData>(INITIAL_EDIT_FORM)
@@ -146,6 +169,14 @@ export default function HistoryPage() {
     search: othersSearch,
     setSearch: setOthersSearch,
   } = useOthersScanned()
+
+  const displayedMyItems = useMemo(
+    () =>
+      sortMode === 'nearest' && sortOrigin
+        ? sortByDistance(myItems, sortOrigin)
+        : myItems,
+    [myItems, sortMode, sortOrigin],
+  )
 
   const handleDetailOpen = (item: HistoryItem) => setDetailItem(item)
   const handleDetailClose = () => setDetailItem(null)
@@ -274,6 +305,21 @@ export default function HistoryPage() {
               />
             )}
 
+            {/* 新しい順 / 近い順 ソートトグル（通常モードのみ） */}
+            {!isSelectMode && (
+              <button
+                type="button"
+                onClick={handleSortToggle}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  sortMode === 'nearest'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {sortMode === 'nearest' ? t('sort.nearest') : t('sort.newest')}
+              </button>
+            )}
+
             {/* 選択ボタン（通常モードのみ右端に表示） */}
             {!isSelectMode && (
               <button
@@ -304,13 +350,13 @@ export default function HistoryPage() {
 
           {!myIsLoading && (
             <>
-              {myItems.length === 0 ? (
+              {displayedMyItems.length === 0 ? (
                 <p className="text-center text-gray-400 py-12 text-sm">
                   {t('empty')}
                 </p>
               ) : (
                 <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-                  {myItems.map((item) => (
+                  {displayedMyItems.map((item) => (
                     <li key={item.id}>
                       <HistoryCard
                         item={item}

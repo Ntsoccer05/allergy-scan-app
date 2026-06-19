@@ -15,6 +15,10 @@
     "productPlaceholder": "Search by product name",
     "storePlaceholder": "Filter by store"
   },
+  "sort": {
+    "newest": "Newest first",
+    "nearest": "📍 Nearest first"
+  },
   "othersEmpty": "No products have been scanned yet",
   "loadMore": "Load more",
   "loading": "Loading...",

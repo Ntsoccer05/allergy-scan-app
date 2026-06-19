@@ -2,13 +2,11 @@ import type {
   BarcodeScanResponse,
   OcrScanResponse,
   PresignedUrlResponse,
-  StoreCandidate,
 } from '@/app/scan/scan.types'
 import { apiFetch } from './api-client'
 
-/** POST /scan/ocr のレスポンス型（storeCandidates は候補 2 件以上のときのみ含まれる）。 */
+/** POST /scan/ocr のレスポンス型。 */
 export type OcrApiResponse = OcrScanResponse & {
-  storeCandidates?: StoreCandidate[]
   history_id?: string
 }
 
@@ -65,6 +63,8 @@ type PostOcrParams = {
   lat?: number
   lng?: number
   allowLowConfidence?: boolean
+  /** 撮影フレームから検出済みの JAN コード（JAN キャッシュ用） */
+  janCode?: string
 }
 
 export type OcrErrorBody = {
@@ -78,11 +78,13 @@ export const postOcr = async ({
   lat,
   lng,
   allowLowConfidence,
+  janCode,
 }: PostOcrParams): Promise<OcrApiResponse> => {
   const body: Record<string, unknown> = { s3_key: s3Key }
   if (lat !== undefined) body.lat = lat
   if (lng !== undefined) body.lng = lng
   if (allowLowConfidence) body.allow_low_confidence = true
+  if (janCode) body.jan_code = janCode
 
   // apiFetch throws on non-ok; OCR errors carry a structured body so we intercept
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
@@ -119,6 +121,7 @@ export async function* postOcrStream(params: PostOcrParams): AsyncGenerator<OcrS
   if (params.lat !== undefined) body.lat = params.lat
   if (params.lng !== undefined) body.lng = params.lng
   if (params.allowLowConfidence) body.allow_low_confidence = true
+  if (params.janCode) body.jan_code = params.janCode
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
   const { createClient } = await import('@/lib/supabase/client')

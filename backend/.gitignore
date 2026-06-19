@@ -11,3 +11,16 @@ coverage/
 
 # prisma
 prisma/migrations/dev.db
+
+# スクレイピングスクリプト・収集データ（ローカル専用）
+# 残す: scripts/prompt-consistency-test.ts, scripts/seed-admin.ts
+scripts/output/
+scripts/*.py
+scripts/*.json
+scripts/collect-*.ts
+scripts/import-*.ts
+scripts/scrape-*.ts
+scripts/seed-admin.js
+scripts/seed-admin.js.map
+scripts/seed-admin.d.ts
+scripts/test-ocr-image.js

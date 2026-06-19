@@ -23,11 +23,12 @@ export default function ScanPage() {
     scanState,
     error,
     result,
-    storeCandidates,
     capturedImageUrl,
     thumbnailUrl,
+    geolocation,
     setThumbnailUrl,
-    onStoreSelect,
+    fetchPlaceCandidates,
+    registerLocation,
     onPatchHistory,
     videoRef,
     startScan,
@@ -71,8 +72,9 @@ export default function ScanPage() {
           <ResultCard
             result={result}
             onReset={() => { reset(); void startScan() }}
-            storeCandidates={storeCandidates}
-            onStoreSelect={onStoreSelect}
+            geolocation={geolocation}
+            onFetchPlaceCandidates={fetchPlaceCandidates}
+            onRegisterLocation={registerLocation}
             onPatchHistory={onPatchHistory}
             onRetakeThumbnail={() => setShowThumbnailCamera(true)}
             thumbnailUrl={thumbnailUrl}

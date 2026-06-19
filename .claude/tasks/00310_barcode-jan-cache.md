@@ -1,8 +1,9 @@
 ---
 id: "00310"
 title: バーコード判定の実効化（自前 JAN キャッシュ + 検出経路の拡充）
-status: pending
+status: completed
 created: "2026-06-10"
+completed_date: "2026-06-10"
 ---
 
 ## 背景・課題（2026-06-10 実測）

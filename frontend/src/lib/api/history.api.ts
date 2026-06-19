@@ -6,6 +6,7 @@ import type {
   PatchHistoryBody,
 } from '@/app/history/history.types'
 import type { JudgmentShort } from '@/app/scan/scan.types'
+import type { MapLocationsResponse } from '@/app/map/map.types'
 import { apiFetch } from './api-client'
 
 type GetHistoryParams = {
@@ -39,6 +40,11 @@ export const getHistory = async (
   return res.json() as Promise<HistoryListResponse>
 }
 
+export const getMapLocations = async (): Promise<MapLocationsResponse> => {
+  const res = await apiFetch('/history/locations')
+  return res.json() as Promise<MapLocationsResponse>
+}
+
 export const postHistory = async (
   body: CreateHistoryBody,
 ): Promise<HistoryItem> => {
@@ -51,7 +57,7 @@ export const postHistory = async (
 
 export const patchHistoryLocation = async (
   historyId: string,
-  location: { store_name: string; lat: number; lng: number },
+  location: { store_name: string; lat: number; lng: number; place_id?: string },
 ): Promise<void> => {
   await apiFetch(`/history/${historyId}`, {
     method: 'PATCH',

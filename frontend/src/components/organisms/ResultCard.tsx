@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import type { AllergenResult, HighlightItem, Judgment, ScanResult, StoreCandidate } from '@/app/scan/scan.types'
+import type { AllergenResult, HighlightItem, Judgment, ScanResult } from '@/app/scan/scan.types'
+import type { PlaceCandidatesResponse } from '@/lib/api/places.api'
 import {
   deriveOcrJudgment,
   DETECTION_DISPLAY,
@@ -15,12 +16,19 @@ import { VIBRATION_STORAGE_KEY } from '@/app/settings/page'
 type ResultCardProps = {
   result: ScanResult
   onReset: () => void
-  storeCandidates?: StoreCandidate[]
-  onStoreSelect?: (candidate: StoreCandidate | null) => void
+  /** スキャン時に取得した GPS 座標。null の場合「場所を登録」ボタンは無効表示になる */
+  geolocation?: { lat: number; lng: number } | null
+  /** 現在地の住所・施設候補を取得する（「場所を登録」タップ時のみ呼ばれる — 00320） */
+  onFetchPlaceCandidates?: () => Promise<PlaceCandidatesResponse | null>
+  /** 選択した場所を履歴の location に登録する（place_id は施設選択時のみ） */
+  onRegisterLocation?: (storeName: string, placeId?: string) => void
   onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
   onRetakeThumbnail?: () => void
   thumbnailUrl?: string | null
 }
+
+/** 「場所を登録」UI の表示状態 */
+type LocationUiState = 'idle' | 'loading' | 'select' | 'failed'
 
 const MIN_HEIGHT = 64
 const getDefaultHeight = (): number =>
@@ -139,8 +147,9 @@ const AllergenRow = ({ item }: { item: AllergenResult }) => {
 export const ResultCard = ({
   result,
   onReset,
-  storeCandidates = [],
-  onStoreSelect,
+  geolocation = null,
+  onFetchPlaceCandidates,
+  onRegisterLocation,
   onPatchHistory,
   onRetakeThumbnail,
   thumbnailUrl,
@@ -162,6 +171,10 @@ export const ResultCard = ({
   const [editStoreName, setEditStoreName] = useState('')
   const [editMemo, setEditMemo] = useState('')
   const [productInfoOpen, setProductInfoOpen] = useState(productNameFromOcr !== null)
+
+  // 「場所を登録」UI（Rules of Hooks: early return より前に宣言）
+  const [locationUiState, setLocationUiState] = useState<LocationUiState>('idle')
+  const [placeCandidates, setPlaceCandidates] = useState<PlaceCandidatesResponse | null>(null)
 
   useEffect(() => {
     setPanelHeight(getDefaultHeight())
@@ -191,13 +204,25 @@ export const ResultCard = ({
     window.addEventListener('touchend', onEnd, { once: true })
   }
 
-  /** 店舗選択時: 店舗名を編集フィールドに反映してアコーディオンを開く */
-  const handleStoreSelect = (candidate: StoreCandidate | null): void => {
-    if (candidate) {
-      setEditStoreName(candidate.name)
-      setProductInfoOpen(true)
+  /** 「場所を登録」タップ時: 現在地の住所・施設候補を取得して選択リストを開く */
+  const handleOpenLocationSelect = async (): Promise<void> => {
+    if (!onFetchPlaceCandidates || locationUiState === 'loading') return
+    setLocationUiState('loading')
+    const data = await onFetchPlaceCandidates()
+    if (!data || (data.candidates.length === 0 && data.address === null)) {
+      setLocationUiState('failed')
+      return
     }
-    onStoreSelect?.(candidate)
+    setPlaceCandidates(data)
+    setLocationUiState('select')
+  }
+
+  /** 場所選択時: 店舗名を編集フィールドに反映し、履歴の location を更新する */
+  const handleSelectLocation = (storeName: string, placeId?: string): void => {
+    setEditStoreName(storeName)
+    setProductInfoOpen(true)
+    setLocationUiState('idle')
+    onRegisterLocation?.(storeName, placeId)
   }
 
   /**
@@ -310,8 +335,14 @@ export const ResultCard = ({
   const canShare = judgment === 'なし'
   const supportsShare = supportsWebShare()
 
+  // ⚠️ 安全設計: バーコード判定（JAN キャッシュ = 他ユーザーの OCR 結果や OFF データ）でも
+  // raw_text があれば表示し、本人が読み取り内容を検証できるようにする
   const raw_text =
-    result.type === 'ocr' ? result.data.raw_text : undefined
+    result.type === 'ocr'
+      ? result.data.raw_text
+      : result.type === 'barcode'
+        ? (result.data.raw_text ?? undefined)
+        : undefined
   const highlights =
     result.type === 'ocr' ? result.data.highlights : []
 
@@ -400,6 +431,62 @@ export const ResultCard = ({
             </div>
           )}
         </div>
+
+        {/* 場所を登録（Places API は登録操作時のみ呼ぶ — 00320） */}
+        {onFetchPlaceCandidates && onRegisterLocation && (
+          <div className="space-y-2">
+            {locationUiState !== 'select' && (
+              <button
+                type="button"
+                onClick={() => void handleOpenLocationSelect()}
+                disabled={geolocation === null || locationUiState === 'loading'}
+                className="w-full py-2.5 rounded-lg border border-blue-200 bg-blue-50 text-sm lg:text-base text-blue-800 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                {geolocation === null
+                  ? t('registerLocation.noGeolocation')
+                  : locationUiState === 'loading'
+                    ? t('registerLocation.loading')
+                    : t('registerLocation.button')}
+              </button>
+            )}
+            {locationUiState === 'failed' && (
+              <p className="text-xs sm:text-sm text-gray-500">{t('registerLocation.failed')}</p>
+            )}
+            {locationUiState === 'select' && placeCandidates && (
+              <div className="space-y-2">
+                <p className="text-sm lg:text-base font-medium text-gray-700">
+                  {t('registerLocation.selectTitle')}
+                </p>
+                {placeCandidates.candidates.map((candidate) => (
+                  <button
+                    key={candidate.placeId}
+                    type="button"
+                    onClick={() => handleSelectLocation(candidate.name, candidate.placeId)}
+                    className="w-full py-2.5 px-3 rounded-lg border border-blue-200 bg-blue-50 text-sm lg:text-base text-blue-800 text-left"
+                  >
+                    {candidate.name}
+                  </button>
+                ))}
+                {placeCandidates.address !== null && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectLocation(placeCandidates.address!)}
+                    className="w-full py-2.5 px-3 rounded-lg border border-gray-200 text-sm lg:text-base text-gray-700 text-left"
+                  >
+                    {t('registerLocation.addressOnly', { address: placeCandidates.address })}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLocationUiState('idle')}
+                  className="w-full py-2.5 rounded-lg border border-gray-200 text-sm lg:text-base text-gray-500"
+                >
+                  {t('registerLocation.cancel')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 価格（price_confidence === 'high' のときのみ表示 — coding_rules.md §価格表示ルール） */}
         {ocrPrice !== null && (
@@ -560,31 +647,6 @@ export const ResultCard = ({
           >
             {t('share.button')}
           </button>
-        )}
-
-        {/* 店舗選択 UI（storeCandidates が 2 件以上のときのみ表示） */}
-        {storeCandidates.length >= 2 && (
-          <div className="space-y-2">
-            <p className="text-sm lg:text-base font-medium text-gray-700">{t('selectStore')}</p>
-            {storeCandidates.map((candidate) => (
-              <button
-                key={candidate.placeId}
-                type="button"
-                onClick={() => handleStoreSelect(candidate)}
-                className="w-full py-2.5 px-3 rounded-lg border border-blue-200 bg-blue-50
-                  text-sm lg:text-base text-blue-800 text-left"
-              >
-                {candidate.name}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => handleStoreSelect(null)}
-              className="w-full py-2.5 rounded-lg border border-gray-200 text-sm lg:text-base text-gray-500"
-            >
-              {t('storeUnknown')}
-            </button>
-          </div>
         )}
 
         {/* 閉じるボタン */}

@@ -6,3 +6,6 @@ export const STORE_CANDIDATES_LIMIT = 5;
 
 /** Overpass API のタイムアウト（ms） */
 export const OVERPASS_TIMEOUT_MS = 5000;
+
+/** 国土地理院 逆ジオコーダ API のタイムアウト（ms） */
+export const GSI_GEOCODER_TIMEOUT_MS = 5000;

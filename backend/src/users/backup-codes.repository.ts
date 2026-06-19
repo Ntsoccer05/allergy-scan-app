@@ -57,6 +57,17 @@ export class BackupCodesRepository {
     return record ?? null
   }
 
+  async countIssuedToday(userId: string): Promise<number> {
+    const startOfDay = new Date()
+    startOfDay.setHours(0, 0, 0, 0)
+    return this.prisma.backupCode.count({
+      where: {
+        userId,
+        createdAt: { gte: startOfDay },
+      },
+    })
+  }
+
   async markUsed(id: string): Promise<void> {
     await this.prisma.backupCode.update({
       where: { id },

@@ -5,7 +5,11 @@ import { ScanHistoryRepository } from './scan-history.repository';
 import { ProductRepository } from '../products/product.repository';
 import { UsersRepository } from '../users/users.repository';
 import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
-import type { ScanHistoryRecord } from './scan-history.repository';
+import type {
+  ScanHistoryRecord,
+  LocationPinRecord,
+  PublicLocationPinRecord,
+} from './scan-history.repository';
 
 const makeRecord = (
   overrides: Partial<ScanHistoryRecord> = {},
@@ -22,6 +26,36 @@ const makeRecord = (
   memo: null,
   rawText: null,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
+  ...overrides,
+});
+
+const makeLocationPin = (
+  overrides: Partial<LocationPinRecord> = {},
+): LocationPinRecord => ({
+  id: 'pin-1',
+  productName: 'テスト商品',
+  judgment: 'ng',
+  detected: ['卵'],
+  thumbnailUrl: 'https://example.com/thumb.jpg',
+  storeName: 'セブンイレブン渋谷店',
+  lat: 35.6762,
+  lng: 139.6503,
+  scannedAt: new Date('2026-01-15T10:00:00.000Z'),
+  rawText: '原材料：全卵、砂糖',
+  ...overrides,
+});
+
+const makePublicLocationPin = (
+  overrides: Partial<PublicLocationPinRecord> = {},
+): PublicLocationPinRecord => ({
+  id: 'pub-pin-1',
+  productName: '公開商品',
+  judgment: 'ok',
+  thumbnailUrl: null,
+  storeName: 'ローソン新宿店',
+  lat: 35.69,
+  lng: 139.7,
+  scannedAt: new Date('2026-01-14T09:00:00.000Z'),
   ...overrides,
 });
 
@@ -61,6 +95,8 @@ describe('HistoryService', () => {
     update: jest.Mock;
     deleteById: jest.Mock;
     deleteManyByIds: jest.Mock;
+    findLocationPinsByUser: jest.Mock;
+    findPublicLocationPins: jest.Mock;
   };
   let usersRepository: { findById: jest.Mock };
   let allergenComponentRepository: { findByAllergens: jest.Mock };
@@ -79,6 +115,8 @@ describe('HistoryService', () => {
       update: jest.fn(),
       deleteById: jest.fn(),
       deleteManyByIds: jest.fn(),
+      findLocationPinsByUser: jest.fn().mockResolvedValue([]),
+      findPublicLocationPins: jest.fn().mockResolvedValue([]),
     };
     usersRepository = { findById: jest.fn().mockResolvedValue(makeUserNoAllergies()) };
     allergenComponentRepository = { findByAllergens: jest.fn().mockResolvedValue([]) };
@@ -445,6 +483,64 @@ describe('HistoryService', () => {
         // exclude 型なので ng に上書きされない
         expect(result.items[0].judgment).toBe('ok');
       });
+    });
+  });
+
+  describe('getMapLocations', () => {
+    it('自分のピンと公開ピンを最新500件ずつ取得する', async () => {
+      repository.findLocationPinsByUser.mockResolvedValue([]);
+      repository.findPublicLocationPins.mockResolvedValue([]);
+
+      const result = await service.getMapLocations('user-1');
+
+      expect(repository.findLocationPinsByUser).toHaveBeenCalledWith('user-1', 500);
+      expect(repository.findPublicLocationPins).toHaveBeenCalledWith(500);
+      expect(result).toEqual({ mine: [], public: [] });
+    });
+
+    it('mine ピンは raw_text・detected を含む snake_case の MapPin に変換される', async () => {
+      repository.findLocationPinsByUser.mockResolvedValue([makeLocationPin()]);
+
+      const result = await service.getMapLocations('user-1');
+
+      expect(result.mine).toEqual([
+        {
+          id: 'pin-1',
+          product_name: 'テスト商品',
+          judgment: 'ng',
+          detected: ['卵'],
+          thumbnail_url: 'https://example.com/thumb.jpg',
+          store_name: 'セブンイレブン渋谷店',
+          lat: 35.6762,
+          lng: 139.6503,
+          scanned_at: '2026-01-15T10:00:00.000Z',
+          raw_text: '原材料：全卵、砂糖',
+        },
+      ]);
+    });
+
+    it('public ピンは raw_text・detected を含まない（userId・memo も含まない）', async () => {
+      repository.findPublicLocationPins.mockResolvedValue([makePublicLocationPin()]);
+
+      const result = await service.getMapLocations('user-1');
+
+      expect(result.public).toEqual([
+        {
+          id: 'pub-pin-1',
+          product_name: '公開商品',
+          judgment: 'ok',
+          thumbnail_url: null,
+          store_name: 'ローソン新宿店',
+          lat: 35.69,
+          lng: 139.7,
+          scanned_at: '2026-01-14T09:00:00.000Z',
+        },
+      ]);
+      // ⚠️ プライバシー: 公開ピンに raw_text / detected / userId / memo を含めない
+      expect(result.public[0]).not.toHaveProperty('raw_text');
+      expect(result.public[0]).not.toHaveProperty('detected');
+      expect(result.public[0]).not.toHaveProperty('userId');
+      expect(result.public[0]).not.toHaveProperty('memo');
     });
   });
 

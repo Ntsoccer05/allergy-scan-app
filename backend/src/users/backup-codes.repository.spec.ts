@@ -10,6 +10,7 @@ describe('BackupCodesRepository', () => {
       create: jest.Mock
       findFirst: jest.Mock
       update: jest.Mock
+      count: jest.Mock
     }
     $transaction: jest.Mock
   }
@@ -21,6 +22,7 @@ describe('BackupCodesRepository', () => {
         create: jest.fn().mockResolvedValue({}),
         findFirst: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
       $transaction: jest.fn().mockImplementation((fn) => fn(prisma)),
     }
@@ -107,6 +109,27 @@ describe('BackupCodesRepository', () => {
       expect(whereClause.codeHash).not.toBe('ALRG-ABCD-EFGH')
       expect(whereClause.usedAt).toBe(null)
       expect(whereClause.expiresAt).toEqual({ gt: expect.any(Date) })
+    })
+  })
+
+  describe('countIssuedToday', () => {
+    it('counts codes issued today for the given user', async () => {
+      prisma.backupCode.count.mockResolvedValue(3)
+
+      const result = await repository.countIssuedToday('user-1')
+
+      expect(result).toBe(3)
+      const whereClause = prisma.backupCode.count.mock.calls[0][0].where
+      expect(whereClause.userId).toBe('user-1')
+      expect(whereClause.createdAt).toEqual({ gte: expect.any(Date) })
+    })
+
+    it('returns 0 when no codes issued today', async () => {
+      prisma.backupCode.count.mockResolvedValue(0)
+
+      const result = await repository.countIssuedToday('user-2')
+
+      expect(result).toBe(0)
     })
   })
 

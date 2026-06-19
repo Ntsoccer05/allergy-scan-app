@@ -18,7 +18,7 @@ import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
 import { BulkDeleteHistoryDto } from './dto/bulk-delete-history.dto';
-import type { HistoryListResult } from './history.service';
+import type { HistoryListResult, MapLocationsResult } from './history.service';
 import type { ScanHistoryRecord } from './scan-history.repository';
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 import {
@@ -31,6 +31,18 @@ type AuthRequest = Request & { user: SupabaseJwtPayload };
 @Controller('history')
 export class HistoryController {
   constructor(private readonly historyService: HistoryService) {}
+
+  /**
+   * GET /history/locations: マップ表示用の自分のピン・公開ピンを取得する。
+   * 静的パスのため将来 :id 系 GET ルートを追加しても衝突しないよう GET /history より先に定義する。
+   */
+  @Get('locations')
+  @Throttle({
+    default: { ttl: THROTTLE_HISTORY_TTL, limit: THROTTLE_HISTORY_LIMIT },
+  })
+  async getMapLocations(@Req() req: AuthRequest): Promise<MapLocationsResult> {
+    return this.historyService.getMapLocations(req.user.sub);
+  }
 
   /** GET /history: カーソルページネーションでスキャン履歴を取得する。 */
   @Get()

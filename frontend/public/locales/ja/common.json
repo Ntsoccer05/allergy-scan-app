@@ -3,7 +3,27 @@
     "label": "ボトムナビゲーション",
     "scan": "スキャン",
     "history": "履歴",
+    "map": "地図",
     "settings": "設定",
     "signOut": "サインアウト"
+  },
+  "errors": {
+    "notFound": {
+      "code": "404",
+      "title": "ページが見つかりません",
+      "description": "お探しのページは存在しないか、移動した可能性があります",
+      "backToScan": "スキャン画面へ戻る"
+    },
+    "forbidden": {
+      "code": "403",
+      "title": "アクセスが拒否されました",
+      "description": "このページを表示する権限がありません",
+      "backToScan": "スキャン画面へ戻る"
+    },
+    "unexpected": {
+      "title": "エラーが発生しました",
+      "description": "予期しないエラーが発生しました。もう一度お試しください",
+      "retry": "再試行"
+    }
   }
 }

@@ -1,8 +1,11 @@
 ---
 id: "00320"
 title: 購入場所登録 + アプリ専用マップ + 近い順検索
-status: pending
+status: completed
 created: "2026-06-10"
+completed_date: "2026-06-10"
+# 残課題: ピンのクラスタリング / 同一地点の Places キャッシュ / 履歴編集モーダルからの place_id 付き再登録
+#         / GSI API の利用規約・出典表記の本番前確認（詳細は実装報告参照）
 ---
 
 ## 背景・目的

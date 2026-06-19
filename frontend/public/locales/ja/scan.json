@@ -50,6 +50,15 @@
     },
     "selectStore": "どこで購入しますか？",
     "storeUnknown": "場所不明",
+    "registerLocation": {
+      "button": "📍 場所を登録",
+      "noGeolocation": "📍 位置情報なし",
+      "loading": "場所を取得中...",
+      "selectTitle": "購入場所を選択してください",
+      "addressOnly": "住所のみで登録（{address}）",
+      "cancel": "キャンセル",
+      "failed": "場所を取得できませんでした"
+    },
     "unreadableTitle": "📷 テキストを読み取れませんでした",
     "unreadableMessage": "ラベルに正面から近づけ、明るい場所で再試行してください。",
     "lowConfidenceTitle": "⚠️ 画質が低いためAI判定はできませんでした",

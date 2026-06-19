@@ -34,6 +34,14 @@ export const THROTTLE_USERS_INIT_LIMIT = 10;
 export const THROTTLE_HISTORY_TTL = 60 * SEC_TO_MS;
 export const THROTTLE_HISTORY_LIMIT = 60;
 
+/** POST /users/backup-code: 引き継ぎコード発行（60秒に3回） */
+export const THROTTLE_BACKUP_CODE_TTL = 60 * SEC_TO_MS;
+export const THROTTLE_BACKUP_CODE_LIMIT = 3;
+
 /** POST /users/restore: バックアップコードのブルートフォース防止（60秒に5回） */
 export const THROTTLE_RESTORE_TTL = 60 * SEC_TO_MS;
 export const THROTTLE_RESTORE_LIMIT = 5;
+
+/** GET /places/candidates: Places API はコール課金のため厳しめ（60秒に30回） */
+export const THROTTLE_PLACES_TTL = 60 * SEC_TO_MS;
+export const THROTTLE_PLACES_LIMIT = 30;

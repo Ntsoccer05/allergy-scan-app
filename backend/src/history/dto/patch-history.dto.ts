@@ -20,6 +20,12 @@ export class PatchLocationDto {
 
   @IsNumber()
   lng!: number;
+
+  /** Google Places の place_id（将来の店舗キー統一用 — 00320） */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  place_id?: string;
 }
 
 /** PATCH /history/:id のリクエストボディ DTO。 */
