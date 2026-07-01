@@ -61,11 +61,12 @@ model Product {
   idType      String    @map("id_type")
   idValue     String    @map("id_value")
   productName String?   @map("product_name")
-  storeName   String?   @map("store_name")
+  itemUrl     String?   @map("item_url")
   // JSONB: { contains: string[], partial: string[], components: string[] }
   allergens   Json      @default("{}")
-  rawText     String?   @map("raw_text")
-  scanCount   Int       @default(1) @map("scan_count")
+  rawText      String?   @map("raw_text")
+  thumbnailUrl String?   @map("thumbnail_url")
+  scanCount    Int       @default(1) @map("scan_count")
   confidence  String?
   expiresAt   DateTime? @map("expires_at")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -198,4 +199,53 @@ model BackupCode {
   @@index([userId])
   @@index([codeHash])
   @@map("backup_codes")
+}
+
+// 店舗キャッシュ（Yahoo! Local Search API から取得した店舗情報）
+// source='batch': 夜間バッチ由来（月次バッチで物理削除して入れ替え）
+// source='realtime': ユーザースキャン起点のバックグラウンドフェッチ由来
+model StoreCache {
+  id        String   @id @default(uuid())
+  uid       String   @unique                  // Yahoo の Uid（重複排除キー）
+  name      String
+  address   String?
+  genre     String?                           // Yahoo ジャンル名（/ 区切り）
+  lat       Float
+  lng       Float
+  source    String   @default("realtime")     // 'batch' | 'realtime'
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([lat, lng], name: "store_cache_geo_idx")
+  @@index([expiresAt], name: "store_cache_expires_idx")
+  @@index([source, updatedAt], name: "store_cache_source_idx")
+  @@map("store_cache")
+}
+
+// キャッシュ済みエリアの記録（同一エリアの重複フェッチ防止）
+// tier='metro': 大都市（30日）/ tier='regional': 地方都市（90日）
+model StoreCacheArea {
+  id        String   @id @default(uuid())
+  gridKey   String   @unique @map("grid_key")
+  radiusKm  Int      @map("radius_km")
+  tier      String   @default("regional")    // 'metro' | 'regional'
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt], name: "store_cache_area_expires_idx")
+  @@map("store_cache_areas")
+}
+
+// バックグラウンドキャッシュジョブキュー
+model CacheJob {
+  id          String    @id @default(uuid())
+  lat         Float
+  lng         Float
+  status      String    @default("pending")  // 'pending' | 'processing' | 'done' | 'failed'
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  @@index([status, createdAt], name: "cache_jobs_status_idx")
+  @@map("cache_jobs")
 }

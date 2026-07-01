@@ -1,18 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { HistoryCard } from '@/components/organisms/HistoryCard'
 import { HistoryDetailModal } from '@/components/organisms/HistoryDetailModal'
+import { HistoryDetailPanel } from '@/components/organisms/HistoryDetailPanel'
 import { ThumbnailCameraModal } from '@/components/organisms/ThumbnailCameraModal'
+import { ConfirmDialog } from '@/components/atoms/ConfirmDialog'
 import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
 import { useOthersScanned } from '@/hooks/useOthersScanned'
+import { useSystemProducts } from '@/hooks/useSystemProducts'
 import { useAuthContext } from '@/providers/AuthProvider'
-import type { HistoryFilter, HistoryItem } from './history.types'
+import { haversineDistanceKm } from '@/lib/geo.utils'
+import { HISTORY_TAB_STORAGE_KEY, GEO_SORT_TIMEOUT_MS } from './history.constants'
+import type { HistoryGroup, HistoryItem, HistoryFilter, PatchHistoryBody } from './history.types'
 
 /** 履歴ページのタブ識別子。 */
-type HistoryTab = 'mine' | 'others'
+type HistoryTab = 'mine' | 'others' | 'system'
 
 const FILTER_TAB_VALUES: HistoryFilter[] = ['all', 'ng', 'partial', 'ok']
 
@@ -33,19 +38,146 @@ const INITIAL_EDIT_FORM: EditFormData = {
   thumbnailUrl: null,
 }
 
+/** 詳細モーダルの対象（グループ + 対象スキャン行）。 */
+type DetailTarget = {
+  group: HistoryGroup
+  scan: HistoryGroup['scans'][number]
+}
+
+/** 編集モーダルの対象（スキャン ID + 編集対象フィールド）。 */
+type EditTarget = {
+  scanId: string
+  productName: string | null
+  storeName: string | null
+  memo: string | null
+  thumbnailUrl: string | null
+}
+
+/** 判定フィルタチップ（自分のスキャン / みんなのスキャン 共通）。 */
+const FilterChips = ({
+  value,
+  onChange,
+  labels,
+}: {
+  value: HistoryFilter
+  onChange: (filter: HistoryFilter) => void
+  labels: (filter: HistoryFilter) => string
+}) => (
+  <>
+    {FILTER_TAB_VALUES.map((filter) => (
+      <button
+        key={filter}
+        type="button"
+        onClick={() => onChange(filter)}
+        className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          value === filter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+        }`}
+      >
+        {labels(filter)}
+      </button>
+    ))}
+  </>
+)
+
+/** 商品名検索 + 店舗名フィルタ入力（自分のスキャン / みんなのスキャン 共通）。 */
+const SearchFields = ({
+  search,
+  onChange,
+  productPlaceholder,
+  storePlaceholder,
+}: {
+  search: { q: string; store: string }
+  onChange: (search: { q: string; store: string }) => void
+  productPlaceholder: string
+  storePlaceholder: string
+}) => (
+  <div className="flex gap-2 mb-4">
+    <input
+      type="search"
+      value={search.q}
+      onChange={(e) => onChange({ ...search, q: e.target.value })}
+      placeholder={productPlaceholder}
+      aria-label={productPlaceholder}
+      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg
+        focus:outline-none focus:border-blue-400"
+    />
+    <input
+      type="search"
+      value={search.store}
+      onChange={(e) => onChange({ ...search, store: e.target.value })}
+      placeholder={storePlaceholder}
+      aria-label={storePlaceholder}
+      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg
+        focus:outline-none focus:border-blue-400"
+    />
+  </div>
+)
+
 export default function HistoryPage() {
   const t = useTranslations('history')
   const { user } = useAuthContext()
   const userId = user?.id ?? null
+  const isAdmin = (user?.app_metadata as { role?: string } | undefined)?.role === 'admin'
 
   const [activeTab, setActiveTab] = useState<HistoryTab>('mine')
-  const [detailItem, setDetailItem] = useState<HistoryItem | null>(null)
-  const [editingItem, setEditingItem] = useState<HistoryItem | null>(null)
+
+  // リロード後もタブ選択を維持する（SSR ハイドレーション不一致を避けるため useEffect で復元）
+  useEffect(() => {
+    if (localStorage.getItem(HISTORY_TAB_STORAGE_KEY) === 'others') {
+      setActiveTab('others')
+    }
+  }, [])
+
+  const handleTabChange = (tab: HistoryTab): void => {
+    setActiveTab(tab)
+    localStorage.setItem(HISTORY_TAB_STORAGE_KEY, tab)
+  }
+
+  // 近い順ソート（00320-C）: 現在地基準のクライアントソート。読み込み済みアイテムにのみ適用される
+  // null = ソート指定なし（APIのデフォルト順 = 新しい順）
+  const [sortMode, setSortMode] = useState<'newest' | 'nearest' | null>(null)
+  const [sortOrigin, setSortOrigin] = useState<{ lat: number; lng: number } | null>(null)
+
+  const handleSortNewest = (): void => {
+    // ON なら OFF（null）に、OFF なら ON に切り替える
+    setSortMode((prev) => (prev === 'newest' ? null : 'newest'))
+  }
+
+  const handleSortNearest = (): void => {
+    if (sortMode === 'nearest') {
+      // ON → OFF
+      setSortMode(null)
+      return
+    }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSortOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setSortMode('nearest')
+      },
+      () => {
+        // 現在地が取れない場合は変更しない
+      },
+      { timeout: GEO_SORT_TIMEOUT_MS },
+    )
+  }
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
+  // 'others'/'system' タブの HistoryCard 用（HistoryItem を直接受け取る）
+  const [legacyDetailItem, setLegacyDetailItem] = useState<HistoryItem | null>(null)
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const [editForm, setEditForm] = useState<EditFormData>(INITIAL_EDIT_FORM)
   const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  /**
+   * 選択中のグループキー（各グループの scans[0].id を識別子として使用）。
+   * スキャンID単位ではなくグループ単位で選択し、削除時に全スキャンIDへ展開する。
+   */
+  const [selectedGroupKeys, setSelectedGroupKeys] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  /** ゴミ箱ボタンで削除確認中のスキャン ID。null のとき非表示。 */
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  /** 一括削除の確認ダイアログを表示するか。 */
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
 
   const {
     items: myItems,
@@ -55,6 +187,8 @@ export default function HistoryPage() {
     fetchNextPage: myFetchNextPage,
     filter,
     setFilter,
+    search,
+    setSearch,
     updateHistoryMutation,
     deleteHistoryMutation,
     bulkDeleteHistoryMutation,
@@ -66,32 +200,87 @@ export default function HistoryPage() {
     isFetchingNextPage: othersIsFetchingNextPage,
     hasNextPage: othersHasNextPage,
     fetchNextPage: othersFetchNextPage,
+    filter: othersFilter,
+    setFilter: setOthersFilter,
+    search: othersSearch,
+    setSearch: setOthersSearch,
   } = useOthersScanned()
 
-  const handleDetailOpen = (item: HistoryItem) => setDetailItem(item)
-  const handleDetailClose = () => setDetailItem(null)
+  const {
+    items: systemItems,
+    isLoading: systemIsLoading,
+    isFetchingNextPage: systemIsFetchingNextPage,
+    hasNextPage: systemHasNextPage,
+    fetchNextPage: systemFetchNextPage,
+    filter: systemFilter,
+    setFilter: setSystemFilter,
+    search: systemSearch,
+    setSearch: setSystemSearch,
+  } = useSystemProducts()
 
-  const handleEditOpen = (item: HistoryItem) => {
-    setEditingItem(item)
+  const displayedMyItems = useMemo<HistoryGroup[]>(() => {
+    if (sortMode !== 'nearest' || !sortOrigin) return myItems
+    return [...myItems].sort((a, b) => {
+      const locA = a.scans[0]?.location
+      const locB = b.scans[0]?.location
+      if (!locA?.lat || !locA?.lng) return 1
+      if (!locB?.lat || !locB?.lng) return -1
+      const dA = haversineDistanceKm(sortOrigin.lat, sortOrigin.lng, locA.lat, locA.lng)
+      const dB = haversineDistanceKm(sortOrigin.lat, sortOrigin.lng, locB.lat, locB.lng)
+      return dA - dB
+    })
+  }, [myItems, sortMode, sortOrigin])
+
+  const handleDetailOpen = (group: HistoryGroup, scan: HistoryGroup['scans'][number]) =>
+    setDetailTarget({ group, scan })
+  const handleDetailClose = () => setDetailTarget(null)
+
+  // 'others'/'system' タブの HistoryCard から呼ばれるハンドラ（HistoryItem を直接受け取る）
+  const handleLegacyDetailOpen = (item: HistoryItem) => setLegacyDetailItem(item)
+  const handleLegacyDetailClose = () => setLegacyDetailItem(null)
+
+  const handleDetailPatch = async (
+    scanId: string,
+    data: { product_name?: string | null; store_name?: string | null; memo?: string | null },
+  ): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      updateHistoryMutation.mutate(
+        { id: scanId, ...data },
+        { onSuccess: () => resolve(), onError: (err) => reject(err) },
+      )
+    })
+  }
+
+  const handleEditOpen = (group: HistoryGroup) => {
+    const firstScan = group.scans[0]
+    if (!firstScan) return
+    const currentThumbnailUrl = firstScan.thumbnailUrl ?? group.product.thumbnailUrl
+    setEditTarget({
+      scanId: firstScan.id,
+      productName: group.product.name,
+      storeName: firstScan.location?.store_name ?? null,
+      memo: firstScan.memo,
+      thumbnailUrl: currentThumbnailUrl,
+    })
     setEditForm({
-      productName: item.productName ?? '',
-      storeName: item.location?.store_name ?? '',
-      memo: item.memo ?? '',
-      isPublic: item.isPublic,
-      thumbnailUrl: item.thumbnailUrl,
+      productName: group.product.name ?? '',
+      storeName: firstScan.location?.store_name ?? '',
+      memo: firstScan.memo ?? '',
+      isPublic: false,
+      thumbnailUrl: currentThumbnailUrl,
     })
   }
 
   const handleEditClose = () => {
-    setEditingItem(null)
+    setEditTarget(null)
     setEditForm(INITIAL_EDIT_FORM)
   }
 
   const handleEditSave = () => {
-    if (!editingItem) return
+    if (!editTarget) return
     updateHistoryMutation.mutate(
       {
-        id: editingItem.id,
+        id: editTarget.scanId,
         product_name: editForm.productName || null,
         store_name: editForm.storeName || null,
         memo: editForm.memo || null,
@@ -111,48 +300,57 @@ export default function HistoryPage() {
     })
   }
 
-  const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
+  const handleToggleSelect = (groupKey: string) => {
+    setSelectedGroupKeys((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(groupKey)) next.delete(groupKey)
+      else next.add(groupKey)
       return next
     })
   }
 
   const handleSelectAll = () => {
-    setSelectedIds(new Set(myItems.map((item) => item.id)))
+    setSelectedGroupKeys(
+      new Set(displayedMyItems.map((g) => g.scans[0]?.id).filter(Boolean) as string[]),
+    )
   }
 
   const handleCancelSelect = () => {
     setIsSelectMode(false)
-    setSelectedIds(new Set())
+    setSelectedGroupKeys(new Set())
   }
 
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return
-    const confirmed = window.confirm(t('select.confirmDelete', { count: selectedIds.size }))
-    if (!confirmed) return
+  const executeBulkDelete = async () => {
+    setShowBulkDeleteConfirm(false)
     setIsBulkDeleting(true)
+    // グループキーに紐づく全スキャンIDを展開して一括削除する
+    const allScanIds = displayedMyItems
+      .filter((g) => g.scans[0]?.id && selectedGroupKeys.has(g.scans[0].id))
+      .flatMap((g) => g.scans.map((s) => s.id))
     try {
-      await bulkDeleteHistoryMutation.mutateAsync([...selectedIds])
+      await bulkDeleteHistoryMutation.mutateAsync(allScanIds)
       handleCancelSelect()
     } finally {
       setIsBulkDeleting(false)
     }
   }
 
+  const handleBulkDelete = () => {
+    if (selectedGroupKeys.size === 0) return
+    setShowBulkDeleteConfirm(true)
+  }
+
   return (
     <main className="flex flex-col min-h-screen px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-4">{t('title')}</h1>
 
-      {/* みんな/自分 タブ */}
+      {/* みんな/自分/システム タブ */}
       <div className="flex gap-2 mb-4 border-b border-gray-200">
         {(['mine', 'others'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => handleTabChange(tab)}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab
                 ? 'border-blue-600 text-blue-600'
@@ -162,6 +360,19 @@ export default function HistoryPage() {
             {t(`tabs.${tab}`)}
           </button>
         ))}
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => handleTabChange('system')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === 'system'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500'
+            }`}
+          >
+            {t('tabs.system')}
+          </button>
+        )}
       </div>
 
       {/* 自分のスキャンタブ */}
@@ -181,26 +392,43 @@ export default function HistoryPage() {
                   </button>
                 </div>
                 <span className="flex-1 text-right text-sm text-gray-700">
-                  {t('select.count', { count: selectedIds.size })}
+                  {t('select.count', { count: selectedGroupKeys.size })}
                 </span>
               </>
             )}
 
             {/* フィルタボタン群（通常モードのみ） */}
-            {!isSelectMode && FILTER_TAB_VALUES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  filter === value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {t(`filter.${value}`)}
-              </button>
-            ))}
+            {!isSelectMode && (
+              <FilterChips
+                value={filter}
+                onChange={setFilter}
+                labels={(f) => t(`filter.${f}`)}
+              />
+            )}
+
+            {/* ソートボタン（通常モードのみ） */}
+            {!isSelectMode && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSortNewest}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    sortMode === 'newest' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {t('sort.newest')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSortNearest}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    sortMode === 'nearest' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {t('sort.nearest')}
+                </button>
+              </>
+            )}
 
             {/* 選択ボタン（通常モードのみ右端に表示） */}
             {!isSelectMode && (
@@ -214,6 +442,16 @@ export default function HistoryPage() {
             )}
           </div>
 
+          {/* 商品名検索 + 店舗名フィルタ（選択モード中は非表示） */}
+          {!isSelectMode && (
+            <SearchFields
+              search={search}
+              onChange={setSearch}
+              productPlaceholder={t('search.productPlaceholder')}
+              storePlaceholder={t('search.storePlaceholder')}
+            />
+          )}
+
           {myIsLoading && (
             <div className="flex justify-center items-center py-12">
               <LoadingSpinner />
@@ -222,26 +460,144 @@ export default function HistoryPage() {
 
           {!myIsLoading && (
             <>
-              {myItems.length === 0 ? (
+              {displayedMyItems.length === 0 ? (
                 <p className="text-center text-gray-400 py-12 text-sm">
                   {t('empty')}
                 </p>
               ) : (
                 <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-                  {myItems.map((item) => (
-                    <li key={item.id}>
-                      <HistoryCard
-                        item={item}
-                        isOwner={item.userId === userId}
-                        onOpenDetail={!isSelectMode ? handleDetailOpen : undefined}
-                        onEdit={isSelectMode ? undefined : handleEditOpen}
-                        onDelete={isSelectMode ? undefined : handleDelete}
-                        isSelectMode={isSelectMode}
-                        isSelected={selectedIds.has(item.id)}
-                        onSelect={handleToggleSelect}
-                      />
-                    </li>
-                  ))}
+                  {displayedMyItems.map((group) => {
+                    const firstScan = group.scans[0]
+                    if (!firstScan) return null
+                    const emoji = group.judgment === 'ng' ? '🔴' : group.judgment === 'partial' ? '🟡' : '✅'
+                    const firstScanId = firstScan.id
+                    const isSelected = selectedGroupKeys.has(firstScanId)
+
+                    return (
+                      <li
+                        key={`${group.product.id ?? 'no-id'}-${group.latestScanAt}`}
+                        className={`bg-white rounded-xl shadow-sm border overflow-hidden transition-colors ${
+                          isSelectMode && isSelected ? 'border-blue-400 bg-blue-50' : 'border-gray-100'
+                        }`}
+                      >
+                        {/* 選択モードのチェックボックス */}
+                        {isSelectMode && (
+                          <div
+                            className="flex items-center gap-3 px-3 pt-3"
+                            onClick={() => handleToggleSelect(firstScanId)}
+                          >
+                            <input
+                              type="checkbox"
+                              readOnly
+                              checked={isSelected}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 pointer-events-none"
+                            />
+                            <span className="text-sm text-gray-600">
+                              {group.product.name ?? t('unnamed')}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* 商品ヘッダー（通常モードのみ） */}
+                        {!isSelectMode && (() => {
+                          const firstScan = group.scans[0]
+                          if (!firstScan) return null
+                          const displayThumbnail = firstScan.thumbnailUrl ?? group.product.thumbnailUrl
+                          return (
+                            <div
+                              className="flex items-start gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                              onClick={() => handleDetailOpen(group, firstScan)}
+                            >
+                              {displayThumbnail ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={displayThumbnail}
+                                  alt=""
+                                  className="h-14 w-14 rounded-lg object-cover shrink-0"
+                                />
+                              ) : (
+                                <div className="h-14 w-14 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-2xl">
+                                  🍱
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-gray-900 truncate">
+                                  {group.product.name ?? t('unnamed')}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {emoji}{' '}
+                                  {group.detected.length > 0 ? group.detected.join(' · ') : t('filter.ok')}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDetailOpen(group, firstScan)
+                                  }}
+                                  aria-label={t('detail.editAriaLabel')}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setDeleteConfirmId(firstScan.id)
+                                  }}
+                                  aria-label={t('detail.deleteAriaLabel')}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })()}
+
+                        {/* 店舗リスト（通常モードのみ） */}
+                        {!isSelectMode && (
+                          <div className="border-t border-gray-50">
+                            {group.scans.map((scan) => (
+                              <button
+                                key={scan.id}
+                                type="button"
+                                onClick={() => handleDetailOpen(group, scan)}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
+                              >
+                                <span className="text-gray-400">📍</span>
+                                <span className="flex-1 truncate">
+                                  {scan.location?.store_name ?? t('location.unknown')}
+                                </span>
+                                <time className="text-gray-400 shrink-0">
+                                  {new Date(scan.scannedAt).toLocaleDateString('ja-JP', {
+                                    month: 'numeric',
+                                    day: 'numeric',
+                                  })}
+                                </time>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* フッター: 楽天リンク（通常モードのみ） */}
+                        {!isSelectMode && group.product.itemUrl && (
+                          <div className="px-3 py-2 bg-gray-50">
+                            <a
+                              href={group.product.itemUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-red-600 font-medium hover:underline"
+                            >
+                              {t('group.rakutenLink')}
+                            </a>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
 
@@ -265,13 +621,13 @@ export default function HistoryPage() {
               <button
                 type="button"
                 onClick={() => void handleBulkDelete()}
-                disabled={selectedIds.size === 0 || isBulkDeleting}
+                disabled={selectedGroupKeys.size === 0 || isBulkDeleting}
                 className="w-full py-3 rounded-xl bg-red-600 text-white text-sm font-medium
                   disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isBulkDeleting
                   ? t('select.deleting')
-                  : t('select.delete', { count: selectedIds.size })}
+                  : t('select.delete', { count: selectedGroupKeys.size })}
               </button>
             </div>
           )}
@@ -281,6 +637,21 @@ export default function HistoryPage() {
       {/* みんなのスキャンタブ */}
       {activeTab === 'others' && (
         <>
+          {/* 判定フィルタ + 検索（自分のスキャンと同等） */}
+          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
+            <FilterChips
+              value={othersFilter}
+              onChange={setOthersFilter}
+              labels={(f) => t(`filter.${f}`)}
+            />
+          </div>
+          <SearchFields
+            search={othersSearch}
+            onChange={setOthersSearch}
+            productPlaceholder={t('search.productPlaceholder')}
+            storePlaceholder={t('search.storePlaceholder')}
+          />
+
           {othersIsLoading && (
             <div className="flex justify-center items-center py-12">
               <LoadingSpinner />
@@ -310,14 +681,17 @@ export default function HistoryPage() {
                           productName: item.product_name,
                           judgment: item.judgment,
                           detected: item.detected,
-                          thumbnailUrl: null,
+                          thumbnailUrl: item.thumbnail_url,
                           ocrImageUrl: null,
                           isPublic: true,
                           memo: null,
-                          rawText: null,
+                          rawText: item.raw_text,
                           scannedAt: item.updated_at,
+                          location: item.store_name
+                            ? { store_name: item.store_name }
+                            : null,
                         }}
-                        onOpenDetail={handleDetailOpen}
+                        onOpenDetail={handleLegacyDetailOpen}
                       />
                     </li>
                   ))}
@@ -340,20 +714,143 @@ export default function HistoryPage() {
         </>
       )}
 
-      {/* 詳細モーダル */}
-      {detailItem && (
-        <HistoryDetailModal
-          item={detailItem}
-          isOwner={detailItem.userId === userId}
+      {/* システムタブ（admin のみ） */}
+      {activeTab === 'system' && isAdmin && (
+        <>
+          {/* フィルタチップ */}
+          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
+            <FilterChips
+              value={systemFilter}
+              onChange={setSystemFilter}
+              labels={(f) => t(`filter.${f}`)}
+            />
+          </div>
+
+          {/* 商品名検索 */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="search"
+              value={systemSearch}
+              onChange={(e) => setSystemSearch(e.target.value)}
+              placeholder={t('system.searchPlaceholder')}
+              aria-label={t('system.searchPlaceholder')}
+              className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg
+                focus:outline-none focus:border-blue-400"
+            />
+          </div>
+
+          {systemIsLoading && (
+            <div className="flex justify-center items-center py-12">
+              <LoadingSpinner />
+            </div>
+          )}
+
+          {!systemIsLoading && (
+            <>
+              {systemItems.length === 0 ? (
+                <p className="text-center text-gray-400 py-12 text-sm">
+                  {t('system.empty')}
+                </p>
+              ) : (
+                <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+                  {systemItems.map((item) => (
+                    <li key={item.id}>
+                      <HistoryCard
+                        item={{
+                          id: item.id,
+                          userId: '',
+                          productId: item.id,
+                          productName: item.product_name,
+                          judgment: item.judgment,
+                          detected: item.allergens_contains.length > 0
+                            ? item.allergens_contains
+                            : item.allergens_partial,
+                          thumbnailUrl: item.thumbnail_url,
+                          ocrImageUrl: null,
+                          isPublic: false,
+                          memo: `JAN: ${item.jan_code}`,
+                          rawText: null,
+                          scannedAt: item.updated_at,
+                          location: null,
+                        }}
+                        onOpenDetail={handleLegacyDetailOpen}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {systemHasNextPage && (
+                <button
+                  type="button"
+                  onClick={() => systemFetchNextPage()}
+                  disabled={systemIsFetchingNextPage}
+                  className="mt-6 w-full py-3 rounded-xl border border-gray-300 text-sm text-gray-600
+                    disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {systemIsFetchingNextPage ? t('loading') : t('loadMore')}
+                </button>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* 詳細パネル（自分のスキャン用） */}
+      {detailTarget && (
+        <HistoryDetailPanel
+          group={detailTarget.group}
+          selectedScan={detailTarget.scan}
+          isOpen={true}
           onClose={handleDetailClose}
-          onEdit={(item) => {
+          onPatch={handleDetailPatch}
+          onDelete={(scanId) => {
+            void handleDelete(scanId)
             handleDetailClose()
-            handleEditOpen(item)
+          }}
+        />
+      )}
+
+      {/* 詳細モーダル（others / system タブ用） */}
+      {legacyDetailItem && (
+        <HistoryDetailModal
+          item={legacyDetailItem}
+          isOwner={legacyDetailItem.userId === userId}
+          onClose={handleLegacyDetailClose}
+          onEdit={() => {
+            handleLegacyDetailClose()
           }}
           onDelete={async (id) => {
             await handleDelete(id)
-            handleDetailClose()
+            handleLegacyDetailClose()
           }}
+        />
+      )}
+
+      {/* 1件削除確認ダイアログ */}
+      {deleteConfirmId && (
+        <ConfirmDialog
+          message={t('deleteConfirm')}
+          confirmLabel={t('deleteButton')}
+          cancelLabel={t('editModal.cancel')}
+          isDanger
+          onConfirm={() => {
+            void handleDelete(deleteConfirmId)
+            setDeleteConfirmId(null)
+          }}
+          onCancel={() => setDeleteConfirmId(null)}
+        />
+      )}
+
+      {/* 一括削除確認ダイアログ */}
+      {showBulkDeleteConfirm && (
+        <ConfirmDialog
+          message={t('select.confirmDelete', { count: selectedGroupKeys.size })}
+          confirmLabel={t('select.delete', { count: selectedGroupKeys.size })}
+          cancelLabel={t('editModal.cancel')}
+          isDanger
+          onConfirm={() => void executeBulkDelete()}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
         />
       )}
 
@@ -369,7 +866,7 @@ export default function HistoryPage() {
       )}
 
       {/* 編集モーダル */}
-      {editingItem && (
+      {editTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center justify-between">
@@ -394,6 +891,7 @@ export default function HistoryPage() {
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
                   {t('editModal.productName')}
+                  <span className="ml-1 text-red-500" aria-hidden="true">*</span>
                 </label>
                 <input
                   id="edit-product-name"
@@ -404,6 +902,7 @@ export default function HistoryPage() {
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   maxLength={200}
+                  required
                 />
               </div>
 
@@ -503,9 +1002,9 @@ export default function HistoryPage() {
               <button
                 type="button"
                 onClick={handleEditSave}
-                disabled={updateHistoryMutation.isPending}
+                disabled={updateHistoryMutation.isPending || editForm.productName.trim() === ''}
                 className="flex-1 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium
-                  disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled:opacity-50 disabled:cursor-default"
               >
                 {updateHistoryMutation.isPending ? t('loading') : t('editModal.save')}
               </button>

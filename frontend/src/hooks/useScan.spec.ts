@@ -30,18 +30,22 @@ jest.mock('./useBarcode', () => ({
 const mockScanOcrStream = jest.fn()
 const mockSaveHistory = jest.fn().mockResolvedValue({ id: 'hist-1' })
 const mockPatchLocation = jest.fn().mockResolvedValue(undefined)
+const mockPatchHistoryFields = jest.fn().mockResolvedValue(undefined)
 const mockFetchPresignedUrl = jest.fn().mockResolvedValue({ url: 'https://s3.example.com/upload', s3_key: 'key-1' })
 const mockPutS3 = jest.fn().mockResolvedValue(undefined)
 const mockScanBarcodeWithCache = jest.fn()
+const mockFetchPlaceCandidatesApi = jest.fn()
 
 jest.mock('./useScanApi', () => ({
   useScanApi: () => ({
     scanOcrStream: mockScanOcrStream,
     saveHistory: mockSaveHistory,
     patchLocation: mockPatchLocation,
+    patchHistoryFields: mockPatchHistoryFields,
     fetchPresignedUrl: mockFetchPresignedUrl,
     putS3: mockPutS3,
     scanBarcodeWithCache: mockScanBarcodeWithCache,
+    fetchPlaceCandidates: mockFetchPlaceCandidatesApi,
   }),
 }))
 
@@ -81,7 +85,7 @@ describe('scanReducer', () => {
 
   it('START_CAMERA → idle with error/result cleared', () => {
     const state = scanReducer(
-      { scanState: 'error', error: 'api_error', result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null, thumbnailUrl: null },
+      { scanState: 'error', error: 'api_error', result: null, previewDataUrl: null, capturedImageUrl: null, thumbnailUrl: null },
       { type: 'START_CAMERA' },
     )
     expect(state.scanState).toBe('idle')
@@ -90,7 +94,7 @@ describe('scanReducer', () => {
 
   it('PREVIEW → preview state with imageDataUrl', () => {
     const state = scanReducer(
-      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null, thumbnailUrl: null },
+      { scanState: 'idle', error: null, result: null, previewDataUrl: null, capturedImageUrl: null, thumbnailUrl: null },
       { type: 'PREVIEW', imageDataUrl: 'data:image/jpeg;base64,...' },
     )
     expect(state.scanState).toBe('preview')
@@ -99,7 +103,7 @@ describe('scanReducer', () => {
 
   it('ERROR daily_limit_exceeded → error state', () => {
     const state = scanReducer(
-      { scanState: 'idle', error: null, result: null, previewDataUrl: null, storeCandidates: [], capturedImageUrl: null, thumbnailUrl: null },
+      { scanState: 'idle', error: null, result: null, previewDataUrl: null, capturedImageUrl: null, thumbnailUrl: null },
       { type: 'ERROR', error: 'daily_limit_exceeded' }
     )
     expect(state.scanState).toBe('error')
@@ -173,7 +177,6 @@ describe('scanReducer', () => {
         data: { found: true, from_cache: false },
       },
       previewDataUrl: null,
-      storeCandidates: [],
       capturedImageUrl: null,
       thumbnailUrl: null,
     }
@@ -181,21 +184,7 @@ describe('scanReducer', () => {
     expect(state).toEqual(initialState)
   })
 
-  it('STORE_SELECTED アクションで storeCandidates が空になる', () => {
-    const stateWithCandidates: State = {
-      scanState: 'result',
-      error: null,
-      result: null,
-      previewDataUrl: null,
-      storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
-      capturedImageUrl: null,
-      thumbnailUrl: null,
-    }
-    const state = scanReducer(stateWithCandidates, { type: 'STORE_SELECTED' })
-    expect(state.storeCandidates).toHaveLength(0)
-  })
-
-  it('RESULT アクション（ocr）で storeCandidates が state に反映される', () => {
+  it('RESULT アクション（ocr）で result 状態に遷移する', () => {
     const processingState: State = { ...initialState, scanState: 'processing' }
     const state = scanReducer(processingState, {
       type: 'RESULT',
@@ -211,41 +200,9 @@ describe('scanReducer', () => {
           price_with_tax: null,
           price_confidence: null,
         },
-        storeCandidates: [
-          { name: 'セブンイレブン渋谷店', placeId: 'place-1' },
-          { name: 'ローソン渋谷店', placeId: 'place-2' },
-        ],
       },
     })
     expect(state.scanState).toBe('result')
-    expect(state.storeCandidates).toHaveLength(2)
-    expect(state.storeCandidates[0]?.name).toBe('セブンイレブン渋谷店')
-  })
-
-  it('RESULT アクション（barcode）で storeCandidates が空になる', () => {
-    const processingState: State = { ...initialState, scanState: 'processing' }
-    const state = scanReducer(processingState, {
-      type: 'RESULT',
-      payload: {
-        type: 'barcode',
-        data: { found: true, from_cache: false },
-      },
-    })
-    expect(state.storeCandidates).toHaveLength(0)
-  })
-
-  it('START_CAMERA アクションで storeCandidates がリセットされる', () => {
-    const stateWithCandidates: State = {
-      scanState: 'result',
-      error: null,
-      result: null,
-      previewDataUrl: null,
-      storeCandidates: [{ name: 'セブンイレブン', placeId: 'place-1' }],
-      capturedImageUrl: null,
-      thumbnailUrl: null,
-    }
-    const state = scanReducer(stateWithCandidates, { type: 'START_CAMERA' })
-    expect(state.storeCandidates).toHaveLength(0)
   })
 
   it('idle → preview → processing → result の一連の遷移', () => {
@@ -302,7 +259,7 @@ describe('scanReducer', () => {
  * テスト戦略:
  * 1. geolocation を各ケースでモック設定
  * 2. startScan を呼ぶ
- * 3. 「結果あり + historyId あり」の状態を直接作り出し、onStoreSelect を呼ぶ
+ * 3. 「結果あり + historyId あり」の状態を直接作り出し、registerLocation を呼ぶ
  * 4. patchLocation の引数で lat/lng が正しく渡されたかを確認
  *
  * ただし scanHistoryIdRef は runOcrFlow 完了後に設定されるため、
@@ -476,6 +433,138 @@ describe('useScan - geolocation 連携', () => {
     const callArg = mockScanOcrStream.mock.calls[0]?.[0] as { s3Key: string; lat?: number; lng?: number }
     expect(callArg.lat).toBeUndefined()
     expect(callArg.lng).toBeUndefined()
+
+    unmount()
+  })
+
+  it('registerLocation: スキャン完了後に lat/lng/place_id つきで patchLocation が呼ばれる', async () => {
+    mockPatchLocation.mockClear()
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: {
+        getCurrentPosition: (successCallback: PositionCallback) => {
+          successCallback({
+            coords: { latitude: 35.681236, longitude: 139.767125, accuracy: 10 } as GeolocationCoordinates,
+            timestamp: Date.now(),
+          } as GeolocationPosition)
+        },
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    const { result, unmount } = renderHook(() => useScan())
+
+    await act(async () => {
+      await result.current.startScan()
+    })
+
+    // スキャン完了で scanHistoryIdRef がセットされる（saveHistory フォールバックが id を返す）
+    await act(async () => {
+      await result.current.manualCapture()
+    })
+
+    act(() => {
+      result.current.registerLocation('セブンイレブン渋谷店', 'place-1')
+    })
+
+    expect(mockPatchLocation).toHaveBeenCalledWith('hist-1', {
+      store_name: 'セブンイレブン渋谷店',
+      lat: 35.681236,
+      lng: 139.767125,
+      place_id: 'place-1',
+    })
+
+    unmount()
+  })
+
+  it('registerLocation: placeId なし（住所のみ登録）の場合 place_id を含めない', async () => {
+    mockPatchLocation.mockClear()
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: {
+        getCurrentPosition: (successCallback: PositionCallback) => {
+          successCallback({
+            coords: { latitude: 35.681236, longitude: 139.767125, accuracy: 10 } as GeolocationCoordinates,
+            timestamp: Date.now(),
+          } as GeolocationPosition)
+        },
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    const { result, unmount } = renderHook(() => useScan())
+
+    await act(async () => {
+      await result.current.startScan()
+    })
+    await act(async () => {
+      await result.current.manualCapture()
+    })
+
+    act(() => {
+      result.current.registerLocation('東京都千代田区丸の内一丁目')
+    })
+
+    expect(mockPatchLocation).toHaveBeenCalledWith('hist-1', {
+      store_name: '東京都千代田区丸の内一丁目',
+      lat: 35.681236,
+      lng: 139.767125,
+    })
+
+    unmount()
+  })
+
+  it('fetchPlaceCandidates: GPS 取得済みなら座標つきで API を呼び、結果を返す', async () => {
+    mockFetchPlaceCandidatesApi.mockResolvedValue({
+      address: '東京都千代田区丸の内一丁目',
+      candidates: [{ name: 'セブンイレブン丸の内店', placeId: 'place-1' }],
+    })
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: {
+        getCurrentPosition: (successCallback: PositionCallback) => {
+          successCallback({
+            coords: { latitude: 35.681236, longitude: 139.767125, accuracy: 10 } as GeolocationCoordinates,
+            timestamp: Date.now(),
+          } as GeolocationPosition)
+        },
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    const { result, unmount } = renderHook(() => useScan())
+
+    await act(async () => {
+      await result.current.startScan()
+    })
+
+    const candidates = await result.current.fetchPlaceCandidates()
+
+    expect(mockFetchPlaceCandidatesApi).toHaveBeenCalledWith(35.681236, 139.767125, undefined)
+    expect(candidates?.address).toBe('東京都千代田区丸の内一丁目')
+    expect(candidates?.candidates).toHaveLength(1)
+
+    unmount()
+  })
+
+  it('fetchPlaceCandidates: GPS 未取得なら API を呼ばず null を返す', async () => {
+    mockFetchPlaceCandidatesApi.mockClear()
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    })
+
+    const { result, unmount } = renderHook(() => useScan())
+
+    await act(async () => {
+      await result.current.startScan()
+    })
+
+    const candidates = await result.current.fetchPlaceCandidates()
+
+    expect(candidates).toBeNull()
+    expect(mockFetchPlaceCandidatesApi).not.toHaveBeenCalled()
 
     unmount()
   })

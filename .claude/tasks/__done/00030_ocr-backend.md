@@ -45,7 +45,7 @@ S3・Gemini の設定値は `backend/.env` の環境変数から取得する（`
 - R4: OCR フロー Step 1 として S3 から `s3_key` 指定の画像を取得する。取得失敗（KeyNotFound / ネットワークエラー）は 400 を返す
 - R5: OCR フロー Step 2・3 として、`POST /scan/ocr` リクエストヘッダーの `x-user-id` を使いユーザーの有効アレルギーを `users` テーブルから取得し、`allergen_components` テーブルから exclude 型を除いた成分リストと exclude 型成分を別々に取得してプロンプトを動的生成する（`dry_principles.md` の `buildGeminiPrompt` 集約点に従い `gemini-prompt.builder.ts` に実装）
 - R6: OCR フロー Step 4 として Gemini Flash API（`gemini-1.5-flash`）に画像と動的プロンプトを送信し、`OcrScanResponse` 型に準拠した JSON レスポンスを取得する。Gemini クライアントは `backend/src/shared/gemini.client.ts` に分離する
-- R7: `incomplete: true` が Gemini から返却された場合、即 400 と `{ message: "ラベル全体が映るように離してください", code: "INCOMPLETE_IMAGE" }` を返す（部分的なラベルで判定しない）
+- R7: `incomplete: true` が Gemini から返却された場合、即 400 と `{ message: "原材料またはバーコード全体が映るように撮影してください。", code: "INCOMPLETE_IMAGE" }` を返す（部分的なラベルで判定しない）
 - R8: `confidence: "low"` が Gemini から返却された場合、422 と `{ message: "もう少し近づけて再スキャンしてください", code: "LOW_CONFIDENCE" }` を返す
 - R9: `judgment: "判定不能"` は安全側として扱い、400（再スキャン誘導）ではなくレスポンス本文にそのまま含めて返す（クライアントが警告表示する責務）。`incomplete: false` かつ `confidence: high/medium` の場合は 200 で返す
 - R10: OCR フロー Step 7 として `products` テーブルに UPSERT する。`id_type: 'hash'`、`id_value` は `label_hash`（`dry_principles.md` の `label-hash.util.ts` 集約点に従い生成）。`ON CONFLICT` に相当する Prisma `upsert` で `scan_count +1`・`expires_at` 再計算を行う

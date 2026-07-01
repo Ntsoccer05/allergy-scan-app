@@ -24,7 +24,7 @@ import {
   THROTTLE_OCR_LIMIT,
   THROTTLE_BARCODE_TTL,
   THROTTLE_BARCODE_LIMIT,
-} from '../shared/throttler.constants';
+} from '../shared/throttler/throttler.constants';
 
 type AuthRequest = Request & { user?: SupabaseJwtPayload };
 
@@ -65,7 +65,14 @@ export class ScanController {
     @Req() req: AuthRequest,
   ): Promise<OcrScanResult> {
     const userId = req.user?.sub;
-    return this.scanService.processOcr(dto.s3_key, userId, dto.lat, dto.lng, dto.allow_low_confidence);
+    return this.scanService.processOcr(
+      dto.s3_key,
+      userId,
+      dto.lat,
+      dto.lng,
+      dto.allow_low_confidence,
+      dto.jan_code,
+    );
   }
 
   /** GET /scan/usage: 今日の残りスキャン数を返す。Bearer Token 必須。 */
@@ -107,6 +114,7 @@ export class ScanController {
         dto.lat,
         dto.lng,
         dto.allow_low_confidence,
+        dto.jan_code,
       );
       for await (const event of stream) {
         res.write(`data: ${JSON.stringify(event)}\n\n`);

@@ -16,7 +16,8 @@ import {
   type OcrApiResponse,
   type OcrStreamEvent,
 } from '@/lib/api/scan.api'
-import { postHistory, patchHistoryLocation, patchHistory } from '@/lib/api/history.api'
+import { postHistory, patchHistoryLocation, patchHistory, deleteHistory } from '@/lib/api/history.api'
+import { getPlaceCandidates, type PlaceCandidatesResponse } from '@/lib/api/places.api'
 import { getCached, setCached } from '@/lib/cache'
 
 type ScanOcrParams = {
@@ -24,6 +25,8 @@ type ScanOcrParams = {
   lat?: number
   lng?: number
   allowLowConfidence?: boolean
+  /** 撮影フレームから検出済みの JAN コード（JAN キャッシュ用） */
+  janCode?: string
 }
 
 type UseScanApiReturn = {
@@ -36,9 +39,13 @@ type UseScanApiReturn = {
   saveHistory: (body: CreateHistoryBody) => Promise<HistoryItem | null>
   patchLocation: (
     historyId: string,
-    location: { store_name: string; lat: number; lng: number },
+    location: { store_name: string; lat: number; lng: number; address?: string; place_id?: string },
   ) => Promise<void>
   patchHistoryFields: (historyId: string, data: PatchHistoryBody) => Promise<void>
+  /** 場所登録用の住所・施設候補を取得する（失敗時は null）。query を指定すると Overpass テキスト検索を使用する。 */
+  fetchPlaceCandidates: (lat: number, lng: number, query?: string) => Promise<PlaceCandidatesResponse | null>
+  /** 商品名未入力キャンセル時に履歴エントリを削除する（失敗は無視）。 */
+  deleteHistoryEntry: (historyId: string) => Promise<void>
 }
 
 export const useScanApi = (): UseScanApiReturn => {
@@ -111,7 +118,7 @@ export const useScanApi = (): UseScanApiReturn => {
   const patchLocation = useCallback(
     async (
       historyId: string,
-      location: { store_name: string; lat: number; lng: number },
+      location: { store_name: string; lat: number; lng: number; address?: string; place_id?: string },
     ): Promise<void> => {
       try {
         await patchHistoryLocation(historyId, location)
@@ -135,5 +142,29 @@ export const useScanApi = (): UseScanApiReturn => {
     [queryClient],
   )
 
-  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, scanOcrStream, saveHistory, patchLocation, patchHistoryFields }
+  const fetchPlaceCandidates = useCallback(
+    async (lat: number, lng: number, query?: string): Promise<PlaceCandidatesResponse | null> => {
+      try {
+        return await getPlaceCandidates(lat, lng, query)
+      } catch (e) {
+        console.error('場所候補の取得に失敗しました', e)
+        return null
+      }
+    },
+    [],
+  )
+
+  const deleteHistoryEntry = useCallback(
+    async (historyId: string): Promise<void> => {
+      try {
+        await deleteHistory(historyId)
+        await queryClient.invalidateQueries({ queryKey: ['history'] })
+      } catch (e) {
+        console.error('履歴削除に失敗しました', e)
+      }
+    },
+    [queryClient],
+  )
+
+  return { scanBarcode, scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcr, scanOcrStream, saveHistory, patchLocation, patchHistoryFields, fetchPlaceCandidates, deleteHistoryEntry }
 }

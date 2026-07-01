@@ -1,38 +1,10 @@
 # アレルギースキャンアプリ
 
-## 技術スタック
+食品ラベルをスキャンしてアレルゲンを判定する PWA。
+Next.js (frontend) + NestJS on AWS Lambda (backend) + PostgreSQL + Gemini Flash API (OCR)。
+技術スタック・ディレクトリ構成・層境界・API 一覧の詳細は `.claude/rules/architecture.md` が**単一ソース**（このファイルに複製しない。ドリフト防止）。
 
-- Frontend: Next.js (PWA) / TypeScript
-- Backend: NestJS on AWS Lambda（コンテナデプロイ）
-- DB: PostgreSQL（RDS t3.micro → PMF後にAurora Serverless v2）
-- OCR: Gemini Flash API
-- バーコード: ZXing.js（端末完結・サーバー不要）
-- 画像ストレージ: S3 Presigned URL
-- 位置情報: Google Places API / Geocoding API
-
-## ディレクトリ構成
-
-```
-/
-├── frontend/   Next.js PWA
-│   ├── app/
-│   │   ├── scan/
-│   │   ├── history/
-│   │   └── settings/
-│   └── hooks/
-│       ├── useCamera.ts
-│       ├── useBarcode.ts
-│       ├── useFrameCheck.ts
-│       └── useScan.ts
-└── backend/    NestJS
-    └── src/
-        ├── scan/
-        ├── products/
-        ├── history/
-        ├── allergens/
-        ├── users/
-        └── gemini/
-```
+**認証（現行）**: Supabase Auth の JWT Bearer Token（`SupabaseJwtGuard` グローバル適用・`@Public()` でバイパス）。旧 Cookie 認証は廃止済み。詳細は `architecture.md`。
 
 ## コマンド
 
@@ -54,14 +26,7 @@ pnpm --filter backend start:dev
 
 ## 開発の進め方（バーティカルスライス）
 
-1機能をDB→API→フロントまで貫通させてから次に進む。
-
-```
-Week1：バーコードスキャン（DB→API→フロント）
-Week2：OCRスキャン（DB→API→フロント）
-Week3：履歴機能（DB→API→フロント）
-Week4：設定・オンボーディング
-```
+1機能を DB→API→フロントまで貫通させてから次に進む。
 
 ## 絶対に守る設計原則
 
@@ -70,6 +35,8 @@ Week4：設定・オンボーディング
 - raw_textを必ず画面に表示する
 - 「購入前にラベルの実物も必ずご確認ください」を全判定で常時表示
 - incomplete:trueなら必ず再スキャンを促す
+- Gemini プロンプト（`backend/src/scan/prompts/`）を変更したら必ず
+  `backend/scripts/prompt-consistency-test.ts` で実画像回帰検証を行う
 - 詳細: `.claude/rules/implementation_rules.md`
 
 ### インフラ制約
@@ -80,6 +47,7 @@ Week4：設定・オンボーディング
 - allergen_componentsテーブルから動的生成（ハードコード禁止）
 - 有効なアレルギーのみプロンプトに渡す
 - 除外リスト（乳化剤・乳酸菌等）も必ずプロンプトに渡す
+- JAN キャッシュ（全ユーザー共有）には confidence: high の結果のみ保存・配信する
 
 ### 多言語対応（i18n）
 - UIテキストをコンポーネントにハードコード禁止
@@ -90,7 +58,7 @@ Week4：設定・オンボーディング
 
 | ルールファイル | 内容 |
 |---|---|
-| `architecture.md` | 技術スタック・ディレクトリ構成・層境界・API一覧・キャッシュ構造 |
+| `architecture.md` | 技術スタック・ディレクトリ構成・層境界・API一覧・認証・キャッシュ構造 |
 | `coding_rules.md` | 命名・型・エラー・ログ・コメント・i18n規約 |
 | `anti_patterns.md` | 禁止パターン（安全設計違反・層違反・型抑制・i18nハードコード等） |
 | `dry_principles.md` | 共通モジュール集約点・DRY チェックリスト |
@@ -98,37 +66,6 @@ Week4：設定・オンボーディング
 | `implementation_rules.md` | プロジェクト固有制約（Lambda制限・免責UI・OCR安全設計・個人情報等） |
 | `database_design.md` | DB正規化方針（1NF〜5NF・無損失分解・非正規化の許容条件） |
 | `chrome_testing.md` | Chrome 実機チェック手順・省略不可条件（UI/API/認証変更時） |
-
-## APIエンドポイント一覧（概要）
-
-詳細は `architecture.md` および `docs/design/api.md` を参照。
-
-**認証方式（現行）**: Cookie ベース認証（HttpOnly Cookie）。`@Public()` デコレータで認証バイパス。`/admin/*` は Supabase Auth `app_metadata.role === 'admin'` を追加チェック。Phase 1（pending）で JWT Bearer Token に統一予定。
-
-```
-POST /users/me/init          Supabase JWT 初回ユーザー登録（Bearer Token 必須）
-GET  /users/me               ユーザー設定取得（TTL: 5分キャッシュ）
-PUT  /users/me               アレルギー設定更新
-DELETE /users/me             ユーザーデータ削除（要配慮個人情報の削除権）
-POST /users/me/reset-data    アレルギー設定・履歴のみリセット（users/user_daily_scans は保持）
-POST /users/me/backup-code   引継ぎ用バックアップコード発行（30日有効・再発行で旧コード無効化）
-POST /users/me/restore       バックアップコードでアレルギー設定を引継ぎ
-GET  /scan/presigned-url     S3 Presigned URL 発行
-POST /scan/barcode           JANコード照合
-POST /scan/ocr               OCR + アレルギー判定（日次スキャン上限チェック）
-GET  /history                履歴一覧（カーソルページネーション）
-POST /history                履歴保存
-PATCH /history/:id           履歴編集（product_name / store_name / memo / is_public / thumbnail_url）
-DELETE /history/:id          履歴削除
-DELETE /history/bulk         履歴一括削除（ids: string[]・最大100件）
-GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
-GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用・認証不要）
-GET  /allergens              アレルギーマスター取得
-GET  /admin/users            ユーザー一覧（admin 専用）
-GET  /admin/stats            統計情報（admin 専用）
-PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
-POST /webhooks/stripe        Stripe Webhook 受信（@Public）
-```
 
 ## タスク・要求の起票
 
@@ -151,7 +88,7 @@ Claude Code の `Skill` ツールで呼び出す。セッション開始時に `
 | スキル | 使用タイミング |
 |---|---|
 | `using-superpowers` | セッション開始時に自動ロード — スキルの使い方を確立 |
-| `brainstorming` | 機能追加・設計変更など実装前に必ず使用 |
+| `brainstorming` | **新機能・設計変更・複数ファイル横断の変更**の実装前に必須（軽微なバグ修正・1ファイルの小修正には不要） |
 | `writing-plans` | 仕様/要件がある多ステップタスクの計画作成 |
 | `executing-plans` | 書かれた実装計画をサブエージェントレビューつきで実行 |
 | `subagent-driven-development` | 計画の独立タスクをサブエージェントで実行（推奨） |
@@ -163,6 +100,7 @@ Claude Code の `Skill` ツールで呼び出す。セッション開始時に `
 | `requesting-code-review` | タスク完了後やマージ前のコードレビュー依頼 |
 | `receiving-code-review` | コードレビューフィードバックを受け取ったとき |
 | `writing-skills` | 新しいスキルの作成・既存スキルの編集 |
+| `chrome-check` | UI・API・認証・i18n 変更後の Chrome 実機チェック（mcp__chrome-devtools__* 使用） |
 
 ## 詳細設計ドキュメント（人間向け参照）
 
@@ -170,8 +108,6 @@ Claude Code の `Skill` ツールで呼び出す。セッション開始時に `
 - スキャンUX・状態管理・キャッシュ: `docs/design/scan-ux.md`
 - OCR安全設計・Geminiプロンプト: `docs/design/ocr.md`
 - DB設計・テーブル定義・初期データ: `docs/design/database.md`
-  （allergens / allergen_components / products / scan_histories
-   / users / plans / user_subscriptions / user_daily_scans / stripe_customers）
 - APIエンドポイント設計: `docs/design/api.md`
 - 履歴・設定・オンボーディング・SNS共有・引き継ぎ・i18n: `docs/design/screens.md`
 - 法務・免責・プライバシー: `docs/design/legal.md`

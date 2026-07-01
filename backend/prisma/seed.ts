@@ -188,6 +188,170 @@ const ALLERGEN_COMPONENTS_SEED: Array<{
   // マカダミアナッツ
   // =====================
   { allergen_name: 'マカダミアナッツ', canonicalName: 'マカダミアナッツ', aliases: ['macadamia'],            component_type: 'direct',         detectionType: 'contains',     riskLevel: 'high',   note: null },
+
+  // =====================
+  // えび（義務 9品目）
+  // =====================
+  { allergen_name: 'えび', canonicalName: 'えび',              aliases: ['エビ', '海老', 'shrimp', 'prawn'], component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'えび', canonicalName: 'ロブスター',        aliases: ['いせえび', 'lobster'],             component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: 'いせえび類（ロブスター）も対象' },
+  { allergen_name: 'えび', canonicalName: 'えびエキス',        aliases: ['エビエキス', 'shrimp extract'],    component_type: 'derivative',   detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: 'えび', canonicalName: 'えびパウダー',      aliases: ['エビパウダー'],                    component_type: 'derivative',   detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'えび', canonicalName: 'えびを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+  { allergen_name: 'えび', canonicalName: 'しゃこ',            aliases: ['シャコ'],                          component_type: 'exclude',      detectionType: 'contains', riskLevel: 'ignore', note: '甲殻類だがえびの対象外（別分類）' },
+  { allergen_name: 'えび', canonicalName: 'おきあみ',          aliases: [],                                  component_type: 'exclude',      detectionType: 'contains', riskLevel: 'ignore', note: '甲殻類だがえびの対象外（別分類）' },
+
+  // =====================
+  // かに（義務 9品目）
+  // =====================
+  { allergen_name: 'かに', canonicalName: 'かに',              aliases: ['カニ', '蟹', 'crab'],              component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'かに', canonicalName: 'たらばがに',        aliases: ['タラバガニ', 'king crab'],          component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: 'いばらがに類として対象' },
+  { allergen_name: 'かに', canonicalName: 'ずわいがに',        aliases: ['ズワイガニ', 'snow crab'],          component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: 'くもがに類として対象' },
+  { allergen_name: 'かに', canonicalName: 'かにエキス',        aliases: ['カニエキス', 'crab extract'],       component_type: 'derivative',   detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: 'かに', canonicalName: 'かにみそ',          aliases: ['カニミソ'],                         component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'かに', canonicalName: 'かにを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // そば（義務 9品目）
+  // =====================
+  { allergen_name: 'そば', canonicalName: 'そば',              aliases: ['蕎麦', 'soba', 'buckwheat'],        component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'そば', canonicalName: 'そば粉',            aliases: ['蕎麦粉', 'buckwheat flour'],        component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'そば', canonicalName: 'そばエキス',        aliases: [],                                  component_type: 'derivative',   detectionType: 'contains', riskLevel: 'high',   note: '調味料に含まれる場合あり' },
+  { allergen_name: 'そば', canonicalName: 'そばを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // 落花生（義務 9品目）
+  // =====================
+  { allergen_name: '落花生', canonicalName: '落花生',          aliases: ['ピーナッツ', 'peanut', 'なんきんまめ'], component_type: 'direct',    detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: '落花生', canonicalName: 'ピーナッツバター', aliases: ['peanut butter'],                   component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: '落花生', canonicalName: 'ピーナッツオイル', aliases: ['ピーナッツ油', 'peanut oil', '落花生油'], component_type: 'processed', detectionType: 'contains', riskLevel: 'low', note: '高精製品は抗原性低' },
+  { allergen_name: '落花生', canonicalName: '落花生を含む',    aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // さけ（推奨 20品目）
+  // =====================
+  { allergen_name: 'さけ', canonicalName: 'さけ',              aliases: ['鮭', 'サケ'],                       component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'さけ', canonicalName: 'サーモン',          aliases: ['salmon'],                           component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: '代替表記として法令上認定済み' },
+  { allergen_name: 'さけ', canonicalName: 'しゃけ',            aliases: ['シャケ'],                           component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: '代替表記として法令上認定済み' },
+  { allergen_name: 'さけ', canonicalName: 'スモークサーモン',  aliases: ['燻鮭'],                             component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'さけ', canonicalName: '鮭フレーク',        aliases: ['さけフレーク'],                     component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'さけ', canonicalName: 'さけを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // さば（推奨 20品目）
+  // =====================
+  { allergen_name: 'さば', canonicalName: 'さば',              aliases: ['鯖', 'サバ', 'mackerel'],           component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'さば', canonicalName: 'さば節',            aliases: ['鯖節'],                             component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'さば', canonicalName: 'さばエキス',        aliases: ['鯖エキス'],                         component_type: 'derivative',   detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: 'さば', canonicalName: 'さばを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // いか（推奨 20品目）
+  // =====================
+  { allergen_name: 'いか', canonicalName: 'いか',              aliases: ['イカ', '烏賊', 'squid'],            component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'いか', canonicalName: 'いかフライ',        aliases: ['イカフライ'],                       component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'いか', canonicalName: 'いかエキス',        aliases: ['イカエキス'],                       component_type: 'derivative',   detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: 'いか', canonicalName: 'いかを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // あわび（推奨 20品目）
+  // =====================
+  { allergen_name: 'あわび', canonicalName: 'あわび',          aliases: ['アワビ', '鮑', 'abalone'],          component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'あわび', canonicalName: 'あわびを含む',    aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // いくら（推奨 20品目）
+  // =====================
+  { allergen_name: 'いくら', canonicalName: 'いくら',          aliases: ['イクラ'],                           component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'いくら', canonicalName: 'すじこ',          aliases: ['スジコ', '筋子'],                   component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: '代替表記として法令上認定済み（未加工のいくら）' },
+  { allergen_name: 'いくら', canonicalName: 'いくら醤油漬け',  aliases: [],                                  component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'いくら', canonicalName: 'いくらを含む',    aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // ごま（推奨 20品目）
+  // =====================
+  { allergen_name: 'ごま', canonicalName: 'ごま',              aliases: ['ゴマ', '胡麻', 'sesame'],           component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'ごま', canonicalName: 'すりごま',          aliases: ['すり胡麻', '切り胡麻'],             component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'ごま', canonicalName: '練りごま',          aliases: ['ゴマペースト', 'tahini', 'オリゴマ'], component_type: 'processed',  detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'ごま', canonicalName: 'ごま油',            aliases: ['胡麻油', 'sesame oil'],             component_type: 'processed',    detectionType: 'contains', riskLevel: 'medium', note: '高精製品は抗原性低だが表示対象' },
+  { allergen_name: 'ごま', canonicalName: 'ごまを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // りんご（推奨 20品目）
+  // =====================
+  { allergen_name: 'りんご', canonicalName: 'りんご',          aliases: ['リンゴ', 'アップル', 'apple'],      component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'りんご', canonicalName: 'りんごジュース',  aliases: ['アップルジュース', 'りんご果汁', 'アップル果汁'], component_type: 'processed', detectionType: 'contains', riskLevel: 'high', note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'りんご', canonicalName: 'りんご酢',        aliases: ['アップルビネガー', 'リンゴ酢'],      component_type: 'processed',    detectionType: 'contains', riskLevel: 'medium', note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'りんご', canonicalName: 'アップルパイ',    aliases: [],                                  component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'りんご', canonicalName: 'りんごを含む',    aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // オレンジ（推奨 20品目）
+  // =====================
+  { allergen_name: 'オレンジ', canonicalName: 'オレンジ',      aliases: ['orange'],                           component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'オレンジ', canonicalName: 'オレンジジュース', aliases: ['オレンジ果汁', 'orange juice'],  component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'オレンジ', canonicalName: 'オレンジエキス', aliases: [],                                 component_type: 'derivative',   detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: 'オレンジ', canonicalName: 'オレンジを含む', aliases: [],                                 component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // キウイフルーツ（推奨 20品目）
+  // =====================
+  { allergen_name: 'キウイフルーツ', canonicalName: 'キウイフルーツ', aliases: ['キウイ', 'キウィ', 'kiwi', 'kiwifruit', 'キーウィ'], component_type: 'direct', detectionType: 'contains', riskLevel: 'high', note: null },
+  { allergen_name: 'キウイフルーツ', canonicalName: 'キウイジャム',   aliases: ['キーウィジャム'],             component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'キウイフルーツ', canonicalName: 'キウイを含む',   aliases: [],                            component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // 牛肉（推奨 20品目）
+  // =====================
+  { allergen_name: '牛肉', canonicalName: '牛肉',              aliases: ['牛', 'ビーフ', 'beef', 'ぎゅうにく', 'ぎゅう肉'], component_type: 'direct', detectionType: 'contains', riskLevel: 'high', note: null },
+  { allergen_name: '牛肉', canonicalName: '牛エキス',          aliases: ['ビーフエキス', 'beef extract', '牛骨エキス'], component_type: 'derivative', detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: '牛肉', canonicalName: '牛脂',              aliases: [],                                  component_type: 'processed',    detectionType: 'contains', riskLevel: 'low',    note: '高精製品は抗原性低' },
+  { allergen_name: '牛肉', canonicalName: '牛肉を含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // 鶏肉（推奨 20品目）
+  // =====================
+  { allergen_name: '鶏肉', canonicalName: '鶏肉',              aliases: ['とり肉', 'チキン', 'chicken', 'とりにく', '鳥肉'], component_type: 'direct', detectionType: 'contains', riskLevel: 'high', note: null },
+  { allergen_name: '鶏肉', canonicalName: '鶏エキス',          aliases: ['チキンエキス', 'chicken extract', 'チキンスープ', '鶏ガラスープ'], component_type: 'derivative', detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: '鶏肉', canonicalName: '鶏肉を含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // 豚肉（推奨 20品目）
+  // =====================
+  { allergen_name: '豚肉', canonicalName: '豚肉',              aliases: ['豚', 'ポーク', 'pork', 'ぶたにく', 'ぶた肉'], component_type: 'direct', detectionType: 'contains', riskLevel: 'high', note: null },
+  { allergen_name: '豚肉', canonicalName: '豚エキス',          aliases: ['ポークエキス', 'pork extract'],      component_type: 'derivative',   detectionType: 'contains', riskLevel: 'medium', note: null },
+  { allergen_name: '豚肉', canonicalName: 'ゼラチン（豚由来）', aliases: [],                                  component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '豚由来ゼラチンはゼラチンアレルギーとも重複' },
+  { allergen_name: '豚肉', canonicalName: '豚肉を含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // バナナ（推奨 20品目）
+  // =====================
+  { allergen_name: 'バナナ', canonicalName: 'バナナ',          aliases: ['ばなな', 'banana'],                 component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'バナナ', canonicalName: 'バナナジュース',  aliases: ['バナナ果汁'],                       component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'バナナ', canonicalName: 'バナナを含む',    aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // もも（推奨 20品目）
+  // =====================
+  { allergen_name: 'もも', canonicalName: 'もも',              aliases: ['モモ', '桃', 'ピーチ', 'peach'],    component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'もも', canonicalName: 'もも果汁',          aliases: ['白桃', '黄桃', 'peach juice'],      component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'もも', canonicalName: 'ピーチジャム',      aliases: ['もものジャム'],                     component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'もも', canonicalName: 'ももを含む',        aliases: [],                                  component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // やまいも（推奨 20品目）
+  // =====================
+  { allergen_name: 'やまいも', canonicalName: 'やまいも',      aliases: ['山芋', 'ヤマイモ', '山いも'],       component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'やまいも', canonicalName: '自然薯',        aliases: ['じねんじょ'],                       component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'やまいも', canonicalName: 'とろろ',        aliases: ['千切りやまいも'],                   component_type: 'processed',    detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'やまいも', canonicalName: 'やまいもを含む', aliases: [],                                 component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
+
+  // =====================
+  // ゼラチン（推奨 20品目）
+  // =====================
+  { allergen_name: 'ゼラチン', canonicalName: 'ゼラチン',      aliases: ['gelatin', 'gelatine'],             component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: null },
+  { allergen_name: 'ゼラチン', canonicalName: '板ゼラチン',    aliases: [],                                  component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'ゼラチン', canonicalName: '粉ゼラチン',    aliases: [],                                  component_type: 'direct',       detectionType: 'contains', riskLevel: 'high',   note: '拡大表記として法令上認定済み' },
+  { allergen_name: 'ゼラチン', canonicalName: 'ゼラチンを含む', aliases: [],                                 component_type: 'contains_label', detectionType: 'partial', riskLevel: 'high',   note: '一括表示' },
 ];
 
 async function main(): Promise<void> {

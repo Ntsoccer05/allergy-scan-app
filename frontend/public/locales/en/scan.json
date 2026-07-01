@@ -29,6 +29,7 @@
       "defaultProductName": "product",
       "text": "{name} has no allergens (checked by {title})"
     },
+    "rakutenBuy": "Buy on Rakuten →",
     "scanAgain": "Scan again",
     "noAllergenSetting": "No allergen settings",
     "allergenListLabel": "Allergen judgment results",
@@ -50,6 +51,23 @@
     },
     "selectStore": "Where are you purchasing?",
     "storeUnknown": "Location unknown",
+    "registerLocation": {
+      "button": "📍 Register store info",
+      "noGeolocation": "📍 Location unavailable",
+      "loading": "Finding nearby places...",
+      "selectTitle": "Select the place of purchase",
+      "addressOnly": "Register address only ({address})",
+      "cancel": "Cancel",
+      "failed": "Could not retrieve location",
+      "searchPlaceholder": "Search store name...",
+      "distanceSlider": {
+        "label": "Distance",
+        "unit": "Within {km}km",
+        "allLabel": "All ({km}km)"
+      },
+      "cacheLoading": "Finding nearby stores. Candidates will appear shortly.",
+      "noCandidates": "No store candidates found. Please enter the store name manually."
+    },
     "unreadableTitle": "📷 Could not read any text",
     "unreadableMessage": "Please move closer to the label, face it directly, and try again in better lighting.",
     "lowConfidenceTitle": "⚠️ Image quality too low for AI judgment",
@@ -62,12 +80,21 @@
       "title": "Product Info",
       "productName": "Product name",
       "productNamePlaceholder": "Enter product name",
+      "required": "Please enter a product name",
       "storeName": "Store name",
       "storeNamePlaceholder": "Enter store name",
+      "address": "Address",
       "memo": "Notes",
       "memoPlaceholder": "Add notes",
       "thumbnail": "Thumbnail",
-      "retakeThumbnail": "Retake"
+      "thumbnailExpand": "View full image",
+      "thumbnailClose": "Close",
+      "retakeThumbnail": "Retake",
+      "saved": "✓ Saved",
+      "noNameWarning": "⚠️ No product name — this scan will not be saved to history",
+      "discardConfirm": "No product name entered. This scan result will not be saved to history.",
+      "discardAndReturn": "Return without saving",
+      "enterProductName": "Enter product name"
     }
   },
   "camera": {
@@ -79,9 +106,35 @@
     "uploadButton": "Analyze from image",
     "cameraButton": "Capture"
   },
+  "fileLimit": {
+    "exceeded": "You can select up to {max} images at once. Processing the first {max}."
+  },
+  "queue": {
+    "uploading": "⬆️ Uploading",
+    "analyzing": "🔄 Analyzing",
+    "done": "✅ Done",
+    "error": "❌ Error",
+    "tabLabel": "Result {n}",
+    "dismiss": "Dismiss",
+    "prevResult": "Previous result",
+    "nextResult": "Next result",
+    "resultCount": "{current} / {total}"
+  },
   "tabs": {
     "camera": "Camera",
     "upload": "Image",
     "uploadHint": "Select a food label from your gallery or photos"
+  },
+  "today": {
+    "button": "Today({count})",
+    "title": "Today's Scans",
+    "empty": "No scans today",
+    "rawText": "Ingredients text",
+    "back": "← Back"
+  },
+  "unnamed": "No product name",
+  "limitExceeded": {
+    "title": "Daily scan limit reached",
+    "message": "You can scan again tomorrow"
   }
 }

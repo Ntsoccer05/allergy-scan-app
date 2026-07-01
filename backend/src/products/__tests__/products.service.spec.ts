@@ -15,6 +15,9 @@ const makeProductRecord = (
   id: 'prod-1',
   productName: 'テスト商品',
   allergens: { contains: [], partial: [], components: [] },
+  thumbnailUrl: null,
+  storeName: null,
+  rawText: null,
   updatedAt: new Date('2026-05-18T00:00:00.000Z'),
   expiresAt: FUTURE,
   ...overrides,
@@ -48,10 +51,9 @@ describe('ProductsService', () => {
   });
 
   describe('getOthersScanned', () => {
-    it('自分がスキャン済みの product_id を持つ商品が結果に含まれない（Repository が除外済みで返すことを検証）', async () => {
-      // Repository が self-scan を除外して返す前提（findOthersForUser の責務）
-      // ここでは Repository の戻り値に除外済みデータのみが来ることを想定
-      const row = makeProductRecord({ id: 'prod-others-only' });
+    it('公開スキャンのある商品が返る（自分のスキャン済み商品も公開されていれば含む）', async () => {
+      // Repository は is_public=true の履歴を持つ商品のみ返す（findOthersForUser の責務）
+      const row = makeProductRecord({ id: 'prod-public' });
       productRepository.findOthersForUser.mockResolvedValue([row]);
       usersRepository.findById.mockResolvedValue({
         id: 'user-1',
@@ -61,10 +63,8 @@ describe('ProductsService', () => {
       const result = await service.getOthersScanned('user-1');
 
       expect(result.items).toHaveLength(1);
-      expect(result.items[0].id).toBe('prod-others-only');
-      // userId を渡して Repository が除外クエリを実行することを確認
+      expect(result.items[0].id).toBe('prod-public');
       expect(productRepository.findOthersForUser).toHaveBeenCalledWith(
-        'user-1',
         expect.objectContaining({ limit: 20 }),
       );
     });
@@ -157,6 +157,68 @@ describe('ProductsService', () => {
       expect(result.items[0].detected).toEqual([]);
     });
 
+    it('judgment フィルタ指定時は導出後の判定で絞り込み、走査を続けてページを埋める', async () => {
+      const ngRow = makeProductRecord({
+        id: 'prod-ng',
+        allergens: { contains: ['乳'], partial: [], components: ['乳'] },
+      });
+      const okRow = makeProductRecord({
+        id: 'prod-ok',
+        allergens: { contains: [], partial: [], components: [] },
+      });
+      productRepository.findOthersForUser.mockResolvedValue([ngRow, okRow]);
+      usersRepository.findById.mockResolvedValue({
+        id: 'user-1',
+        allergies: { 乳: { enabled: true, partialAlert: true } },
+      });
+
+      const result = await service.getOthersScanned('user-1', { judgment: 'ng' });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('prod-ng');
+      expect(result.items[0].judgment).toBe('ng');
+    });
+
+    it('q / store が Repository に渡される', async () => {
+      productRepository.findOthersForUser.mockResolvedValue([]);
+      usersRepository.findById.mockResolvedValue({ id: 'user-1', allergies: {} });
+
+      await service.getOthersScanned('user-1', { q: 'グミ', store: 'セブン' });
+
+      expect(productRepository.findOthersForUser).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'グミ', store: 'セブン' }),
+      );
+    });
+
+    it('store_name と raw_text がレスポンスに含まれる（詳細表示用）', async () => {
+      const row = makeProductRecord({
+        storeName: 'セブンイレブン渋谷店',
+        rawText: '原材料名:水飴、砂糖',
+      });
+      productRepository.findOthersForUser.mockResolvedValue([row]);
+      usersRepository.findById.mockResolvedValue({ id: 'user-1', allergies: {} });
+
+      const result = await service.getOthersScanned('user-1');
+
+      expect(result.items[0].store_name).toBe('セブンイレブン渋谷店');
+      expect(result.items[0].raw_text).toBe('原材料名:水飴、砂糖');
+    });
+
+    it('Repository が返すサムネイル URL を thumbnail_url としてレスポンスに含める', async () => {
+      const row = makeProductRecord({
+        thumbnailUrl: 'https://s3.example.com/thumb.jpg',
+      });
+      productRepository.findOthersForUser.mockResolvedValue([row]);
+      usersRepository.findById.mockResolvedValue({
+        id: 'user-1',
+        allergies: {},
+      });
+
+      const result = await service.getOthersScanned('user-1');
+
+      expect(result.items[0].thumbnail_url).toBe('https://s3.example.com/thumb.jpg');
+    });
+
     it('不正な cursor 文字列のとき BadRequestException を throw する', async () => {
       usersRepository.findById.mockResolvedValue({
         id: 'user-1',
@@ -164,7 +226,7 @@ describe('ProductsService', () => {
       });
 
       await expect(
-        service.getOthersScanned('user-1', 'invalid-date'),
+        service.getOthersScanned('user-1', { cursor: 'invalid-date' }),
       ).rejects.toThrow(BadRequestException);
 
       expect(productRepository.findOthersForUser).not.toHaveBeenCalled();

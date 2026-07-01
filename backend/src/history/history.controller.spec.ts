@@ -5,7 +5,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { HistoryController } from './history.controller';
 import { HistoryService } from './history.service';
 import type { ScanHistoryRecord } from './scan-history.repository';
-import type { HistoryListResult } from './history.service';
+import type { HistoryGroupListResult } from './history.service';
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 
 const makeRecord = (
@@ -70,8 +70,23 @@ const buildApp = async (
 describe('HistoryController', () => {
   describe('GET /history', () => {
     let app: INestApplication;
-    const listResult: HistoryListResult = {
-      items: [makeRecord()],
+    const rec = makeRecord();
+    const listResult: HistoryGroupListResult = {
+      items: [
+        {
+          product: {
+            id: rec.productId,
+            name: rec.productName,
+            allergens: { contains: [], partial: [], components: [] },
+            thumbnailUrl: rec.thumbnailUrl,
+            itemUrl: null,
+          },
+          judgment: 'ok',
+          detected: [],
+          scans: [{ id: rec.id, scannedAt: rec.scannedAt, location: null, memo: null, thumbnailUrl: null, rawText: null }],
+          latestScanAt: rec.scannedAt.toISOString(),
+        },
+      ],
       next_before: null,
     };
 

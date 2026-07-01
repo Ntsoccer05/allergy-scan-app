@@ -73,7 +73,7 @@ LIMIT 20
 ```typescript
 type ScanState =
   | 'idle'        // カメラ起動・待機（撮影ボタン有効）
-  | 'preview'     // 撮影プレビュー表示（撮り直し / 確定）
+  | 'preview'     // （レガシー: 確認プレビューは廃止済み。型に残存するが現行フローでは遷移しない）
   | 'processing'  // API 送信中（S3 アップロード → OCR / バーコード）
   | 'result'      // 結果表示中
   | 'error'       // エラー
@@ -81,25 +81,18 @@ type ScanState =
 
 状態遷移は必ず `useScan` Hook 内の reducer で管理する。コンポーネントが `setScanState` を直接呼ばない。
 
-### パターン6: タップ撮影フロー（手動キャプチャ）
+### パターン6: タップ撮影フロー（手動キャプチャ・確認画面なし）
 
 ```typescript
-// useScan Hook の撮影フロー（タップ撮影・プレビュー確認あり）
-// 1. idle   : カメラ映像ライブ表示 + 撮影ボタン（📷）
-// 2. タップ → captureFrame() でフレームを JPEG キャプチャ
-// 3. preview: 撮影画像表示 + 「撮り直す」「確定する」ボタン
-// 4. 確定   → S3 Presigned URL へ PUT → POST /scan/ocr or /scan/barcode
+// useScan Hook の撮影フロー（タップ → 即時処理。確認プレビューは UX 改善で廃止済み）
+// 1. idle   : カメラ映像ライブ表示 + 撮影ボタン（📷）。かざし中は 200ms 間隔でバーコード自動検出（tick）
+// 2. タップ → captureFrame() でフレーム取得 → runScanFlow()
+// 3. バーコード検出（ZXing）: JAN があれば POST /scan/barcode → found なら即 result
+//    found:false なら JAN を引き継いで OCR へ（結果が JAN キャッシュとして保存される）
+// 4. processing: リサイズ（OCR_MAX_DIMENSION）→ S3 Presigned URL へ PUT → POST /scan/ocr-stream
 // 5. result : 結果カードがスライドイン
 // 6. エラー → idle に戻す（api_error はユーザー操作が必要なため自動リトライしない）
-
-const captureFrame = (): void => {
-  const canvas = document.createElement('canvas')
-  canvas.width = videoRef.current!.videoWidth
-  canvas.height = videoRef.current!.videoHeight
-  canvas.getContext('2d')!.drawImage(videoRef.current!, 0, 0)
-  setCapturedImage(canvas.toDataURL('image/jpeg', 0.9))
-  dispatch({ type: 'PREVIEW' })
-}
+// 実装: frontend/src/hooks/useScan.ts の runScanFlow / runOcrFlow
 ```
 
 ### パターン7: クライアントキャッシュ（TTL: 2 時間）

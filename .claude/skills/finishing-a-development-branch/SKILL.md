@@ -80,17 +80,20 @@ Chrome 実機チェックで問題を検出しました:
 
 | 変更の種類 | 更新すべきドキュメント |
 |------------|----------------------|
-| API エンドポイントの追加・変更 | `docs/design/api.md` |
+| API エンドポイントの追加・変更 | `.claude/rules/architecture.md` の API 一覧（単一ソース）、`docs/design/api.md` |
 | DB スキーマの変更（テーブル・カラム）| `docs/design/database.md` |
 | 新しい実装パターンの確立 | `.claude/rules/patterns.md` |
-| アーキテクチャ・技術スタックの変更 | `.claude/rules/architecture.md`、`CLAUDE.md` |
+| アーキテクチャ・技術スタック・認証の変更 | `.claude/rules/architecture.md`（CLAUDE.md は要約のみ） |
 | 禁止パターンの追加・発見 | `.claude/rules/anti_patterns.md` |
 | コーディング規約の変更 | `.claude/rules/coding_rules.md` |
-| 新しい API エンドポイント一覧 | `CLAUDE.md` の API エンドポイント一覧 |
+| UI フロー・挙動の変更 | `.claude/rules/patterns.md`・`implementation_rules.md` の該当フロー記述 |
+| Gemini プロンプトの変更 | `backend/scripts/prompt-consistency-test.ts` で回帰検証を実施したか |
 
 **更新の原則:**
 - 実際に変更した内容のみ更新する（推測で書かない）
 - 既存の記述と矛盾が生じないか確認する
+- **⚠️ ドリフト防止: 変更した挙動を説明している既存の rules/docs の記述が古くなっていないか必ず grep で確認する**
+  （例: フローを変えたのに patterns.md が旧フローのまま、認証を変えたのに architecture.md が旧方式のまま）
 - 変更がない場合はスキップして問題ない
 
 **ドキュメント更新後はコミット:**

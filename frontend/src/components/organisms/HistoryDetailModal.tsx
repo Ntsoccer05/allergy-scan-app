@@ -38,7 +38,7 @@ export const HistoryDetailModal = ({
   onDelete,
 }: HistoryDetailModalProps) => {
   const t = useTranslations('history')
-  const [rawTextOpen, setRawTextOpen] = useState(false)
+  const [rawTextOpen, setRawTextOpen] = useState(true)
   const { judgment, productName, detected, scannedAt, location, memo, thumbnailUrl, isPublic, rawText } =
     item
 

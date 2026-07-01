@@ -20,6 +20,7 @@ DELETE /history/:id          履歴削除
 GET  /public/history         みんなのスキャン一覧（認証不要・カーソルページネーション）
 GET  /public/history/digest  みんなのスキャン新着件数（ポーリング用）
 GET  /allergens              アレルギーマスター取得（設定画面用）
+GET  /route                  経路取得（クエリ: from_lat, from_lng, to_lat, to_lng, mode=driving|walking|cycling）。ROUTING_PROVIDER env で OSRM（本番）/ ORS（ローカル）切替。transit モードはフロント側で Google Maps ディープリンクに委譲
 GET  /admin/users            ユーザー一覧（admin 専用・カーソルページネーション）
 GET  /admin/stats            統計情報（admin 専用）
 PATCH /admin/users/:id/plan  プラン手動変更（admin 専用）
@@ -117,21 +118,37 @@ response:
 query:
   filter: 'all' | 'ng' | 'partial' | 'ok'
   limit: number（デフォルト20）
-  before: string（ページネーション用 scanned_at ISO8601）
+  before: string（ページネーション用 MAX(scanned_at) ISO8601）
 
-sql:
-  SELECT * FROM scan_histories
-  WHERE user_id = $1
-    AND ($2 = 'all' OR judgment = $2)
-    AND ($3::timestamp IS NULL OR scanned_at < $3)
-  ORDER BY scanned_at DESC
-  LIMIT 20
-
-response:
+response（v2 - HistoryGroup 形式）:
   {
-    items: ScanHistory[],
+    items: HistoryGroup[],
     next_before: string | null
   }
+
+type HistoryGroup = {
+  product: {
+    id: string
+    name: string | null
+    allergens: ProductAllergens
+    thumbnailUrl: string | null
+    itemUrl: string | null       // 楽天アフィリエイトURL
+  }
+  judgment: 'ng' | 'partial' | 'ok'  // 現在の設定で再導出
+  detected: string[]
+  scans: Array<{
+    id: string
+    scannedAt: string
+    location: { storeName: string; lat: number; lng: number; address?: string; placeId?: string } | null
+    memo: string | null
+  }>
+  latestScanAt: string
+}
+
+注意:
+  - 旧フラット ScanHistory[] から GROUP BY product_id 形式に変更済み
+  - judgment は scan_histories.judgment ではなく、product.allergens × 現在のユーザー設定から in-memory 再導出
+  - カーソルは HAVING MAX(scanned_at) < before で比較
 ```
 
 ---

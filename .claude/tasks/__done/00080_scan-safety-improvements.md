@@ -15,7 +15,7 @@
 
 **指摘1（Medium）: `incomplete: true` フラグのフロントエンドハンドリング欠如**
 
-`backend/src/scan/scan.service.ts` は `incomplete: true` のとき `400` を返す（L145-150）。バックエンドが 400 を返すと `useScan.ts` の catch → `dispatch({ type: 'ERROR', error: 'api_error' })` に遷移し、ガイドメッセージは「通信エラーが発生しました。再度お試しください」になる。`incomplete` 向けの「ラベル全体が映るように離してください」は表示されない（`GUIDE_MESSAGES.error.incomplete` は定義済みだが到達しない）。`anti_patterns.md #2` および `implementation_rules.md` 安全設計ルール 1 に抵触する。
+`backend/src/scan/scan.service.ts` は `incomplete: true` のとき `400` を返す（L145-150）。バックエンドが 400 を返すと `useScan.ts` の catch → `dispatch({ type: 'ERROR', error: 'api_error' })` に遷移し、ガイドメッセージは「通信エラーが発生しました。再度お試しください」になる。`incomplete` 向けの「原材料またはバーコード全体が映るように撮影してください。」は表示されない（`GUIDE_MESSAGES.error.incomplete` は定義済みだが到達しない）。`anti_patterns.md #2` および `implementation_rules.md` 安全設計ルール 1 に抵触する。
 
 **期待される修正**: `frontend/src/hooks/useScan.ts` の `runOcrFlow` で `ocrResult.incomplete === true` のとき `dispatch({ type: 'ERROR', error: 'incomplete' })` に遷移させる。
 
@@ -34,7 +34,7 @@
 現在の状態:
 - `frontend/src/hooks/useScan.ts`: `runOcrFlow` のエラーハンドリングが catch → `api_error` のみ（L118-120）
 - `frontend/src/app/scan/scan.types.ts`: `ScanError` は `'dark' | 'blur' | 'motion' | 'incomplete' | 'api_error'` の 5値
-- `frontend/src/app/scan/scan.constants.ts`: `GUIDE_MESSAGES.error.incomplete` は定義済み（「ラベル全体が映るように離してください」）
+- `frontend/src/app/scan/scan.constants.ts`: `GUIDE_MESSAGES.error.incomplete` は定義済み（「原材料またはバーコード全体が映るように撮影してください。」）
 - `backend/src/scan/scan.service.ts`: `private readonly prisma: PrismaService` が constructor に注入されている（L53）
 - `backend/src/users/` ディレクトリは存在しない（TBD: generator が確認）
 

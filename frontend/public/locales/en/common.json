@@ -3,7 +3,27 @@
     "label": "Bottom navigation",
     "scan": "Scan",
     "history": "History",
+    "map": "Map",
     "settings": "Settings",
     "signOut": "Sign out"
+  },
+  "errors": {
+    "notFound": {
+      "code": "404",
+      "title": "Page not found",
+      "description": "The page you're looking for doesn't exist or has been moved.",
+      "backToScan": "Back to scan"
+    },
+    "forbidden": {
+      "code": "403",
+      "title": "Access denied",
+      "description": "You don't have permission to view this page.",
+      "backToScan": "Back to scan"
+    },
+    "unexpected": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again.",
+      "retry": "Try again"
+    }
   }
 }

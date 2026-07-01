@@ -36,3 +36,17 @@ export const GEMINI_ERROR_LOG_MAX_LENGTH = 200;
 
 /** スキャンエンドポイントのクールダウン時間（ミリ秒）。Lambda 再起動でリセットされる短期制御。 */
 export const SCAN_COOLDOWN_MS = 3_000;
+
+/** S3 からフェッチした画像の最大許容バイト数（5MB）。超過は BadRequest で即返却。 */
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * 許容する画像フォーマットのマジックバイト。
+ * JPEG: FF D8 FF / PNG: 89 50 4E 47 0D 0A 1A 0A / WebP: RIFF....WEBP
+ */
+export const IMAGE_MAGIC_BYTES = {
+  JPEG: Buffer.from([0xff, 0xd8, 0xff]),
+  PNG: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  WEBP_RIFF: Buffer.from([0x52, 0x49, 0x46, 0x46]),
+  WEBP_BODY: Buffer.from([0x57, 0x45, 0x42, 0x50]),
+} as const;

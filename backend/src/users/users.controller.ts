@@ -18,7 +18,11 @@ import type { UserAllergies } from '../shared/types/db.types'
 import {
   THROTTLE_USERS_INIT_TTL,
   THROTTLE_USERS_INIT_LIMIT,
-} from '../shared/throttler.constants'
+  THROTTLE_BACKUP_CODE_TTL,
+  THROTTLE_BACKUP_CODE_LIMIT,
+  THROTTLE_RESTORE_TTL,
+  THROTTLE_RESTORE_LIMIT,
+} from '../shared/throttler/throttler.constants'
 
 class UpdateUserDto {
   @IsOptional()
@@ -78,12 +82,14 @@ export class UsersController {
 
   @Post('backup-code')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: THROTTLE_BACKUP_CODE_TTL, limit: THROTTLE_BACKUP_CODE_LIMIT } })
   async issueBackupCode(@Req() req: AuthRequest) {
     return this.usersService.issueBackupCode(req.user.sub)
   }
 
   @Post('restore')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: THROTTLE_RESTORE_TTL, limit: THROTTLE_RESTORE_LIMIT } })
   async restoreFromCode(@Req() req: AuthRequest, @Body() dto: RestoreFromCodeDto) {
     await this.usersService.restoreFromCode(req.user.sub, dto.code)
     return { success: true }

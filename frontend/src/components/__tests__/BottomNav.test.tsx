@@ -118,6 +118,29 @@ describe('BottomNav', () => {
     })
   })
 
+  describe('/map パスのとき', () => {
+    beforeEach(() => {
+      mockUsePathname.mockReturnValue('/map')
+    })
+
+    it('地図タブのみアクティブスタイル（text-blue-600）を持つ', () => {
+      renderWithI18n(<BottomNav />)
+      const scanLink = screen.getByRole('link', { name: /スキャン/ })
+      const mapLink = screen.getByRole('link', { name: /地図/ })
+      const settingsLink = screen.getByRole('link', { name: /設定/ })
+
+      expect(mapLink).toHaveClass('text-blue-600')
+      expect(scanLink).not.toHaveClass('text-blue-600')
+      expect(settingsLink).not.toHaveClass('text-blue-600')
+    })
+
+    it('地図タブに aria-current="page" が設定される', () => {
+      renderWithI18n(<BottomNav />)
+      const mapLink = screen.getByRole('link', { name: /地図/ })
+      expect(mapLink).toHaveAttribute('aria-current', 'page')
+    })
+  })
+
   describe('/onboarding パスのとき', () => {
     beforeEach(() => {
       mockUsePathname.mockReturnValue('/onboarding')
@@ -165,6 +188,12 @@ describe('BottomNav', () => {
       renderWithI18n(<BottomNav />)
       const historyLink = screen.getByRole('link', { name: /履歴/ })
       expect(historyLink).toHaveAttribute('href', '/history')
+    })
+
+    it('地図タブのリンク先が /map である', () => {
+      renderWithI18n(<BottomNav />)
+      const mapLink = screen.getByRole('link', { name: /地図/ })
+      expect(mapLink).toHaveAttribute('href', '/map')
     })
 
     it('設定タブのリンク先が /settings である', () => {

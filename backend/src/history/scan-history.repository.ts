@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import type { ScanHistoryLocation } from '../shared/types/db.types';
+import type { ScanHistoryLocation, ProductAllergens } from '../shared/types/db.types';
+import { kanaSearchVariants } from '../shared/kana.util';
 
 /** scan_histories テーブルの UPDATE データ型。 */
 export type UpdateScanHistoryData = {
@@ -52,11 +54,73 @@ export type PublicHistoryRecord = {
   scannedAt: Date;
 };
 
+/** マップ用ピン（自分の履歴）。location に有効な lat/lng を持つ履歴のみ。 */
+export type LocationPinRecord = {
+  id: string;
+  productName: string | null;
+  judgment: string;
+  detected: string[];
+  thumbnailUrl: string | null;
+  storeName: string | null;
+  lat: number;
+  lng: number;
+  scannedAt: Date;
+  rawText: string | null;
+};
+
+/**
+ * マップ用ピン（公開履歴）。
+ * ⚠️ プライバシー: userId・detected・rawText・memo を含まない。
+ */
+export type PublicLocationPinRecord = Omit<
+  LocationPinRecord,
+  'detected' | 'rawText'
+>;
+
+/** $queryRaw が返すマップピン行の型（snake_case カラム名）。 */
+type LocationPinRow = {
+  id: string;
+  product_name: string | null;
+  judgment: string;
+  detected: unknown;
+  thumbnail_url: string | null;
+  store_name: string | null;
+  lat: number;
+  lng: number;
+  scanned_at: Date;
+  raw_text: string | null;
+};
+
+/** GET /history グループ内の1スキャン。 */
+export type ScanRecord = {
+  id: string;
+  scannedAt: Date;
+  location: ScanHistoryLocation | null;
+  memo: string | null;
+  thumbnailUrl: string | null;
+  rawText: string | null;
+};
+
+/** GET /history のグループ型（商品単位）。 */
+export type HistoryGroupRecord = {
+  productId: string | null;
+  productName: string | null;
+  allergens: ProductAllergens;
+  thumbnailUrl: string | null;
+  itemUrl: string | null;
+  latestScanAt: Date;
+  scans: ScanRecord[];
+};
+
 /** findByUser のオプション型。 */
 export type FindByUserOptions = {
   before?: Date;
   judgment?: string;
   limit: number;
+  /** 商品名の部分一致検索キーワード（大文字小文字を区別しない）。 */
+  q?: string;
+  /** 店舗名（location.store_name）の部分一致フィルタ。 */
+  store?: string;
 };
 
 @Injectable()
@@ -71,13 +135,18 @@ export class ScanHistoryRepository {
     userId: string,
     options: FindByUserOptions,
   ): Promise<ScanHistoryRecord[]> {
-    const { before, judgment, limit } = options;
+    const { before, judgment, limit, q, store } = options;
 
     const records = await this.prisma.scanHistory.findMany({
       where: {
         userId,
         ...(judgment !== undefined && judgment !== 'all' ? { judgment } : {}),
         ...(before !== undefined ? { scannedAt: { lt: before } } : {}),
+        ...(q ? { productName: { contains: q, mode: 'insensitive' } } : {}),
+        // location JSONB の store_name キーを部分一致で絞り込む
+        ...(store
+          ? { location: { path: ['store_name'], string_contains: store } }
+          : {}),
       },
       orderBy: { scannedAt: 'desc' },
       take: limit + 1,
@@ -222,11 +291,11 @@ export class ScanHistoryRepository {
     }
 
     if (data.storeName !== undefined) {
-      // storeName 更新時は既存の lat/lng を維持するため findById で取得して merge する
+      // storeName 更新時は既存の lat/lng（および place_id）を維持するため findById で取得して merge する
       const existing = await this.findById(id);
       const existingLocation = existing?.location;
       updateData.location = existingLocation
-        ? { store_name: data.storeName, lat: existingLocation.lat, lng: existingLocation.lng }
+        ? { ...existingLocation, store_name: data.storeName }
         : { store_name: data.storeName };
     }
 
@@ -310,6 +379,90 @@ export class ScanHistoryRepository {
   }
 
   /**
+   * マップ表示用: location に有効な lat/lng を持つ自分の履歴を最新順に取得する。
+   * JSONB キーの数値型判定は Prisma クエリビルダーで表現できないため
+   * $queryRaw + Prisma.sql を使う（patterns.md パターン15）。
+   */
+  async findLocationPinsByUser(
+    userId: string,
+    limit: number,
+  ): Promise<LocationPinRecord[]> {
+    const rows = await this.prisma.$queryRaw<LocationPinRow[]>(Prisma.sql`
+      SELECT
+        id,
+        product_name,
+        judgment,
+        detected,
+        thumbnail_url,
+        location->>'store_name' AS store_name,
+        (location->>'lat')::float8 AS lat,
+        (location->>'lng')::float8 AS lng,
+        scanned_at,
+        raw_text
+      FROM scan_histories
+      WHERE user_id = ${userId}
+        AND jsonb_typeof(location->'lat') = 'number'
+        AND jsonb_typeof(location->'lng') = 'number'
+      ORDER BY scanned_at DESC
+      LIMIT ${limit}
+    `);
+    return rows.map((row) => ({
+      id: row.id,
+      productName: row.product_name,
+      judgment: row.judgment,
+      // JSONB フィールドを string[] として解釈する（db.types.ts 準拠）
+      detected: (row.detected as string[]) ?? [],
+      thumbnailUrl: row.thumbnail_url,
+      storeName: row.store_name,
+      lat: row.lat,
+      lng: row.lng,
+      scannedAt: row.scanned_at,
+      rawText: row.raw_text,
+    }));
+  }
+
+  /**
+   * マップ表示用: 公開履歴のピンを最新順に取得する。
+   * ⚠️ プライバシー: 店舗名が確定している履歴のみ公開ピン化する
+   * （自宅等でスキャンした座標をそのまま公開しないための設計判断。task 00320 参照）。
+   * ⚠️ anti_patterns.md #4: OK 判定のみ公開可能（findPublicHistory と同一ポリシー）。
+   * userId・detected・rawText・memo は返却しない。
+   */
+  async findPublicLocationPins(
+    limit: number,
+  ): Promise<PublicLocationPinRecord[]> {
+    const rows = await this.prisma.$queryRaw<LocationPinRow[]>(Prisma.sql`
+      SELECT
+        id,
+        product_name,
+        judgment,
+        thumbnail_url,
+        location->>'store_name' AS store_name,
+        (location->>'lat')::float8 AS lat,
+        (location->>'lng')::float8 AS lng,
+        scanned_at
+      FROM scan_histories
+      WHERE is_public = true
+        AND judgment = 'ok'
+        AND COALESCE(location->>'store_name', '') <> ''
+        AND jsonb_typeof(location->'lat') = 'number'
+        AND jsonb_typeof(location->'lng') = 'number'
+      ORDER BY scanned_at DESC
+      LIMIT ${limit}
+    `);
+    return rows.map((row) => ({
+      id: row.id,
+      productName: row.product_name,
+      judgment: row.judgment,
+      thumbnailUrl: row.thumbnail_url,
+      storeName: row.store_name,
+      lat: row.lat,
+      lng: row.lng,
+      scannedAt: row.scanned_at,
+    }));
+  }
+
+  /**
    * scan_histories テーブルからレコードを物理削除する。
    * 存在しない場合の Prisma エラー（P2025）は Service 層の findById null チェックで防ぐ。
    * 所有権チェックは Service 層で行う。
@@ -318,5 +471,99 @@ export class ScanHistoryRepository {
     await this.prisma.scanHistory.delete({
       where: { id },
     });
+  }
+
+  /**
+   * 商品単位でグループ化した履歴を取得する（GROUP BY product_id）。
+   * judgment フィルタはサービス層で re-derive 後に適用するため SQL ではフィルタしない。
+   * カーソル: latestScanAt（グループ内の最新スキャン日時）の降順。
+   * limit+1 件取得して next_cursor 判定に使う。
+   */
+  async findGroupsByUser(
+    userId: string,
+    options: { before?: Date; limit: number; q?: string; store?: string },
+  ): Promise<HistoryGroupRecord[]> {
+    const { before, limit, q, store } = options;
+
+    // ひらがな・カタカナ双方向マッチ: 入力をカタカナ版とひらがな版に変換して OR 検索
+    const qFragment = q
+      ? (() => {
+          const [qKata, qHira] = kanaSearchVariants(q);
+          return Prisma.sql`AND (p.product_name ILIKE ${'%' + qKata + '%'} OR p.product_name ILIKE ${'%' + qHira + '%'})`;
+        })()
+      : Prisma.empty;
+
+    const storeFragment = store
+      ? (() => {
+          const [sKata, sHira] = kanaSearchVariants(store);
+          return Prisma.sql`AND EXISTS (
+          SELECT 1 FROM scan_histories sh2
+          WHERE sh2.product_id = sh.product_id
+            AND sh2.user_id = ${userId}
+            AND (sh2.location->>'store_name' ILIKE ${'%' + sKata + '%'}
+              OR sh2.location->>'store_name' ILIKE ${'%' + sHira + '%'})
+        )`;
+        })()
+      : Prisma.empty;
+
+    const beforeHaving =
+      before !== undefined
+        ? Prisma.sql`AND MAX(sh.scanned_at) < ${before}::timestamptz`
+        : Prisma.empty;
+
+    type GroupRow = {
+      product_id: string | null;
+      product_name: string | null;
+      allergens: unknown;
+      thumbnail_url: string | null;
+      item_url: string | null;
+      latest_scan_at: Date;
+      scans: unknown;
+    };
+
+    const rows = await this.prisma.$queryRaw<GroupRow[]>(Prisma.sql`
+      SELECT
+        p.id AS product_id,
+        p.product_name,
+        p.allergens,
+        p.thumbnail_url,
+        p.item_url,
+        MAX(sh.scanned_at) AS latest_scan_at,
+        json_agg(
+          json_build_object(
+            'id', sh.id,
+            'scannedAt', sh.scanned_at,
+            'location', sh.location,
+            'memo', sh.memo,
+            'thumbnailUrl', sh.thumbnail_url,
+            'rawText', sh.raw_text
+          ) ORDER BY sh.scanned_at DESC
+        ) AS scans
+      FROM scan_histories sh
+      LEFT JOIN products p ON p.id = sh.product_id
+      WHERE sh.user_id = ${userId}
+      ${qFragment}
+      ${storeFragment}
+      GROUP BY p.id, p.product_name, p.allergens, p.thumbnail_url, p.item_url
+      HAVING TRUE ${beforeHaving}
+      ORDER BY latest_scan_at DESC
+      LIMIT ${limit + 1}
+    `);
+
+    return rows.map((row) => ({
+      productId: row.product_id,
+      productName: row.product_name,
+      allergens: (row.allergens ?? {
+        contains: [],
+        partial: [],
+        components: [],
+      }) as ProductAllergens,
+      thumbnailUrl: row.thumbnail_url,
+      itemUrl: row.item_url,
+      latestScanAt: row.latest_scan_at,
+      scans: (
+        Array.isArray(row.scans) ? row.scans : JSON.parse(row.scans as string)
+      ) as ScanRecord[],
+    }));
   }
 }

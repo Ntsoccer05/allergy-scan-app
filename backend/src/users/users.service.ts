@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { UsersRepository } from './users.repository'
 import { BackupCodesRepository } from './backup-codes.repository'
 import { PrismaService } from '../prisma/prisma.service'
 import type { UserAllergies } from '../shared/types/db.types'
+import { BACKUP_CODE_DAILY_LIMIT } from './users.constants'
 
 type InitResult = { created: boolean }
 type UserMeResult = {
@@ -73,6 +74,12 @@ export class UsersService {
   async issueBackupCode(userId: string): Promise<{ code: string; expires_at: string }> {
     const user = await this.usersRepository.findById(userId)
     if (!user) throw new NotFoundException('ユーザーが見つかりません')
+
+    const todayCount = await this.backupCodesRepository.countIssuedToday(userId)
+    if (todayCount >= BACKUP_CODE_DAILY_LIMIT) {
+      throw new HttpException(`引き継ぎコードは1日${BACKUP_CODE_DAILY_LIMIT}回までしか発行できません`, HttpStatus.TOO_MANY_REQUESTS)
+    }
+
     const result = await this.backupCodesRepository.issue(userId)
     return { code: result.code, expires_at: result.expires_at.toISOString() }
   }

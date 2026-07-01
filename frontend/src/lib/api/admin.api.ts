@@ -1,4 +1,5 @@
 import { apiFetch } from './api-client'
+import type { SystemProductListResponse } from '@/app/history/history.types'
 
 export type AdminUser = {
   id: string
@@ -31,4 +32,18 @@ export const updateUserPlan = async (userId: string, planName: string): Promise<
     method: 'PATCH',
     body: JSON.stringify({ plan_name: planName }),
   })
+}
+
+export const getSystemProducts = async (
+  cursor?: string,
+  q?: string,
+  judgment?: 'all' | 'ng' | 'partial' | 'ok',
+): Promise<SystemProductListResponse> => {
+  const params = new URLSearchParams({
+    ...(cursor ? { cursor } : {}),
+    ...(q ? { q } : {}),
+    ...(judgment && judgment !== 'all' ? { judgment } : {}),
+  })
+  const res = await apiFetch(`/admin/products?${params}`)
+  return res.json() as Promise<SystemProductListResponse>
 }

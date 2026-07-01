@@ -3,32 +3,31 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import React from 'react'
 import { useHistory } from './useHistory'
 import { getHistory } from '@/lib/api/history.api'
-import type { HistoryListResponse } from '@/app/history/history.types'
+import type { HistoryGroupListResponse } from '@/app/history/history.types'
 
 jest.mock('@/lib/api/history.api')
 
 const mockGetHistory = getHistory as jest.MockedFunction<typeof getHistory>
 
-const makeItem = (id: string, scannedAt = '2026-05-18T00:00:00.000Z') => ({
-  id,
-  userId: 'user-1',
-  productId: null,
-  productName: `商品${id}`,
+const makeGroup = (id: string, scannedAt = '2026-05-18T00:00:00.000Z') => ({
+  product: {
+    id,
+    name: `商品${id}`,
+    allergens: { contains: [], partial: [], components: [] },
+    thumbnailUrl: null,
+    itemUrl: null,
+  },
   judgment: 'ok' as const,
   detected: [],
-  thumbnailUrl: null,
-  ocrImageUrl: null,
-  isPublic: false,
-  memo: null,
-  rawText: null,
-  scannedAt,
+  scans: [{ id: `scan-${id}`, scannedAt, location: null, memo: null, thumbnailUrl: null, rawText: null }],
+  latestScanAt: scannedAt,
 })
 
 const makeResponse = (
   ids: string[],
   next_before: string | null = null,
-): HistoryListResponse => ({
-  items: ids.map((id) => makeItem(id)),
+): HistoryGroupListResponse => ({
+  items: ids.map((id) => makeGroup(id)),
   next_before,
 })
 
@@ -66,7 +65,7 @@ describe('useHistory', () => {
 
     expect(mockGetHistory).toHaveBeenCalledTimes(1)
     expect(result.current.items).toHaveLength(2)
-    expect(result.current.items[0].id).toBe('1')
+    expect(result.current.items[0].product.id).toBe('1')
   })
 
   it('filter を ng に変更すると getHistory が ng で呼ばれ items がリセットされる', async () => {
@@ -91,7 +90,7 @@ describe('useHistory', () => {
     })
 
     expect(mockGetHistory).toHaveBeenCalledWith({ filter: 'ng', before: undefined })
-    expect(result.current.items[0].id).toBe('3')
+    expect(result.current.items[0].product.id).toBe('3')
   })
 
   it('fetchNextPage を呼び出すと before 付きで getHistory が呼ばれ items に追加される', async () => {
@@ -119,7 +118,7 @@ describe('useHistory', () => {
     })
 
     expect(mockGetHistory).toHaveBeenCalledWith({ filter: 'all', before })
-    expect(result.current.items[2].id).toBe('3')
+    expect(result.current.items[2].product.id).toBe('3')
   })
 
   it('hasNextPage が false のとき fetchNextPage を呼び出しても追加リクエストは送信されない', async () => {

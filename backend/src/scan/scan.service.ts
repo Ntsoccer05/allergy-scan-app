@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   HttpException,
   HttpStatus,
@@ -10,29 +10,44 @@ import {
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { randomUUID } from 'crypto'; // presigned URL の s3_key 生成にのみ使用
 import type { ProductAllergens } from '../shared/types/db.types';
-import type { OpenFoodFactsProductFields } from '../shared/types/open-food-facts.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
 import { ProductRepository } from '../products/product.repository';
+import type { ProductRecord } from '../products/product.repository';
 import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
 import { ScanHistoryRepository } from '../history/scan-history.repository';
-import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
-import { S3Client } from '../shared/s3.client';
-import { GeminiClient } from '../shared/gemini.client';
+import { S3Client } from '../shared/clients/s3.client';
+import { GeminiClient } from '../shared/clients/gemini.client';
 import { UsersRepository } from '../users/users.repository';
 import { UserDailyScansService } from '../users/user-daily-scans.service';
-import {
-  PLACES_PROVIDER_TOKEN,
-  type StoreCandidate,
-  type StoreCandidateProvider,
-} from '../shared/places.interface';
+import { StoreCacheRepository } from '../shared/store-cache.repository';
 import { buildGeminiPrompt } from './gemini-prompt.builder';
 import { buildLabelHash } from '../products/label-hash.util';
 import {
   CACHE_TTL_MEMORY_SEC,
+  IMAGE_MAGIC_BYTES,
+  MAX_IMAGE_SIZE_BYTES,
   RAW_TEXT_PREFIX_LENGTH,
   S3_KEY_PREFIX,
   SCAN_COOLDOWN_MS,
 } from './scan.constants';
+
+/**
+ * base64 エンコードされた画像のマジックバイトを検証する。
+ * JPEG / PNG / WebP 以外は拒否する。
+ */
+function isValidImageMagicBytes(base64: string): boolean {
+  // 先頭 20 バイト（= base64 で約 28 文字）で全フォーマットのシグネチャを網羅できる
+  const header = Buffer.from(base64.slice(0, 28), 'base64');
+  if (header.length < 4) return false;
+  if (header.subarray(0, 3).equals(IMAGE_MAGIC_BYTES.JPEG)) return true;
+  if (header.length >= 8 && header.subarray(0, 8).equals(IMAGE_MAGIC_BYTES.PNG)) return true;
+  if (
+    header.length >= 12 &&
+    header.subarray(0, 4).equals(IMAGE_MAGIC_BYTES.WEBP_RIFF) &&
+    header.subarray(8, 12).equals(IMAGE_MAGIC_BYTES.WEBP_BODY)
+  ) return true;
+  return false;
+}
 
 // Lambda 再起動でリセットされる短期クールダウン用 Map（TTL: 3秒）
 const lastScanTimestamps = new Map<string, number>();
@@ -46,6 +61,10 @@ export type BarcodeScanResult = {
   detected?: string[] | null;
   risk_level?: 'high' | 'medium' | 'low' | 'ignore' | null;
   from_cache: boolean;
+  /** 商品の原材料テキスト（OCR 由来 JAN キャッシュ・OFF の ingredients。検証表示用） */
+  raw_text?: string | null;
+  /** 楽天アフィリエイト URL（楽天 DB 由来の場合のみ） */
+  item_url?: string | null;
 };
 
 /** GET /scan/presigned-url のレスポンス型（openapi.yaml PresignedUrlResponse 準拠）。 */
@@ -54,9 +73,8 @@ export type PresignedUrlResult = {
   s3_key: string;
 };
 
-/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に storeCandidates・history_id を追加。 */
+/** POST /scan/ocr のレスポンス型。GeminiOcrResponse に history_id を追加。 */
 export type OcrScanResult = GeminiOcrResponse & {
-  storeCandidates?: StoreCandidate[];
   history_id?: string;
 };
 
@@ -75,22 +93,20 @@ export class ScanService {
   constructor(
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly productRepository: ProductRepository,
-    private readonly offClient: OpenFoodFactsClient,
     private readonly allergenComponentRepository: AllergenComponentRepository,
     private readonly scanHistoryRepository: ScanHistoryRepository,
     private readonly s3Client: S3Client,
     private readonly geminiClient: GeminiClient,
     private readonly usersRepository: UsersRepository,
     private readonly userDailyScansService: UserDailyScansService,
-    @Inject(PLACES_PROVIDER_TOKEN) private readonly placesClient: StoreCandidateProvider,
+    private readonly storeCacheRepository: StoreCacheRepository,
   ) {}
 
   /**
    * バーコードスキャンフロー（patterns.md パターン1）:
    * 1. NestJS メモリキャッシュ確認（TTL: CACHE_TTL_MEMORY_SEC）
-   * 2. DB の expires_at 確認
-   * 3. Open Food Facts API 照合
-   * 4. 全ミス → { found: false }
+   * 2. DB の expires_at 確認（シード済み商品は confidence='high' で即返却）
+   * 3. 全ミス → { found: false }（OCR フォールバック）
    */
   async scanBarcode(janCode: string, userId?: string): Promise<BarcodeScanResult> {
     if (userId) this.checkCooldown(userId);
@@ -104,13 +120,22 @@ export class ScanService {
     }
 
     // Step 2: DB の expires_at 確認
+    // ⚠️ 安全設計: アレルゲン情報が空の jan 商品はヒット扱いにしない。
+    // OCR 由来・楽天由来の JAN キャッシュは confidence: high のみ配信する —
+    // 共有キャッシュであり1人の不確実な読み取りが全ユーザーの判定に影響するため
     const dbProduct = await this.productRepository.findByJan(janCode);
-    if (dbProduct) {
+    if (
+      dbProduct &&
+      !this.hasNoAllergenInfo(dbProduct.allergens) &&
+      (dbProduct.confidence === null || dbProduct.confidence === 'high')
+    ) {
       this.logger.log(`DB hit for JAN: ${janCode}`);
       const result = this.buildResultFromDb(
         dbProduct.productName,
         dbProduct.allergens,
         false,
+        dbProduct.rawText,
+        dbProduct.itemUrl,
       );
       await this.cacheManager.set(
         cacheKey,
@@ -121,31 +146,7 @@ export class ScanService {
       return result;
     }
 
-    // Step 3: Open Food Facts API 照合
-    const offProduct = await this.offClient.fetchByJanCode(janCode);
-    if (offProduct) {
-      this.logger.log(`Open Food Facts hit for JAN: ${janCode}`);
-      const allergens = this.buildAllergensFromOff(offProduct);
-      await this.productRepository.upsertByJan(janCode, {
-        productName: this.extractProductName(offProduct),
-        allergens,
-        rawText: offProduct.ingredients_text_ja ?? offProduct.ingredients_text,
-      });
-      const result = this.buildResultFromDb(
-        this.extractProductName(offProduct),
-        allergens,
-        false,
-      );
-      await this.cacheManager.set(
-        cacheKey,
-        result,
-        CACHE_TTL_MEMORY_SEC * 1000,
-      );
-      if (userId) await this.userDailyScansService.incrementScanCount(userId);
-      return result;
-    }
-
-    // Step 4: 全ミス（found:false は OCR フォールバックへ。OCR 側でカウントする）
+    // Step 3: 全ミス（found:false は OCR フォールバックへ。OCR 側でカウントする）
     this.logger.log(`No result found for JAN: ${janCode}`);
     return { found: false, from_cache: false };
   }
@@ -170,9 +171,9 @@ export class ScanService {
    * 5. incomplete: true → 400
    * 6. confidence: low → 422
    * 7. products テーブルに UPSERT（scan_count +1、expires_at 再計算）
-   * 8. GPS + Places API で店舗候補取得（lat/lng が両方揃っている場合のみ）
-   * 9. 候補数に応じて location を分岐し scan_histories に記録
-   * 10. 候補 2 件以上のとき storeCandidates をレスポンスに含める
+   * 8. location: null で scan_histories に記録
+   *    （00320: Places API はコール課金のためスキャン時に呼ばない。
+   *      場所はユーザーの「場所を登録」操作時に GET /places/candidates で取得して PATCH する）
    */
   async processOcr(
     s3Key: string,
@@ -180,6 +181,7 @@ export class ScanService {
     lat?: number,
     lng?: number,
     allowLowConfidence?: boolean,
+    janCode?: string,
   ): Promise<OcrScanResult> {
     const t0 = Date.now();
 
@@ -201,6 +203,23 @@ export class ScanService {
       });
     }
 
+    // base64 → 実バイト数を計算してサイズ上限チェック（MAX_IMAGE_SIZE_BYTES: 5MB）
+    const byteCount = Math.floor((imageBase64.length * 3) / 4);
+    if (byteCount > MAX_IMAGE_SIZE_BYTES) {
+      throw new BadRequestException({
+        message: '画像サイズが大きすぎます。再スキャンしてください。',
+        code: 'IMAGE_TOO_LARGE',
+      });
+    }
+
+    // マジックバイト検証（JPEG / PNG / WebP 以外は拒否）
+    if (!isValidImageMagicBytes(imageBase64)) {
+      throw new BadRequestException({
+        message: '無効なファイル形式です。',
+        code: 'INVALID_IMAGE_FORMAT',
+      });
+    }
+
     // Step 4: Gemini Flash API に送信
     this.logger.log(`OCR 処理開始: s3Key=${s3Key}`);
     const geminiResult = await this.geminiClient.analyzeImage(
@@ -212,7 +231,7 @@ export class ScanService {
     // Step 5: incomplete: true → 400（anti_patterns.md #2）
     if (geminiResult.incomplete) {
       throw new BadRequestException({
-        message: 'ラベル全体が映るように離してください',
+        message: '原材料またはバーコード全体が映るように撮影してください。',
         code: 'INCOMPLETE_IMAGE',
       });
     }
@@ -227,36 +246,34 @@ export class ScanService {
     }
 
     // Step 7: products テーブルに UPSERT
-    const labelHash = buildLabelHash(
-      geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
-      '',
-      geminiResult.raw_text,
-    );
+    // JAN が検出済みの場合は jan キーで保存し、次回以降バーコードだけで判定できるようにする（00310 JAN キャッシュ）
     const allergens = this.buildAllergensFromGemini(geminiResult);
-    const product = await this.productRepository.upsertByHash(labelHash, {
+    const upsertData = {
       productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
-    });
-
-    // Step 8: GPS + Places API で店舗候補取得（lat/lng 両方揃っている場合のみ）
-    let storeCandidates: StoreCandidate[] = [];
-    if (lat !== undefined && lng !== undefined) {
-      storeCandidates = await this.placesClient.getStoreCandidates(lat, lng);
+    };
+    let product: ProductRecord;
+    // ⚠️ 安全設計: JAN キャッシュは全ユーザー共有のため、確実に読めた結果（confidence: high）のみ保存する。
+    // medium は本人の履歴用に hash キーでのみ保存し、他ユーザーの判定に影響させない
+    if (janCode && geminiResult.confidence === 'high') {
+      product = await this.productRepository.upsertByJan(janCode, upsertData);
+      this.logger.log(`JAN キャッシュ保存: jan=${janCode}`);
+    } else {
+      const labelHash = buildLabelHash(
+        geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
+        '',
+        geminiResult.raw_text,
+      );
+      product = await this.productRepository.upsertByHash(labelHash, upsertData);
     }
 
-    // Step 9: 候補数に応じて location を分岐し scan_histories に記録
+    // Step 8: location: null で scan_histories に記録
+    // （場所はユーザーの「場所を登録」操作時に PATCH /history/:id で更新する — 00320）
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
-    const allDetected = geminiResult.results.flatMap((r) => r.detected);
-
-    let location: { store_name: string; lat: number; lng: number } | null = null;
-    if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
-      // 候補 1 件: 確定として location に保存
-      location = { store_name: storeCandidates[0].name, lat, lng };
-    }
-    // 候補 0 件 または 2 件以上: location: null で保存（2件以上はユーザー選択後に PATCH）
+    const allDetected = this.buildDetectedAllergenNames(geminiResult.results);
 
     // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
     let historyId: string | undefined;
@@ -267,7 +284,7 @@ export class ScanService {
         productName: geminiResult.product_name ?? null,
         judgment,
         detected: allDetected,
-        location,
+        location: null,
         thumbnailUrl: null,
         rawText: geminiResult.raw_text,
       });
@@ -279,10 +296,13 @@ export class ScanService {
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
     );
 
-    // Step 10: 候補 2 件以上のときのみ storeCandidates をレスポンスに含める
-    if (storeCandidates.length >= 2) {
-      return { ...geminiResult, storeCandidates, history_id: historyId };
+    // バックグラウンドで店舗キャッシュをウォームアップする（非同期・失敗しても無視）
+    if (lat !== undefined && lng !== undefined) {
+      void this.storeCacheRepository.enqueueJob(lat, lng).catch((err) => {
+        this.logger.warn('cache_job 投入失敗', err instanceof Error ? err.message : String(err));
+      });
     }
+
     return { ...geminiResult, history_id: historyId };
   }
 
@@ -296,6 +316,7 @@ export class ScanService {
     lat?: number,
     lng?: number,
     allowLowConfidence?: boolean,
+    janCode?: string,
   ): AsyncGenerator<OcrStreamEvent> {
     yield { type: 'started' };
 
@@ -309,6 +330,17 @@ export class ScanService {
 
     if (!imageBase64) {
       yield { type: 'error', code: 'S3_FETCH_FAILED', message: '画像の取得に失敗しました。再度お試しください。' };
+      return;
+    }
+
+    const byteCount = Math.floor((imageBase64.length * 3) / 4);
+    if (byteCount > MAX_IMAGE_SIZE_BYTES) {
+      yield { type: 'error', code: 'IMAGE_TOO_LARGE', message: '画像サイズが大きすぎます。再スキャンしてください。' };
+      return;
+    }
+
+    if (!isValidImageMagicBytes(imageBase64)) {
+      yield { type: 'error', code: 'INVALID_IMAGE_FORMAT', message: '無効なファイル形式です。' };
       return;
     }
 
@@ -330,7 +362,7 @@ export class ScanService {
     }
 
     if (geminiResult.incomplete) {
-      yield { type: 'error', code: 'INCOMPLETE_IMAGE', message: 'ラベル全体が映るように離してください' };
+      yield { type: 'error', code: 'INCOMPLETE_IMAGE', message: '原材料またはバーコード全体が映るように撮影してください。' };
       return;
     }
 
@@ -339,32 +371,33 @@ export class ScanService {
       return;
     }
 
-    const labelHash = buildLabelHash(
-      geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
-      '',
-      geminiResult.raw_text,
-    );
+    // JAN が検出済みの場合は jan キーで保存し、次回以降バーコードだけで判定できるようにする（00310 JAN キャッシュ）
     const allergens = this.buildAllergensFromGemini(geminiResult);
-    const product = await this.productRepository.upsertByHash(labelHash, {
+    const upsertData = {
       productName: geminiResult.product_name ?? null,
       allergens,
       rawText: geminiResult.raw_text,
       confidence: geminiResult.confidence,
-    });
-
-    let storeCandidates: StoreCandidate[] = [];
-    if (lat !== undefined && lng !== undefined) {
-      storeCandidates = await this.placesClient.getStoreCandidates(lat, lng);
+    };
+    let product: ProductRecord;
+    // ⚠️ 安全設計: JAN キャッシュは全ユーザー共有のため、確実に読めた結果（confidence: high）のみ保存する。
+    // medium は本人の履歴用に hash キーでのみ保存し、他ユーザーの判定に影響させない
+    if (janCode && geminiResult.confidence === 'high') {
+      product = await this.productRepository.upsertByJan(janCode, upsertData);
+      this.logger.log(`JAN キャッシュ保存: jan=${janCode}`);
+    } else {
+      const labelHash = buildLabelHash(
+        geminiResult.raw_text.slice(0, RAW_TEXT_PREFIX_LENGTH),
+        '',
+        geminiResult.raw_text,
+      );
+      product = await this.productRepository.upsertByHash(labelHash, upsertData);
     }
 
+    // location: null で保存する（場所登録はユーザー操作時の PATCH に分離 — 00320）
     const overallJudgment = this.deriveOverallJudgment(geminiResult.results);
     const judgment = this.toJudgmentShort(overallJudgment);
-    const allDetected = geminiResult.results.flatMap((r) => r.detected);
-
-    let location: { store_name: string; lat: number; lng: number } | null = null;
-    if (storeCandidates.length === 1 && lat !== undefined && lng !== undefined) {
-      location = { store_name: storeCandidates[0].name, lat, lng };
-    }
+    const allDetected = this.buildDetectedAllergenNames(geminiResult.results);
 
     // userId が存在する場合のみ履歴を保存する（認証済みリクエストのみ）
     let historyId: string | undefined;
@@ -375,7 +408,7 @@ export class ScanService {
         productName: geminiResult.product_name ?? null,
         judgment,
         detected: allDetected,
-        location,
+        location: null,
         thumbnailUrl: null,
         rawText: geminiResult.raw_text,
       });
@@ -385,11 +418,14 @@ export class ScanService {
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
 
-    if (storeCandidates.length >= 2) {
-      yield { type: 'result', data: { ...geminiResult, storeCandidates, history_id: historyId } };
-    } else {
-      yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
+    // バックグラウンドで店舗キャッシュをウォームアップする（非同期・失敗しても無視）
+    if (lat !== undefined && lng !== undefined) {
+      void this.storeCacheRepository.enqueueJob(lat, lng).catch((err) => {
+        this.logger.warn('cache_job 投入失敗', err instanceof Error ? err.message : String(err));
+      });
     }
+
+    yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
   }
 
   /**
@@ -431,18 +467,48 @@ export class ScanService {
     }
   }
 
-  /** Gemini レスポンスから ProductAllergens を生成する。 */
+  /**
+   * Gemini レスポンスから ProductAllergens を生成する。
+   * contains / partial にはアレルゲン名を保存する（成分テキストは components へ）。
+   * 名前で保存しないと deriveJudgment（みんなのスキャン・履歴の設定追従）の
+   * アレルゲン名照合が機能しないため。
+   * ⚠️ 安全設計: may_contain（製造ラインコンタミ）は contains（NG）ではなく partial に分類する
+   */
   private buildAllergensFromGemini(
     result: GeminiOcrResponse,
   ): ProductAllergens {
     const contains = result.results
-      .filter((r) => r.judgment === '含む')
-      .flatMap((r) => r.detected);
+      .filter(
+        (r) => r.judgment === '含む' && r.detection_type !== 'may_contain',
+      )
+      .map((r) => r.allergen);
     const partial = result.results
-      .filter((r) => r.judgment === '一部含む')
-      .flatMap((r) => r.detected);
+      .filter(
+        (r) =>
+          r.judgment === '一部含む' ||
+          (r.judgment === '含む' && r.detection_type === 'may_contain'),
+      )
+      .map((r) => r.allergen);
     const components = result.results.flatMap((r) => r.detected);
-    return { contains, partial, components };
+    return {
+      contains: [...new Set(contains)],
+      partial: [...new Set(partial)],
+      components,
+    };
+  }
+
+  /**
+   * 履歴の detected に保存するアレルゲン名リストを生成する。
+   * 成分テキストではなく名前を保存する（現在のアレルギー設定との照合に必要）。
+   */
+  private buildDetectedAllergenNames(
+    results: GeminiOcrResponse['results'],
+  ): string[] {
+    return [
+      ...new Set(
+        results.filter((r) => r.judgment !== 'なし').map((r) => r.allergen),
+      ),
+    ];
   }
 
   /**
@@ -461,6 +527,15 @@ export class ScanService {
     return 'なし';
   }
 
+  /** アレルゲン情報が1件もない ProductAllergens かどうか（OFF 未入力商品の安全側判定に使う）。 */
+  private hasNoAllergenInfo(allergens: ProductAllergens): boolean {
+    return (
+      allergens.contains.length === 0 &&
+      allergens.partial.length === 0 &&
+      allergens.components.length === 0
+    );
+  }
+
   /** Gemini の judgment を JudgmentShort に変換する。 */
   private toJudgmentShort(judgment: string): 'ng' | 'partial' | 'ok' {
     if (judgment === '含む') return 'ng';
@@ -472,6 +547,8 @@ export class ScanService {
     productName: string | null,
     allergens: ProductAllergens,
     fromCache: boolean,
+    rawText: string | null = null,
+    itemUrl: string | null = null,
   ): BarcodeScanResult {
     const detected = [...allergens.components];
     let judgment: string | null = null;
@@ -500,25 +577,10 @@ export class ScanService {
       detected,
       risk_level: riskLevel,
       from_cache: fromCache,
+      // ⚠️ 安全設計: 他ユーザーの OCR 結果（JAN キャッシュ）を本人が検証できるよう raw_text を返す
+      raw_text: rawText,
+      item_url: itemUrl,
     };
   }
 
-  /** Open Food Facts のアレルギータグから ProductAllergens を生成する。 */
-  private buildAllergensFromOff(
-    product: OpenFoodFactsProductFields,
-  ): ProductAllergens {
-    const contains = (product.allergens_tags ?? []).map((tag) =>
-      tag.replace(/^[a-z]{2}:/, ''),
-    );
-    const partial = (product.traces_tags ?? []).map((tag) =>
-      tag.replace(/^[a-z]{2}:/, ''),
-    );
-    return { contains, partial, components: [] };
-  }
-
-  private extractProductName(
-    product: OpenFoodFactsProductFields,
-  ): string | null {
-    return product.product_name_ja ?? product.product_name ?? null;
-  }
 }

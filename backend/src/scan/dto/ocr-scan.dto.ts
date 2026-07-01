@@ -1,4 +1,5 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /** POST /scan/ocr のリクエストボディ。openapi.yaml OcrScanRequest 準拠。 */
 export class OcrScanDto {
@@ -12,14 +13,29 @@ export class OcrScanDto {
 
   @IsOptional()
   @IsNumber()
+  @Min(-90)
+  @Max(90)
+  @Type(() => Number)
   lat?: number;
 
   @IsOptional()
   @IsNumber()
+  @Min(-180)
+  @Max(180)
+  @Type(() => Number)
   lng?: number;
 
   /** PC（pointer: coarse 非対応）からのリクエスト時に true。confidence: low でも判定結果を返す。 */
   @IsOptional()
   @IsBoolean()
   allow_low_confidence?: boolean;
+
+  /**
+   * 撮影フレームから検出済みの JAN コード（00310 JAN キャッシュ用）。
+   * 指定時は OCR 結果を jan キーで products に保存し、次回以降バーコードだけで判定できるようにする。
+   */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{8}$|^\d{13}$/, { message: 'jan_code は 8 桁または 13 桁の数字です' })
+  jan_code?: string;
 }

@@ -47,8 +47,12 @@ echo "[3/4] バケット '$BUCKET' を作成..."
 $GARAGE bucket create "$BUCKET" 2>/dev/null || echo "  バケット既存のためスキップ"
 
 # 4. キーにバケットへのアクセス権を付与（owner 権限も付与して CORS 設定を可能にする）
-echo "[4/4] アクセス権を付与..."
+echo "[4/5] アクセス権を付与..."
 $GARAGE bucket allow --read --write --owner "$BUCKET" --key "$KEY_ID"
+
+# 5. Website アクセスを有効化（サムネイル画像を http://<bucket>.localhost:3902/<key> で配信するため必須）
+echo "[5/5] Website アクセスを有効化..."
+$GARAGE bucket website --allow "$BUCKET"
 
 echo ""
 echo "=== セットアップ完了 ==="

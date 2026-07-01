@@ -1,21 +1,26 @@
 import type {
   CreateHistoryBody,
   HistoryFilter,
+  HistoryGroupListResponse,
   HistoryItem,
-  HistoryListResponse,
   PatchHistoryBody,
 } from '@/app/history/history.types'
 import type { JudgmentShort } from '@/app/scan/scan.types'
+import type { MapLocationsResponse } from '@/app/map/map.types'
 import { apiFetch } from './api-client'
 
 type GetHistoryParams = {
   filter?: HistoryFilter
   before?: string
+  /** 商品名の部分一致検索キーワード */
+  q?: string
+  /** 店舗名の部分一致フィルタ */
+  store?: string
 }
 
 export const getHistory = async (
   params: GetHistoryParams = {},
-): Promise<HistoryListResponse> => {
+): Promise<HistoryGroupListResponse> => {
   const query = new URLSearchParams()
   if (params.filter && params.filter !== 'all') {
     query.set('judgment', params.filter)
@@ -23,10 +28,20 @@ export const getHistory = async (
   if (params.before) {
     query.set('before', params.before)
   }
-
+  if (params.q) {
+    query.set('q', params.q)
+  }
+  if (params.store) {
+    query.set('store', params.store)
+  }
   const path = `/history${query.toString() ? `?${query.toString()}` : ''}`
   const res = await apiFetch(path)
-  return res.json() as Promise<HistoryListResponse>
+  return res.json() as Promise<HistoryGroupListResponse>
+}
+
+export const getMapLocations = async (): Promise<MapLocationsResponse> => {
+  const res = await apiFetch('/history/locations')
+  return res.json() as Promise<MapLocationsResponse>
 }
 
 export const postHistory = async (
@@ -41,7 +56,7 @@ export const postHistory = async (
 
 export const patchHistoryLocation = async (
   historyId: string,
-  location: { store_name: string; lat: number; lng: number },
+  location: { store_name: string; lat: number; lng: number; address?: string; place_id?: string },
 ): Promise<void> => {
   await apiFetch(`/history/${historyId}`, {
     method: 'PATCH',
