@@ -18,6 +18,7 @@ import { preprocessFrame } from '@/lib/image-preprocess'
 import { useBarcode } from './useBarcode'
 import { useCamera } from './useCamera'
 import { useScanApi } from './useScanApi'
+import { useScanQueue, saveTodayScanFromDirectOcr } from './useScanQueue'
 
 export type Action =
   | { type: 'START_CAMERA' }
@@ -100,16 +101,24 @@ type UseScanReturn = {
   handleCapture: () => void
   manualCapture: () => Promise<void>
   uploadAndScanImage: (file: File) => Promise<void>
+  /** ファイルをキューに積む（変換は addJob 内で実施・複数ファイル選択用） */
+  queueFileForScan: (file: File) => void
   zoomLevel: number
   setZoom: (level: number) => void
   supportsHardwareZoom: boolean
   facingMode: 'environment' | 'user'
   toggleFacingMode: () => void
   /** 現在地の住所・施設候補を取得する（「場所を登録」ボタン用。GPS 未取得・失敗時は null） */
-  fetchPlaceCandidates: () => Promise<PlaceCandidatesResponse | null>
-  /** 選択した場所をスキャン履歴の location に登録する（place_id は施設選択時のみ） */
-  registerLocation: (storeName: string, placeId?: string) => void
+  fetchPlaceCandidates: (query?: string) => Promise<PlaceCandidatesResponse | null>
+  /** 選択した場所をスキャン履歴の location に登録する（place_id は施設選択時のみ、address は逆ジオコーディング住所） */
+  registerLocation: (storeName: string, placeId?: string, address?: string) => void
+  /**
+   * 商品名未入力でキャンセルする際にスキャン履歴を削除してリセットする。
+   * バックエンドが自動保存した履歴エントリを破棄する。
+   */
+  discardResult: () => void
   onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
+  scanQueue: ReturnType<typeof useScanQueue>
 }
 
 /** ScanResult から POST /history のリクエストボディを構築する。 */
@@ -158,8 +167,9 @@ const buildHistoryBody = (result: ScanResult): CreateHistoryBody | null => {
 export const useScan = (): UseScanReturn => {
   const [state, dispatch] = useReducer(scanReducer, initialState)
   const { videoRef, captureFrame, startCamera, stopCamera, zoomLevel, setZoom, supportsHardwareZoom, facingMode, toggleFacingMode } = useCamera()
+  const scanQueue = useScanQueue()
   const { detectFromImageData } = useBarcode()
-  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation, patchHistoryFields, fetchPlaceCandidates: fetchPlaceCandidatesApi } =
+  const { scanBarcodeWithCache, fetchPresignedUrl, putS3, scanOcrStream, saveHistory, patchLocation, patchHistoryFields, fetchPlaceCandidates: fetchPlaceCandidatesApi, deleteHistoryEntry } =
     useScanApi()
 
   const intervalRef = useRef<number | null>(null)
@@ -287,6 +297,11 @@ export const useScan = (): UseScanReturn => {
           data: ocrResult,
         }
         dispatch({ type: 'RESULT', payload: scanResult })
+
+        // 今日のスキャン一覧（localStorage）に追加する。
+        // キューパス（handleCapture）は useScanQueue.addJob が担当するが、
+        // 直接スキャンパス（manualCapture / uploadAndScanImage）はここで保存する。
+        void saveTodayScanFromDirectOcr(ocrResult, originalColorDataUrl)
 
         // バックエンドが履歴を作成済みのため history_id を使用する。
         // 未認証の場合（history_id なし）はフォールバックとして POST /history で保存する。
@@ -450,19 +465,28 @@ export const useScan = (): UseScanReturn => {
   }, [captureFrame, runScanFlow])
 
   /**
-   * タップ撮影: 現在フレームをキャプチャしてバーコード判定 → OCR フローに進む。
-   * idle 状態でのみ有効。確認画面なし。
+   * タップ撮影: 現在フレームをキャプチャして useScanQueue 経由でジョブとして投入する。
+   * processing 状態または並列上限到達時は無効。確認画面なし。
    */
   const handleCapture = useCallback((): void => {
-    if (isProcessingRef.current) return
-    if (stateRef.current !== 'idle') return
-    const frame = captureFrame()
-    if (!frame) return
-    isProcessingRef.current = true
-    void runScanFlow(frame).finally(() => {
-      isProcessingRef.current = false
-    })
-  }, [captureFrame, runScanFlow])
+    if (stateRef.current === 'processing') return
+    if (scanQueue.isAtCapacity) return
+
+    const imageData = captureFrame()
+    if (!imageData) return
+
+    const canvas = document.createElement('canvas')
+    canvas.width = imageData.width
+    canvas.height = imageData.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.putImageData(imageData, 0, 0)
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const capturedImageUrl = URL.createObjectURL(blob)
+      void scanQueue.addJob(blob, capturedImageUrl)
+    }, 'image/jpeg', OCR_JPEG_QUALITY)
+  }, [captureFrame, scanQueue])
 
   /**
    * ギャラリー / ファイルシステムから選択した画像を OCR 解析する。
@@ -497,21 +521,33 @@ export const useScan = (): UseScanReturn => {
   )
 
   /**
+   * ファイルをスキャンキューに積む。
+   * 変換（リサイズ・JPEG 化）は addJob 内で行うため、File を直接渡して即座にローディングを表示する。
+   */
+  const queueFileForScan = useCallback(
+    (file: File): void => {
+      const capturedImageUrl = URL.createObjectURL(file)
+      void scanQueue.addJob(file, capturedImageUrl)
+    },
+    [scanQueue],
+  )
+
+  /**
    * 現在地の住所・施設候補を取得する（「場所を登録」操作時のみ呼ぶ — 00320）。
    * Places API はコール課金のためスキャン毎の自動呼び出しは行わない。
    */
   const fetchPlaceCandidates = useCallback(
-    async (): Promise<PlaceCandidatesResponse | null> => {
+    async (query?: string): Promise<PlaceCandidatesResponse | null> => {
       const geo = geolocationRef.current
       if (!geo) return null
-      return fetchPlaceCandidatesApi(geo.lat, geo.lng)
+      return fetchPlaceCandidatesApi(geo.lat, geo.lng, query)
     },
     [fetchPlaceCandidatesApi],
   )
 
-  /** 選択した場所を履歴の location に登録する。place_id は将来の店舗キー統一用（00320） */
+  /** 選択した場所を履歴の location に登録する。place_id は将来の店舗キー統一用（00320）、address は逆ジオコーディング住所 */
   const registerLocation = useCallback(
-    (storeName: string, placeId?: string): void => {
+    (storeName: string, placeId?: string, address?: string): void => {
       const historyId = scanHistoryIdRef.current
       const geo = geolocationRef.current
       if (!historyId || !geo) return
@@ -519,6 +555,7 @@ export const useScan = (): UseScanReturn => {
         store_name: storeName,
         lat: geo.lat,
         lng: geo.lng,
+        ...(address !== undefined ? { address } : {}),
         ...(placeId !== undefined ? { place_id: placeId } : {}),
       })
     },
@@ -528,6 +565,19 @@ export const useScan = (): UseScanReturn => {
   const setThumbnailUrl = useCallback((url: string | null) => {
     dispatch({ type: 'SET_THUMBNAIL_URL', url })
   }, [])
+
+  /**
+   * 商品名未入力でキャンセル時: バックエンドが自動保存した履歴エントリを削除してリセットする。
+   * OCR は結果返却時にバックエンドが history_id を生成するため、キャンセル時はここで削除する。
+   */
+  const discardResult = useCallback((): void => {
+    const historyId = scanHistoryIdRef.current
+    if (historyId) {
+      void deleteHistoryEntry(historyId)
+    }
+    stopScan()
+    dispatch({ type: 'RESET' })
+  }, [deleteHistoryEntry, stopScan])
 
   const onPatchHistory = useCallback(
     (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }): void => {
@@ -560,6 +610,7 @@ export const useScan = (): UseScanReturn => {
     handleCapture,
     manualCapture,
     uploadAndScanImage,
+    queueFileForScan,
     zoomLevel,
     setZoom,
     supportsHardwareZoom,
@@ -568,5 +619,7 @@ export const useScan = (): UseScanReturn => {
     fetchPlaceCandidates,
     registerLocation,
     onPatchHistory,
+    discardResult,
+    scanQueue,
   }
 }

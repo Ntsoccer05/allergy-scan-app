@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import type { ScanHistoryLocation } from '../shared/types/db.types';
+import type { ScanHistoryLocation, ProductAllergens } from '../shared/types/db.types';
+import { kanaSearchVariants } from '../shared/kana.util';
 
 /** scan_histories テーブルの UPDATE データ型。 */
 export type UpdateScanHistoryData = {
@@ -88,6 +89,27 @@ type LocationPinRow = {
   lng: number;
   scanned_at: Date;
   raw_text: string | null;
+};
+
+/** GET /history グループ内の1スキャン。 */
+export type ScanRecord = {
+  id: string;
+  scannedAt: Date;
+  location: ScanHistoryLocation | null;
+  memo: string | null;
+  thumbnailUrl: string | null;
+  rawText: string | null;
+};
+
+/** GET /history のグループ型（商品単位）。 */
+export type HistoryGroupRecord = {
+  productId: string | null;
+  productName: string | null;
+  allergens: ProductAllergens;
+  thumbnailUrl: string | null;
+  itemUrl: string | null;
+  latestScanAt: Date;
+  scans: ScanRecord[];
 };
 
 /** findByUser のオプション型。 */
@@ -449,5 +471,99 @@ export class ScanHistoryRepository {
     await this.prisma.scanHistory.delete({
       where: { id },
     });
+  }
+
+  /**
+   * 商品単位でグループ化した履歴を取得する（GROUP BY product_id）。
+   * judgment フィルタはサービス層で re-derive 後に適用するため SQL ではフィルタしない。
+   * カーソル: latestScanAt（グループ内の最新スキャン日時）の降順。
+   * limit+1 件取得して next_cursor 判定に使う。
+   */
+  async findGroupsByUser(
+    userId: string,
+    options: { before?: Date; limit: number; q?: string; store?: string },
+  ): Promise<HistoryGroupRecord[]> {
+    const { before, limit, q, store } = options;
+
+    // ひらがな・カタカナ双方向マッチ: 入力をカタカナ版とひらがな版に変換して OR 検索
+    const qFragment = q
+      ? (() => {
+          const [qKata, qHira] = kanaSearchVariants(q);
+          return Prisma.sql`AND (p.product_name ILIKE ${'%' + qKata + '%'} OR p.product_name ILIKE ${'%' + qHira + '%'})`;
+        })()
+      : Prisma.empty;
+
+    const storeFragment = store
+      ? (() => {
+          const [sKata, sHira] = kanaSearchVariants(store);
+          return Prisma.sql`AND EXISTS (
+          SELECT 1 FROM scan_histories sh2
+          WHERE sh2.product_id = sh.product_id
+            AND sh2.user_id = ${userId}
+            AND (sh2.location->>'store_name' ILIKE ${'%' + sKata + '%'}
+              OR sh2.location->>'store_name' ILIKE ${'%' + sHira + '%'})
+        )`;
+        })()
+      : Prisma.empty;
+
+    const beforeHaving =
+      before !== undefined
+        ? Prisma.sql`AND MAX(sh.scanned_at) < ${before}::timestamptz`
+        : Prisma.empty;
+
+    type GroupRow = {
+      product_id: string | null;
+      product_name: string | null;
+      allergens: unknown;
+      thumbnail_url: string | null;
+      item_url: string | null;
+      latest_scan_at: Date;
+      scans: unknown;
+    };
+
+    const rows = await this.prisma.$queryRaw<GroupRow[]>(Prisma.sql`
+      SELECT
+        p.id AS product_id,
+        p.product_name,
+        p.allergens,
+        p.thumbnail_url,
+        p.item_url,
+        MAX(sh.scanned_at) AS latest_scan_at,
+        json_agg(
+          json_build_object(
+            'id', sh.id,
+            'scannedAt', sh.scanned_at,
+            'location', sh.location,
+            'memo', sh.memo,
+            'thumbnailUrl', sh.thumbnail_url,
+            'rawText', sh.raw_text
+          ) ORDER BY sh.scanned_at DESC
+        ) AS scans
+      FROM scan_histories sh
+      LEFT JOIN products p ON p.id = sh.product_id
+      WHERE sh.user_id = ${userId}
+      ${qFragment}
+      ${storeFragment}
+      GROUP BY p.id, p.product_name, p.allergens, p.thumbnail_url, p.item_url
+      HAVING TRUE ${beforeHaving}
+      ORDER BY latest_scan_at DESC
+      LIMIT ${limit + 1}
+    `);
+
+    return rows.map((row) => ({
+      productId: row.product_id,
+      productName: row.product_name,
+      allergens: (row.allergens ?? {
+        contains: [],
+        partial: [],
+        components: [],
+      }) as ProductAllergens,
+      thumbnailUrl: row.thumbnail_url,
+      itemUrl: row.item_url,
+      latestScanAt: row.latest_scan_at,
+      scans: (
+        Array.isArray(row.scans) ? row.scans : JSON.parse(row.scans as string)
+      ) as ScanRecord[],
+    }));
   }
 }

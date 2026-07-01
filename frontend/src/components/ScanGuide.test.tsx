@@ -14,10 +14,10 @@ describe('ScanGuide', () => {
     expect(screen.getByText('撮影しました。確定またはやり直しを選んでください')).toBeInTheDocument()
   })
 
-  it('state: error, error: incomplete → 「⚠️ ラベル全体が映るように離してください」を表示する', () => {
+  it('state: error, error: incomplete → 「⚠️ 原材料またはバーコード全体が映るように撮影してください。」を表示する', () => {
     render(<ScanGuide state="error" error="incomplete" />)
     expect(
-      screen.getByText('⚠️ ラベル全体が映るように離してください'),
+      screen.getByText('⚠️ 原材料またはバーコード全体が映るように撮影してください。'),
     ).toBeInTheDocument()
   })
 

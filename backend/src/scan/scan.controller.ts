@@ -24,7 +24,7 @@ import {
   THROTTLE_OCR_LIMIT,
   THROTTLE_BARCODE_TTL,
   THROTTLE_BARCODE_LIMIT,
-} from '../shared/throttler.constants';
+} from '../shared/throttler/throttler.constants';
 
 type AuthRequest = Request & { user?: SupabaseJwtPayload };
 

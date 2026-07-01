@@ -5,11 +5,19 @@
     "public": "みんなのピン"
   },
   "error": "マップ情報の取得に失敗しました",
-  "empty": "場所が登録されたスキャンがまだありません",
   "storeName": "📍 {store}",
   "card": {
     "close": "閉じる",
     "unnamed": "商品名なし",
     "publicBadge": "みんなのスキャン"
+  },
+  "route": {
+    "driving": "車 ↗",
+    "transit": "電車 ↗",
+    "walking": "徒歩 ↗",
+    "cycling": "自転車 ↗"
+  },
+  "poi": {
+    "toggle": "スポット"
   }
 }

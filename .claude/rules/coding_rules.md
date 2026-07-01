@@ -173,3 +173,55 @@ UIテキストをコンポーネントに直書きしない。すべて `t('キ�
 
 ロケールファイル構成: `frontend/public/locales/{ja,en}/{common,scan,history,settings}.json`  
 MVP では `ja`（日本語）をデフォルト、`en`（英語）を設定画面から切り替え可能にする。
+
+## アイコン管理
+
+SVG アイコンはすべて `frontend/public/icons/{カテゴリ}/` に置く。
+
+```
+frontend/public/icons/
+  allergens/   ← アレルゲンアイコン（egg.svg, milk.svg …）
+  maps/        ← 地図関連アイコン（driving.svg, walking.svg …）
+  （以降、機能カテゴリ単位でサブディレクトリを追加）
+```
+
+### アイコンの使い方
+
+**色を CSS で制御したい場合（推奨）: CSS `mask-image`**
+
+```tsx
+// ✅ background-color が SVG の形でマスクされ、Tailwind で色を自由に変えられる
+<span
+  className="block w-6 h-6 bg-blue-600"   // ← ここで色を指定
+  style={{
+    maskImage: 'url(/icons/maps/driving.svg)',
+    maskSize: 'contain',
+    maskRepeat: 'no-repeat',
+    maskPosition: 'center',
+    WebkitMaskImage: 'url(/icons/maps/driving.svg)',  // Safari 対応
+    WebkitMaskSize: 'contain',
+    WebkitMaskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+  }}
+/>
+```
+
+SVG ファイル内の `fill` は `#000`（黒）で記述する（mask は色を上書きするため何色でも構わないが黒が慣例）。
+
+**色が固定でよい場合: `<img>` タグ**
+
+```tsx
+// ✅ 装飾的・固定色アイコンは img で十分
+<img src="/icons/allergens/egg.svg" alt="" className="w-6 h-6" />
+```
+
+### アンチパターン
+
+```tsx
+// ❌ アイコン SVG パスをコンポーネント内にハードコードしない
+const path = 'M18.92 6.01C18.72 5.42...'
+
+// ❌ public/icons/ 以外の場所にアイコンを置かない
+// frontend/src/assets/icons/driving.svg  → NG
+// frontend/public/driving.svg            → NG（サブディレクトリなし）
+```

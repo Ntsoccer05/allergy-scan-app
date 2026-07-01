@@ -12,7 +12,7 @@ import * as path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { buildGeminiPrompt } from '../src/scan/gemini-prompt.builder';
 import type { AllergenComponentRepository } from '../src/allergens/allergen-component.repository';
-import { GeminiClient } from '../src/shared/gemini.client';
+import { GeminiClient } from '../src/shared/clients/gemini.client';
 import type { GeminiOcrResponse } from '../src/shared/types/gemini.types';
 
 const TARGET_USER_ID = '22b3bce2-fc7a-4c8a-ac55-b9a1adf1e4ea';

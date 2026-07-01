@@ -5,7 +5,7 @@ import { PlaceCandidatesDto } from './dto/place-candidates.dto';
 import {
   THROTTLE_PLACES_TTL,
   THROTTLE_PLACES_LIMIT,
-} from '../shared/throttler.constants';
+} from '../shared/throttler/throttler.constants';
 
 @Controller('places')
 export class PlacesController {
@@ -23,6 +23,6 @@ export class PlacesController {
   async getCandidates(
     @Query() dto: PlaceCandidatesDto,
   ): Promise<PlaceCandidatesResult> {
-    return this.placesService.getCandidates(dto.lat, dto.lng);
+    return this.placesService.getCandidates(dto.lat, dto.lng, dto.q);
   }
 }

@@ -6,16 +6,13 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ScanService } from './scan.service';
 import { ProductRepository } from '../products/product.repository';
-import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
 import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
 import { ScanHistoryRepository } from '../history/scan-history.repository';
-import { S3Client } from '../shared/s3.client';
-import { GeminiClient } from '../shared/gemini.client';
+import { S3Client } from '../shared/clients/s3.client';
+import { GeminiClient } from '../shared/clients/gemini.client';
 import { UsersRepository } from '../users/users.repository';
 import { UserDailyScansService } from '../users/user-daily-scans.service';
-// PLACES_PROVIDER_TOKEN は ScanService から注入を撤去済み（00320）。
-// 再注入されたら「呼ばれない」テストが検知できるよう、テストモジュールにはモックを提供し続ける
-import { PLACES_PROVIDER_TOKEN } from '../shared/places.interface';
+import { StoreCacheRepository } from '../shared/store-cache.repository';
 import type { ProductAllergens } from '../shared/types/db.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
 
@@ -68,7 +65,6 @@ describe('ScanService.scanBarcode', () => {
     upsertByJan: jest.Mock;
     upsertByHash: jest.Mock;
   };
-  let offClient: { fetchByJanCode: jest.Mock };
   let allergenComponentRepository: { findByAllergens: jest.Mock };
   let scanHistoryRepository: { create: jest.Mock };
   let s3Client: {
@@ -77,6 +73,7 @@ describe('ScanService.scanBarcode', () => {
   };
   let geminiClient: { analyzeImage: jest.Mock };
   let usersRepository: { findById: jest.Mock };
+  let storeCacheRepository: { enqueueJob: jest.Mock };
 
   beforeEach(async () => {
     cacheManager = { get: jest.fn(), set: jest.fn() };
@@ -85,7 +82,6 @@ describe('ScanService.scanBarcode', () => {
       upsertByJan: jest.fn(),
       upsertByHash: jest.fn(),
     };
-    offClient = { fetchByJanCode: jest.fn() };
     allergenComponentRepository = { findByAllergens: jest.fn() };
     scanHistoryRepository = { create: jest.fn() };
     s3Client = {
@@ -94,13 +90,13 @@ describe('ScanService.scanBarcode', () => {
     };
     geminiClient = { analyzeImage: jest.fn() };
     usersRepository = { findById: jest.fn() };
+    storeCacheRepository = { enqueueJob: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
         ScanService,
         { provide: CACHE_MANAGER, useValue: cacheManager },
         { provide: ProductRepository, useValue: productRepository },
-        { provide: OpenFoodFactsClient, useValue: offClient },
         {
           provide: AllergenComponentRepository,
           useValue: allergenComponentRepository,
@@ -113,6 +109,7 @@ describe('ScanService.scanBarcode', () => {
           provide: UserDailyScansService,
           useValue: { canUserScan: jest.fn().mockResolvedValue(true), incrementScanCount: jest.fn().mockResolvedValue(undefined) },
         },
+        { provide: StoreCacheRepository, useValue: storeCacheRepository },
       ],
     }).compile();
 
@@ -135,12 +132,11 @@ describe('ScanService.scanBarcode', () => {
       expect(result.from_cache).toBe(true);
       expect(result.found).toBe(true);
       expect(productRepository.findByJan).not.toHaveBeenCalled();
-      expect(offClient.fetchByJanCode).not.toHaveBeenCalled();
     });
   });
 
   describe('DB ヒット（期限内）', () => {
-    it('ProductRepository.findByJan の戻り値を返す。OpenFoodFactsClient は呼ばない', async () => {
+    it('ProductRepository.findByJan の戻り値を返す', async () => {
       cacheManager.get.mockResolvedValue(null);
       productRepository.findByJan.mockResolvedValue(mockProductRecord);
 
@@ -148,30 +144,6 @@ describe('ScanService.scanBarcode', () => {
 
       expect(result.found).toBe(true);
       expect(result.product_name).toBe('テスト商品');
-      expect(offClient.fetchByJanCode).not.toHaveBeenCalled();
-      expect(cacheManager.set).toHaveBeenCalled();
-    });
-  });
-
-  describe('OFF API ヒット', () => {
-    it('ProductRepository.upsertByJan が呼ばれ、結果を返す', async () => {
-      cacheManager.get.mockResolvedValue(null);
-      productRepository.findByJan.mockResolvedValue(null);
-      offClient.fetchByJanCode.mockResolvedValue({
-        product_name: 'OFF商品',
-        allergens_tags: ['en:milk'],
-        traces_tags: [],
-        ingredients_text: '牛乳、砂糖',
-      });
-      productRepository.upsertByJan.mockResolvedValue(mockProductRecord);
-
-      const result = await service.scanBarcode(JAN);
-
-      expect(result.found).toBe(true);
-      expect(productRepository.upsertByJan).toHaveBeenCalledWith(
-        JAN,
-        expect.objectContaining({ productName: 'OFF商品' }),
-      );
       expect(cacheManager.set).toHaveBeenCalled();
     });
   });
@@ -184,7 +156,6 @@ describe('ScanService.scanBarcode', () => {
         ...mockProductRecord,
         confidence: 'medium',
       });
-      offClient.fetchByJanCode.mockResolvedValue(null);
 
       const result = await service.scanBarcode(JAN);
 
@@ -206,7 +177,7 @@ describe('ScanService.scanBarcode', () => {
       expect(result.raw_text).toBe('原材料名:牛乳、砂糖');
     });
 
-    it('OFF 由来（confidence: null）の jan 商品は従来どおり配信される', async () => {
+    it('confidence: null のアレルゲンあり jan 商品は配信される', async () => {
       cacheManager.get.mockResolvedValue(null);
       productRepository.findByJan.mockResolvedValue({
         ...mockProductRecord,
@@ -220,85 +191,17 @@ describe('ScanService.scanBarcode', () => {
     });
   });
 
-  describe('OFF ヒットだがアレルゲン情報なし（安全設計）', () => {
-    it('allergens_tags / traces_tags が空なら found: false を返して OCR にフォールバックさせる', async () => {
-      cacheManager.get.mockResolvedValue(null);
-      productRepository.findByJan.mockResolvedValue(null);
-      // OFF に商品は登録されているがアレルゲン欄が未入力（日本商品で頻発）
-      offClient.fetchByJanCode.mockResolvedValue({
-        product_name: 'Pure Premium Grape',
-        allergens_tags: [],
-        traces_tags: [],
-        ingredients_text: null,
-      });
-
-      const result = await service.scanBarcode(JAN);
-
-      // ⚠️ 未入力を「アレルゲンなし」と解釈すると誤った ✅なし 表示になるため、
-      // 安全側に倒して found: false（OCR フォールバック）とする
-      expect(result.found).toBe(false);
-      expect(productRepository.upsertByJan).not.toHaveBeenCalled();
-    });
-
+  describe('DB アレルゲン情報なし（安全設計）', () => {
     it('DB の jan 商品もアレルゲン情報が空なら DB ヒット扱いにしない', async () => {
       cacheManager.get.mockResolvedValue(null);
       productRepository.findByJan.mockResolvedValue({
         ...mockProductRecord,
         allergens: { contains: [], partial: [], components: [] },
       });
-      offClient.fetchByJanCode.mockResolvedValue(null);
 
       const result = await service.scanBarcode(JAN);
 
       expect(result.found).toBe(false);
-    });
-  });
-
-  describe('OFF アレルゲンタグの日本語正規化', () => {
-    it('英語タグを日本語アレルゲン名に変換し、未知タグは値をそのまま保持する', async () => {
-      cacheManager.get.mockResolvedValue(null);
-      productRepository.findByJan.mockResolvedValue(null);
-      offClient.fetchByJanCode.mockResolvedValue({
-        product_name: 'OFF商品',
-        // en:crustaceans（甲殻類）は えび・かに の両方に展開する（安全側）
-        allergens_tags: ['en:milk', 'en:gluten', 'en:crustaceans', 'en:some-unknown'],
-        traces_tags: ['en:peanuts', 'ja:そば'],
-        ingredients_text: '牛乳、小麦粉',
-      });
-      productRepository.upsertByJan.mockResolvedValue(mockProductRecord);
-
-      await service.scanBarcode(JAN);
-
-      expect(productRepository.upsertByJan).toHaveBeenCalledWith(
-        JAN,
-        expect.objectContaining({
-          allergens: expect.objectContaining({
-            contains: ['乳', '小麦', 'えび', 'かに', 'some-unknown'],
-            partial: ['落花生', 'そば'],
-          }),
-        }),
-      );
-    });
-
-    it('en:apple は りんご に正規化される', async () => {
-      cacheManager.get.mockResolvedValue(null);
-      productRepository.findByJan.mockResolvedValue(null);
-      offClient.fetchByJanCode.mockResolvedValue({
-        product_name: 'グミ',
-        allergens_tags: ['en:apple'],
-        traces_tags: [],
-        ingredients_text: 'りんご果汁',
-      });
-      productRepository.upsertByJan.mockResolvedValue(mockProductRecord);
-
-      await service.scanBarcode(JAN);
-
-      expect(productRepository.upsertByJan).toHaveBeenCalledWith(
-        JAN,
-        expect.objectContaining({
-          allergens: expect.objectContaining({ contains: ['りんご'] }),
-        }),
-      );
     });
   });
 
@@ -306,7 +209,6 @@ describe('ScanService.scanBarcode', () => {
     it('{ found: false } を返す。例外は投げない', async () => {
       cacheManager.get.mockResolvedValue(null);
       productRepository.findByJan.mockResolvedValue(null);
-      offClient.fetchByJanCode.mockResolvedValue(null);
 
       const result = await service.scanBarcode(JAN);
 
@@ -325,7 +227,6 @@ describe('ScanService.processOcr', () => {
     upsertByJan: jest.Mock;
     upsertByHash: jest.Mock;
   };
-  let offClient: { fetchByJanCode: jest.Mock };
   let allergenComponentRepository: { findByAllergens: jest.Mock };
   let scanHistoryRepository: { create: jest.Mock };
   let s3Client: {
@@ -335,6 +236,7 @@ describe('ScanService.processOcr', () => {
   let geminiClient: { analyzeImage: jest.Mock };
   let usersRepository: { findById: jest.Mock };
   let placesClient: { getStoreCandidates: jest.Mock };
+  let storeCacheRepository: { enqueueJob: jest.Mock };
 
   beforeEach(async () => {
     cacheManager = { get: jest.fn(), set: jest.fn() };
@@ -343,7 +245,6 @@ describe('ScanService.processOcr', () => {
       upsertByJan: jest.fn(),
       upsertByHash: jest.fn().mockResolvedValue(mockProductRecord),
     };
-    offClient = { fetchByJanCode: jest.fn() };
     allergenComponentRepository = {
       findByAllergens: jest.fn().mockResolvedValue([]),
     };
@@ -359,13 +260,13 @@ describe('ScanService.processOcr', () => {
     };
     usersRepository = { findById: jest.fn().mockResolvedValue(null) };
     placesClient = { getStoreCandidates: jest.fn().mockResolvedValue([]) };
+    storeCacheRepository = { enqueueJob: jest.fn().mockResolvedValue(undefined) };
 
     const module = await Test.createTestingModule({
       providers: [
         ScanService,
         { provide: CACHE_MANAGER, useValue: cacheManager },
         { provide: ProductRepository, useValue: productRepository },
-        { provide: OpenFoodFactsClient, useValue: offClient },
         {
           provide: AllergenComponentRepository,
           useValue: allergenComponentRepository,
@@ -378,7 +279,7 @@ describe('ScanService.processOcr', () => {
           provide: UserDailyScansService,
           useValue: { canUserScan: jest.fn().mockResolvedValue(true), incrementScanCount: jest.fn().mockResolvedValue(undefined) },
         },
-        { provide: PLACES_PROVIDER_TOKEN, useValue: placesClient },
+        { provide: StoreCacheRepository, useValue: storeCacheRepository },
       ],
     }).compile();
 

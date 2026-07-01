@@ -21,8 +21,38 @@ export const PIN_COLORS: Record<JudgmentShort, string> = {
   ok: '#16a34a',
 } as const
 
-/** 現在地取得のタイムアウト（ms）。 */
-export const GEOLOCATION_TIMEOUT_MS = 5000
-
 /** マップピンのクライアントキャッシュ stale 時間（ms）。 */
 export const MAP_LOCATIONS_STALE_TIME_MS = 60 * 1000
+
+/** 経路ラインの色（Google Maps 青）。 */
+export const ROUTE_LINE_COLOR = '#1a73e8'
+
+/** 経路ラインの太さ（px）。 */
+export const ROUTE_LINE_WIDTH = 5
+
+/**
+ * POI レイヤーの検出パターン。
+ * OpenFreeMap Liberty スタイルの layer.id をこのパターンでフィルタリングする。
+ */
+export const POI_LAYER_PATTERNS = ['poi', 'restaurant', 'parking', 'shop', 'tourism', 'amenity'] as const
+
+import type { TravelMode } from './map.types'
+
+/** Google Maps の travelmode パラメータへのマッピング（cycling は Google Maps では bicycling）。 */
+const GOOGLE_MAPS_TRAVEL_MODE: Record<TravelMode, string> = {
+  driving: 'driving',
+  transit: 'transit',
+  walking: 'walking',
+  cycling: 'bicycling',
+}
+
+/** 全移動手段で Google Maps へ誘導する URL を生成する。 */
+export const buildGoogleMapsUrl = (
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  mode: TravelMode,
+): string =>
+  `https://www.google.com/maps/dir/?api=1` +
+  `&origin=${from.lat},${from.lng}` +
+  `&destination=${to.lat},${to.lng}` +
+  `&travelmode=${GOOGLE_MAPS_TRAVEL_MODE[mode]}`

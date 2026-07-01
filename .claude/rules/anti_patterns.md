@@ -24,7 +24,7 @@ return { judgment: result.judgment }
 
 // ✅ incomplete は即エラー返却
 if (result.incomplete) {
-  throw new BadRequestException('ラベル全体が映るように離してください')
+  throw new BadRequestException('原材料またはバーコード全体が映るように撮影してください。')
 }
 ```
 

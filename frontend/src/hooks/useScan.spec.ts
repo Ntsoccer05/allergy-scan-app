@@ -540,7 +540,7 @@ describe('useScan - geolocation 連携', () => {
 
     const candidates = await result.current.fetchPlaceCandidates()
 
-    expect(mockFetchPlaceCandidatesApi).toHaveBeenCalledWith(35.681236, 139.767125)
+    expect(mockFetchPlaceCandidatesApi).toHaveBeenCalledWith(35.681236, 139.767125, undefined)
     expect(candidates?.address).toBe('東京都千代田区丸の内一丁目')
     expect(candidates?.candidates).toHaveLength(1)
 

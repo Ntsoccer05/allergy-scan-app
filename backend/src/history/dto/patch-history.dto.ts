@@ -21,6 +21,12 @@ export class PatchLocationDto {
   @IsNumber()
   lng!: number;
 
+  /** 逆ジオコーディング（国土地理院）で取得した住所。住所のみ登録時に付与される */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
   /** Google Places の place_id（将来の店舗キー統一用 — 00320） */
   @IsOptional()
   @IsString()

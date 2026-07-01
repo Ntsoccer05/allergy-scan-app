@@ -5,11 +5,19 @@
     "public": "Everyone's pins"
   },
   "error": "Failed to load map data",
-  "empty": "No scans with a saved location yet",
   "storeName": "📍 {store}",
   "card": {
     "close": "Close",
     "unnamed": "Unnamed product",
     "publicBadge": "Everyone's scan"
+  },
+  "route": {
+    "driving": "Drive ↗",
+    "transit": "Transit ↗",
+    "walking": "Walk ↗",
+    "cycling": "Cycle ↗"
+  },
+  "poi": {
+    "toggle": "Places"
   }
 }

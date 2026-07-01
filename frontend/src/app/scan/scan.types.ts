@@ -57,6 +57,8 @@ export type BarcodeScanResponse = {
   from_cache: boolean
   /** 商品の原材料テキスト（OCR 由来 JAN キャッシュ・OFF の ingredients。検証表示用） */
   raw_text?: string | null
+  /** 楽天アフィリエイト URL（楽天 DB 由来の場合のみ） */
+  item_url?: string | null
 }
 
 export type PresignedUrlResponse = {
@@ -74,12 +76,17 @@ export type OcrScanResponse = {
   price_with_tax: number | null
   price_confidence: 'high' | 'low' | null
   product_name?: string | null
+  /** 楽天 URL（JAN キャッシュヒット時のみ） */
+  item_url?: string | null
 }
 
 /** 店舗候補の型（GET /places/candidates から返される） */
 export type StoreCandidate = {
   name: string
   placeId: string
+  address?: string
+  /** 現在地からの距離（km）。DB キャッシュ経由の場合のみセット。 */
+  distanceKm?: number
 }
 
 /** バーコードスキャン結果または OCR スキャン結果 */

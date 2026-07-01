@@ -18,13 +18,13 @@ import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
 import { BulkDeleteHistoryDto } from './dto/bulk-delete-history.dto';
-import type { HistoryListResult, MapLocationsResult } from './history.service';
+import type { HistoryGroupListResult, MapLocationsResult } from './history.service';
 import type { ScanHistoryRecord } from './scan-history.repository';
 import type { SupabaseJwtPayload } from '../auth/types/supabase-jwt.types';
 import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
-} from '../shared/throttler.constants';
+} from '../shared/throttler/throttler.constants';
 
 type AuthRequest = Request & { user: SupabaseJwtPayload };
 
@@ -52,7 +52,7 @@ export class HistoryController {
   async getHistory(
     @Req() req: AuthRequest,
     @Query() query: GetHistoryDto,
-  ): Promise<HistoryListResult> {
+  ): Promise<HistoryGroupListResult> {
     return this.historyService.getHistory(req.user.sub, query);
   }
 

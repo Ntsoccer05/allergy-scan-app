@@ -12,15 +12,13 @@ import * as path from 'path';
 import { Test } from '@nestjs/testing';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ScanService } from './scan.service';
-import { GeminiClient } from '../shared/gemini.client';
+import { GeminiClient } from '../shared/clients/gemini.client';
 import { ProductRepository } from '../products/product.repository';
-import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
 import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
 import { ScanHistoryRepository } from '../history/scan-history.repository';
-import { S3Client } from '../shared/s3.client';
+import { S3Client } from '../shared/clients/s3.client';
 import { UsersRepository } from '../users/users.repository';
 import { UserDailyScansService } from '../users/user-daily-scans.service';
-import { PLACES_PROVIDER_TOKEN } from '../shared/places.interface';
 
 // JAN コード（テスト用画像のバーコード）
 const TEST_JAN = '4901351025420';
@@ -202,101 +200,3 @@ describeWithGemini('Gemini API 統合テスト（実 API・要 GEMINI_API_KEY）
 
 // -----------------------------------------------------------------------
 // ScanService.scanBarcode 成功テスト（OFact モック・外部依存なし）
-// -----------------------------------------------------------------------
-describe('ScanService.scanBarcode 正常系（OFact モック）', () => {
-  let service: ScanService;
-  let cacheManager: { get: jest.Mock; set: jest.Mock };
-  let productRepository: {
-    findByJan: jest.Mock;
-    upsertByJan: jest.Mock;
-    upsertByHash: jest.Mock;
-  };
-  let offClient: { fetchByJanCode: jest.Mock };
-
-  beforeEach(async () => {
-    cacheManager = { get: jest.fn().mockResolvedValue(null), set: jest.fn() };
-    productRepository = {
-      findByJan: jest.fn().mockResolvedValue(null),
-      upsertByJan: jest.fn().mockResolvedValue({
-        id: 'product-uuid',
-        productName: 'グミキャンデー',
-        allergens: { contains: ['apple'], partial: [], components: ['apple'] },
-        scanCount: 1,
-        expiresAt: new Date(Date.now() + 86400000),
-      }),
-      upsertByHash: jest.fn(),
-    };
-    offClient = { fetchByJanCode: jest.fn() };
-
-    const module = await Test.createTestingModule({
-      providers: [
-        ScanService,
-        { provide: CACHE_MANAGER, useValue: cacheManager },
-        { provide: ProductRepository, useValue: productRepository },
-        { provide: OpenFoodFactsClient, useValue: offClient },
-        {
-          provide: AllergenComponentRepository,
-          useValue: { findByAllergens: jest.fn().mockResolvedValue([]) },
-        },
-        {
-          provide: ScanHistoryRepository,
-          useValue: { create: jest.fn().mockResolvedValue({ id: 'history-uuid' }) },
-        },
-        {
-          provide: S3Client,
-          useValue: {
-            generatePresignedPutUrl: jest.fn(),
-            getImageAsBase64: jest.fn(),
-          },
-        },
-        { provide: GeminiClient, useValue: { analyzeImage: jest.fn() } },
-        {
-          provide: UsersRepository,
-          useValue: { findById: jest.fn().mockResolvedValue(null) },
-        },
-        {
-          provide: UserDailyScansService,
-          useValue: {
-            canUserScan: jest.fn().mockResolvedValue(true),
-            incrementScanCount: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-        {
-          provide: PLACES_PROVIDER_TOKEN,
-          useValue: { getStoreCandidates: jest.fn().mockResolvedValue([]) },
-        },
-      ],
-    }).compile();
-
-    service = module.get(ScanService);
-  });
-
-  it('JAN 4901351025420 が Open Food Facts 経由で商品情報を取得できる', async () => {
-    // 画像のバーコード 4901351025420（グミキャンデー）をモックで返す
-    offClient.fetchByJanCode.mockResolvedValue({
-      product_name: null,
-      product_name_ja: 'グミキャンデー',
-      allergens_tags: ['en:apple'],
-      traces_tags: [],
-      ingredients_text: '水飴、砂糖、ゼラチン、ぶどう果汁',
-      ingredients_text_ja: '水飴、砂糖、ゼラチン、ぶどう果汁',
-    });
-
-    const result = await service.scanBarcode(TEST_JAN);
-
-    expect(result.found).toBe(true);
-    expect(result.product_name).toBe('グミキャンデー');
-    expect(result.from_cache).toBe(false);
-    // en:apple タグが日本語アレルゲン名 りんご に正規化されること
-    expect(result.allergens?.contains).toContain('りんご');
-    // OFact API が正しい JAN コードで呼ばれること
-    expect(offClient.fetchByJanCode).toHaveBeenCalledWith(TEST_JAN);
-    // UPSERT が商品名付きで呼ばれること
-    expect(productRepository.upsertByJan).toHaveBeenCalledWith(
-      TEST_JAN,
-      expect.objectContaining({ productName: 'グミキャンデー' }),
-    );
-    // キャッシュにセットされること
-    expect(cacheManager.set).toHaveBeenCalled();
-  });
-});

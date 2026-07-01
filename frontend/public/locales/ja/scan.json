@@ -1,6 +1,6 @@
 {
   "processing": "解析中...",
-  "caution": "⚠️ 購入前にラベルの実物も必ずご確認ください",
+  "caution": "⚠️ 原材料またはバーコード全体が映るように撮影してください。",
   "capture": "撮影する",
   "preview": {
     "title": "この画像でスキャンしますか？",
@@ -9,7 +9,7 @@
   },
   "error": {
     "api_error": "エラーが発生しました。もう一度お試しください",
-    "incomplete": "ラベル全体が映るように離してください",
+    "incomplete": "原材料またはバーコード全体が映るように撮影してください。",
     "confidence_low": "画質が低いため判定できませんでした。明るい場所で再試行してください",
     "quality_check_failed": "品質チェックに失敗しました。再度お試しください",
     "daily_limit_exceeded": "本日のスキャン上限に達しました",
@@ -29,6 +29,7 @@
       "defaultProductName": "商品",
       "text": "{name} はアレルギーなし（{title}調べ）"
     },
+    "rakutenBuy": "楽天で購入 →",
     "scanAgain": "もう一度スキャンする",
     "noAllergenSetting": "アレルギー設定なし",
     "allergenListLabel": "アレルギー判定結果",
@@ -51,13 +52,21 @@
     "selectStore": "どこで購入しますか？",
     "storeUnknown": "場所不明",
     "registerLocation": {
-      "button": "📍 場所を登録",
+      "button": "📍 店舗情報を登録",
       "noGeolocation": "📍 位置情報なし",
       "loading": "場所を取得中...",
       "selectTitle": "購入場所を選択してください",
       "addressOnly": "住所のみで登録（{address}）",
       "cancel": "キャンセル",
-      "failed": "場所を取得できませんでした"
+      "failed": "場所を取得できませんでした",
+      "searchPlaceholder": "店舗名を検索...",
+      "distanceSlider": {
+        "label": "表示距離",
+        "unit": "{km}km 以内",
+        "allLabel": "全て（{km}km）"
+      },
+      "cacheLoading": "近くの店舗を取得中です。しばらくすると候補が表示されます。",
+      "noCandidates": "候補店舗が見つかりませんでした。店舗名を直接入力してください。"
     },
     "unreadableTitle": "📷 テキストを読み取れませんでした",
     "unreadableMessage": "ラベルに正面から近づけ、明るい場所で再試行してください。",
@@ -71,12 +80,21 @@
       "title": "商品情報",
       "productName": "商品名",
       "productNamePlaceholder": "商品名を入力",
+      "required": "商品名を入力してください",
       "storeName": "店舗名",
       "storeNamePlaceholder": "店舗名を入力",
+      "address": "住所",
       "memo": "備考",
       "memoPlaceholder": "メモを入力",
       "thumbnail": "サムネイル",
-      "retakeThumbnail": "再撮影"
+      "thumbnailExpand": "画像を拡大表示",
+      "thumbnailClose": "閉じる",
+      "retakeThumbnail": "再撮影",
+      "saved": "✓ 保存しました",
+      "noNameWarning": "⚠️ 商品名が未入力のため履歴に保存されません",
+      "discardConfirm": "商品名が入力されていません。このスキャン結果は履歴に保存されません。",
+      "discardAndReturn": "保存せず戻る",
+      "enterProductName": "商品名を入力する"
     }
   },
   "camera": {
@@ -88,9 +106,35 @@
     "uploadButton": "画像ファイル選択",
     "cameraButton": "撮影"
   },
+  "fileLimit": {
+    "exceeded": "一度に選択できるのは最大{max}枚までです。最初の{max}枚を処理します。"
+  },
+  "queue": {
+    "uploading": "⬆️ 送信中",
+    "analyzing": "🔄 解析中",
+    "done": "✅ 完了",
+    "error": "❌ エラー",
+    "tabLabel": "結果{n}",
+    "dismiss": "閉じる",
+    "prevResult": "前の結果",
+    "nextResult": "次の結果",
+    "resultCount": "{current}/{total}件目"
+  },
   "tabs": {
     "camera": "カメラ",
     "upload": "画像",
     "uploadHint": "ギャラリーや写真から食品ラベルを選択してください"
+  },
+  "today": {
+    "button": "今日({count}件)",
+    "title": "今日のスキャン",
+    "empty": "今日のスキャンはありません",
+    "rawText": "原材料テキスト",
+    "back": "← 戻る"
+  },
+  "unnamed": "商品名なし",
+  "limitExceeded": {
+    "title": "本日のスキャン上限に達しました",
+    "message": "明日またご利用いただけます"
   }
 }

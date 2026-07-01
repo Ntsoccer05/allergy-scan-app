@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import type { HistoryFilter, HistoryItem, HistoryListResponse, PatchHistoryBody } from '@/app/history/history.types'
+import type { HistoryFilter, HistoryGroup, HistoryGroupListResponse, PatchHistoryBody } from '@/app/history/history.types'
 import { SEARCH_DEBOUNCE_MS } from '@/app/history/history.constants'
 import { bulkDeleteHistory, deleteHistory, getHistory, patchHistory } from '@/lib/api/history.api'
 
@@ -15,7 +15,7 @@ export type HistorySearch = {
 const EMPTY_SEARCH: HistorySearch = { q: '', store: '' }
 
 type UseHistoryReturn = {
-  items: HistoryItem[]
+  items: HistoryGroup[]
   isLoading: boolean
   isFetchingNextPage: boolean
   hasNextPage: boolean
@@ -48,9 +48,9 @@ export const useHistory = (): UseHistoryReturn => {
     hasNextPage,
     fetchNextPage,
   } = useInfiniteQuery<
-    HistoryListResponse,
+    HistoryGroupListResponse,
     Error,
-    HistoryListResponse[],
+    HistoryGroup[],
     [string, HistoryFilter, string, string],
     string | undefined
   >({
@@ -64,7 +64,8 @@ export const useHistory = (): UseHistoryReturn => {
       }),
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => lastPage.next_before ?? undefined,
-    select: (data) => data.pages,
+    select: (data) =>
+      data.pages.flatMap((page) => page.items),
   })
 
   const updateHistoryMutation = useMutation<void, Error, { id: string } & PatchHistoryBody>({
@@ -88,7 +89,7 @@ export const useHistory = (): UseHistoryReturn => {
     },
   })
 
-  const items: HistoryItem[] = data?.flatMap((page) => page.items) ?? []
+  const items: HistoryGroup[] = data ?? []
 
   return {
     items,

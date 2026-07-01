@@ -9,6 +9,8 @@ import type {
   ScanHistoryRecord,
   LocationPinRecord,
   PublicLocationPinRecord,
+  HistoryGroupRecord,
+  ScanRecord,
 } from './scan-history.repository';
 
 const makeRecord = (
@@ -26,6 +28,28 @@ const makeRecord = (
   memo: null,
   rawText: null,
   scannedAt: new Date('2026-01-15T10:00:00.000Z'),
+  ...overrides,
+});
+
+const makeGroupRecord = (
+  overrides: Partial<HistoryGroupRecord> = {},
+): HistoryGroupRecord => ({
+  productId: 'prod-1',
+  productName: '商品A',
+  allergens: { contains: [], partial: [], components: [] },
+  thumbnailUrl: null,
+  itemUrl: null,
+  latestScanAt: new Date('2026-01-15T10:00:00.000Z'),
+  scans: [
+    {
+      id: 'scan-1',
+      scannedAt: new Date('2026-01-15T10:00:00.000Z'),
+      location: null,
+      memo: null,
+      thumbnailUrl: null,
+      rawText: null,
+    } satisfies ScanRecord,
+  ],
   ...overrides,
 });
 
@@ -88,6 +112,7 @@ const eggComponent = {
 describe('HistoryService', () => {
   let service: HistoryService;
   let repository: {
+    findGroupsByUser: jest.Mock;
     findByUser: jest.Mock;
     create: jest.Mock;
     findById: jest.Mock;
@@ -108,6 +133,7 @@ describe('HistoryService', () => {
 
   beforeEach(async () => {
     repository = {
+      findGroupsByUser: jest.fn(),
       findByUser: jest.fn(),
       create: jest.fn(),
       findById: jest.fn(),
@@ -141,89 +167,97 @@ describe('HistoryService', () => {
 
   describe('getHistory', () => {
     describe('カーソルなし・judgment=all', () => {
-      it('20件以下なら items をそのまま返し next_before が null になる', async () => {
+      it('2件のグループが返されたとき items が2件で next_before が null', async () => {
         const records = [
-          makeRecord(),
-          makeRecord({
-            id: 'rec-2',
-            scannedAt: new Date('2026-01-14T10:00:00.000Z'),
-          }),
+          makeGroupRecord({ productId: 'prod-1', latestScanAt: new Date('2026-01-15T10:00:00.000Z') }),
+          makeGroupRecord({ productId: 'prod-2', latestScanAt: new Date('2026-01-14T10:00:00.000Z') }),
         ];
-        repository.findByUser.mockResolvedValue(records);
+        repository.findGroupsByUser.mockResolvedValue(records);
 
         const result = await service.getHistory('user-1', {});
 
         expect(result.items).toHaveLength(2);
         expect(result.next_before).toBeNull();
-        expect(repository.findByUser).toHaveBeenCalledWith('user-1', {
+        expect(repository.findGroupsByUser).toHaveBeenCalledWith('user-1', {
           before: undefined,
-          judgment: 'all',
-          limit: 20,
+          limit: 60, // HISTORY_PAGE_LIMIT * 3 = 20 * 3
+          q: undefined,
+          store: undefined,
         });
       });
 
-      it('21件返却されたとき items が20件になり next_before が ISO8601 文字列になる', async () => {
-        const records = Array.from({ length: 21 }, (_, i) =>
-          makeRecord({
-            id: `rec-${i}`,
-            scannedAt: new Date(Date.now() - i * 1000),
+      it('61件返却されたとき items が20件になり next_before が ISO8601 文字列になる', async () => {
+        const records = Array.from({ length: 61 }, (_, i) =>
+          makeGroupRecord({
+            productId: `prod-${i}`,
+            latestScanAt: new Date(Date.now() - i * 1000),
           }),
         );
-        repository.findByUser.mockResolvedValue(records);
+        repository.findGroupsByUser.mockResolvedValue(records);
 
         const result = await service.getHistory('user-1', {});
 
         expect(result.items).toHaveLength(20);
         expect(result.next_before).not.toBeNull();
-        // next_before は ISO8601 形式
-        expect(new Date(result.next_before!).toISOString()).toBe(
-          result.next_before,
-        );
+        expect(new Date(result.next_before!).toISOString()).toBe(result.next_before);
       });
     });
 
     describe('カーソルあり', () => {
-      it('before を Date に変換して findByUser に渡す', async () => {
-        repository.findByUser.mockResolvedValue([]);
+      it('before を Date に変換して findGroupsByUser に渡す', async () => {
+        repository.findGroupsByUser.mockResolvedValue([]);
         const beforeStr = '2026-01-10T00:00:00.000Z';
 
         await service.getHistory('user-1', { before: beforeStr });
 
-        expect(repository.findByUser).toHaveBeenCalledWith('user-1', {
+        expect(repository.findGroupsByUser).toHaveBeenCalledWith('user-1', {
           before: new Date(beforeStr),
-          judgment: 'all',
-          limit: 20,
+          limit: 60,
+          q: undefined,
+          store: undefined,
         });
       });
     });
 
     describe('judgment=ng フィルタ', () => {
-      it('judgment=ng として findByUser を呼び、ng レコードのみ返す', async () => {
-        const ngRecord = makeRecord({ judgment: 'ng' });
-        repository.findByUser.mockResolvedValue([ngRecord]);
+      it('allergens.contains に 卵 がある商品は ng として返る', async () => {
+        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
+        const records = [
+          makeGroupRecord({
+            productId: 'prod-1',
+            allergens: { contains: ['卵'], partial: [], components: ['全卵'] },
+          }),
+        ];
+        repository.findGroupsByUser.mockResolvedValue(records);
 
         const result = await service.getHistory('user-1', { judgment: 'ng' });
 
         expect(result.items).toHaveLength(1);
         expect(result.items[0].judgment).toBe('ng');
-        expect(repository.findByUser).toHaveBeenCalledWith('user-1', {
-          before: undefined,
-          judgment: 'ng',
-          limit: 20,
-        });
+      });
+
+      it('アレルギーなし商品は judgment=ng フィルタで除外される', async () => {
+        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
+        const records = [
+          makeGroupRecord({ allergens: { contains: [], partial: [], components: [] } }),
+        ];
+        repository.findGroupsByUser.mockResolvedValue(records);
+
+        const result = await service.getHistory('user-1', { judgment: 'ng' });
+
+        expect(result.items).toHaveLength(0);
       });
     });
 
     describe('q / store 検索パラメータ', () => {
-      it('q（商品名）と store（店舗名）が findByUser に渡される', async () => {
-        repository.findByUser.mockResolvedValue([]);
+      it('q と store が findGroupsByUser に渡される', async () => {
+        repository.findGroupsByUser.mockResolvedValue([]);
 
         await service.getHistory('user-1', { q: 'グミ', store: 'セブン' });
 
-        expect(repository.findByUser).toHaveBeenCalledWith('user-1', {
+        expect(repository.findGroupsByUser).toHaveBeenCalledWith('user-1', {
           before: undefined,
-          judgment: 'all',
-          limit: 20,
+          limit: 60,
           q: 'グミ',
           store: 'セブン',
         });
@@ -235,20 +269,18 @@ describe('HistoryService', () => {
         await expect(
           service.getHistory('user-1', { before: 'invalid-date' }),
         ).rejects.toThrow(BadRequestException);
-        expect(repository.findByUser).not.toHaveBeenCalled();
+        expect(repository.findGroupsByUser).not.toHaveBeenCalled();
       });
     });
 
-    describe('アレルギー設定追加後の再評価（安全設計）', () => {
-      it('rawText に卵成分が含まれる ok 履歴は ng に上書きされる', async () => {
+    describe('allergens × allergies による judgment 再導出', () => {
+      it('卵アレルギー有効・allergens.contains に 卵 があれば ng になる', async () => {
         usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: [],
-          rawText: '原材料：全卵、小麦粉、砂糖',
-        });
-        repository.findByUser.mockResolvedValue([record]);
+        repository.findGroupsByUser.mockResolvedValue([
+          makeGroupRecord({
+            allergens: { contains: ['卵'], partial: [], components: ['全卵'] },
+          }),
+        ]);
 
         const result = await service.getHistory('user-1', {});
 
@@ -256,232 +288,42 @@ describe('HistoryService', () => {
         expect(result.items[0].detected).toContain('卵');
       });
 
-      it('rawText にエイリアス（卵黄）が含まれる場合も ng に上書きされる', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: [],
-          rawText: '原材料：卵黄、砂糖、バター',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-
-        const result = await service.getHistory('user-1', {});
-
-        expect(result.items[0].judgment).toBe('ng');
-        expect(result.items[0].detected).toContain('卵');
-      });
-
-      it('すでに卵成分が detected に含まれる場合は重複追加しない', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        const record = makeRecord({
-          judgment: 'ng',
-          detected: ['全卵'],
-          rawText: '原材料：全卵、小麦粉',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-
-        const result = await service.getHistory('user-1', {});
-
-        // 'ng' のまま・'卵' は追加されない（全卵がすでに detected に含まれているため）
-        expect(result.items[0].judgment).toBe('ng');
-        expect(result.items[0].detected).toEqual(['全卵']);
-      });
-
-      it('rawText が null のレコードは変更しない', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        productRepository.findRawTextsByIds.mockResolvedValue(new Map());
-        const record = makeRecord({ judgment: 'ok', detected: [], rawText: null, productId: null });
-        repository.findByUser.mockResolvedValue([record]);
-
-        const result = await service.getHistory('user-1', {});
-
-        expect(result.items[0].judgment).toBe('ok');
-        expect(result.items[0].detected).toEqual([]);
-      });
-
-      it('rawText が null でも productId がある場合は products.rawText を使用する', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        productRepository.findRawTextsByIds.mockResolvedValue(
-          new Map([['prod-1', '原材料：全卵、砂糖']]),
-        );
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: [],
-          rawText: null,
-          productId: 'prod-1',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-
-        const result = await service.getHistory('user-1', {});
-
-        expect(result.items[0].judgment).toBe('ng');
-        expect(result.items[0].detected).toContain('卵');
-      });
-
-      it('アレルギー設定がない場合は再評価をスキップする', async () => {
+      it('アレルギー設定なしのとき ok で返る', async () => {
         usersRepository.findById.mockResolvedValue(makeUserNoAllergies());
-        const record = makeRecord({ judgment: 'ok', detected: [], rawText: '原材料：全卵' });
-        repository.findByUser.mockResolvedValue([record]);
+        repository.findGroupsByUser.mockResolvedValue([
+          makeGroupRecord({
+            allergens: { contains: ['卵'], partial: [], components: ['全卵'] },
+          }),
+        ]);
 
         const result = await service.getHistory('user-1', {});
 
         expect(result.items[0].judgment).toBe('ok');
-        expect(allergenComponentRepository.findByAllergens).not.toHaveBeenCalled();
       });
 
-      it('アレルゲンが detected 済み・partial 判定のとき raw_text に成分があれば ng に升格する', async () => {
+      it('allergens.partial に 卵 があり partialAlert=true のとき partial になる', async () => {
         usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        const record = makeRecord({
-          judgment: 'partial',
-          detected: ['卵'],
-          rawText: '原材料：全卵、小麦粉、砂糖',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-
-        const result = await service.getHistory('user-1', {});
-
-        // partial → ng に升格し、detected は重複追加しない
-        expect(result.items[0].judgment).toBe('ng');
-        expect(result.items[0].detected).toEqual(['卵']);
-      });
-
-      it('アレルゲンが detected 済み・ok 判定のとき raw_text に成分があれば ng に升格する', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: ['全卵'],
-          rawText: '原材料：全卵、砂糖',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-
-        const result = await service.getHistory('user-1', {});
-
-        expect(result.items[0].judgment).toBe('ng');
-        expect(result.items[0].detected).toEqual(['全卵']);
-      });
-
-      it('OFF にしたアレルギーは detected から消え judgment も追従する（products.allergens 照合）', async () => {
-        // 卵のみ有効（りんごは設定なし = 無効）のユーザー
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        // スキャン時点では りんご 有効だったため snapshot は ng / ['りんご']
-        const record = makeRecord({
-          judgment: 'ng',
-          detected: ['りんご'],
-          productId: 'prod-1',
-          rawText: '原材料：りんご、砂糖',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-        productRepository.findAllergensByIds.mockResolvedValue(
-          new Map([
-            ['prod-1', { contains: ['りんご'], partial: [], components: ['りんご'] }],
-          ]),
-        );
-
-        const result = await service.getHistory('user-1', {});
-
-        // りんごが無効になったので detected から消え、judgment は ok に追従する
-        expect(result.items[0].judgment).toBe('ok');
-        expect(result.items[0].detected).toEqual([]);
-      });
-
-      it('ON にしたアレルギーは products.allergens 照合で detected に現れる', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        // スキャン時点では 卵 無効だったため snapshot は ok / []
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: [],
-          productId: 'prod-1',
-          rawText: null,
-        });
-        repository.findByUser.mockResolvedValue([record]);
-        productRepository.findAllergensByIds.mockResolvedValue(
-          new Map([
-            ['prod-1', { contains: ['卵'], partial: [], components: ['全卵'] }],
-          ]),
-        );
-
-        const result = await service.getHistory('user-1', {});
-
-        expect(result.items[0].judgment).toBe('ng');
-        expect(result.items[0].detected).toEqual(['卵']);
-      });
-
-      it('partial は partialAlert が有効な場合のみ partial 判定として detected に現れる', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: [],
-          productId: 'prod-1',
-          rawText: null,
-        });
-        repository.findByUser.mockResolvedValue([record]);
-        productRepository.findAllergensByIds.mockResolvedValue(
-          new Map([
-            ['prod-1', { contains: [], partial: ['卵'], components: ['一部に卵を含む'] }],
-          ]),
-        );
+        repository.findGroupsByUser.mockResolvedValue([
+          makeGroupRecord({
+            allergens: { contains: [], partial: ['卵'], components: ['一部に卵'] },
+          }),
+        ]);
 
         const result = await service.getHistory('user-1', {});
 
         expect(result.items[0].judgment).toBe('partial');
-        expect(result.items[0].detected).toEqual(['卵']);
-      });
-
-      it('旧形式（成分テキスト入り products.allergens）でも rawText 照合の安全網で ng を維持する', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        allergenComponentRepository.findByAllergens.mockResolvedValue([eggComponent]);
-        // 旧データ: products.allergens.contains に成分テキストが入っており名前一致しない
-        const record = makeRecord({
-          judgment: 'ng',
-          detected: ['マヨネーズ(全卵を含む)'],
-          productId: 'prod-1',
-          rawText: '原材料：マヨネーズ(全卵を含む)、砂糖',
-        });
-        repository.findByUser.mockResolvedValue([record]);
-        productRepository.findAllergensByIds.mockResolvedValue(
-          new Map([
-            [
-              'prod-1',
-              {
-                contains: ['マヨネーズ(全卵を含む)'],
-                partial: [],
-                components: ['マヨネーズ(全卵を含む)'],
-              },
-            ],
-          ]),
-        );
-
-        const result = await service.getHistory('user-1', {});
-
-        // 名前一致では ok になるが、rawText 安全網が全卵を検出して ng に戻す
-        expect(result.items[0].judgment).toBe('ng');
         expect(result.items[0].detected).toContain('卵');
       });
 
-      it('exclude 型の成分はマッチ対象に含めない', async () => {
-        usersRepository.findById.mockResolvedValue(makeUserWithEgg());
-        const excludeComponent = { ...eggComponent, componentType: 'exclude', canonicalName: '乳酸菌' };
-        allergenComponentRepository.findByAllergens.mockResolvedValue([excludeComponent]);
-        const record = makeRecord({
-          judgment: 'ok',
-          detected: [],
-          rawText: '原材料：乳酸菌、砂糖',
-        });
-        repository.findByUser.mockResolvedValue([record]);
+      it('itemUrl が HistoryGroupItem.product.itemUrl として返る', async () => {
+        usersRepository.findById.mockResolvedValue(makeUserNoAllergies());
+        repository.findGroupsByUser.mockResolvedValue([
+          makeGroupRecord({ itemUrl: 'https://item.rakuten.co.jp/shop/item1/' }),
+        ]);
 
         const result = await service.getHistory('user-1', {});
 
-        // exclude 型なので ng に上書きされない
-        expect(result.items[0].judgment).toBe('ok');
+        expect(result.items[0].product.itemUrl).toBe('https://item.rakuten.co.jp/shop/item1/');
       });
     });
   });

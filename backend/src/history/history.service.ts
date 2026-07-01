@@ -11,8 +11,10 @@ import type {
   PublicHistoryRecord,
   LocationPinRecord,
   PublicLocationPinRecord,
+  HistoryGroupRecord,
+  ScanRecord,
 } from './scan-history.repository';
-import type { ScanHistoryLocation } from '../shared/types/db.types';
+import type { ScanHistoryLocation, ProductAllergens } from '../shared/types/db.types';
 import { GetHistoryDto } from './dto/get-history.dto';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { PatchHistoryDto } from './dto/patch-history.dto';
@@ -26,6 +28,26 @@ import type { UserAllergies } from '../shared/types/db.types';
 /** GET /history のレスポンス型。 */
 export type HistoryListResult = {
   items: ScanHistoryRecord[];
+  next_before: string | null;
+};
+
+/** GET /history の新レスポンス型（商品単位グループ）。 */
+export type HistoryGroupItem = {
+  product: {
+    id: string | null;
+    name: string | null;
+    allergens: ProductAllergens;
+    thumbnailUrl: string | null;
+    itemUrl: string | null;
+  };
+  judgment: 'ng' | 'partial' | 'ok';
+  detected: string[];
+  scans: ScanRecord[];
+  latestScanAt: string; // ISO8601
+};
+
+export type HistoryGroupListResult = {
+  items: HistoryGroupItem[];
   next_before: string | null;
 };
 
@@ -103,34 +125,32 @@ export class HistoryService {
   ) {}
 
   /**
-   * ユーザーのスキャン履歴をカーソルページネーションで取得する（patterns.md パターン4）。
+   * ユーザーのスキャン履歴を商品単位グループでカーソルページネーション取得する（patterns.md パターン4）。
    * before が不正な日付文字列の場合は BadRequestException を throw する。
    */
   async getHistory(
     userId: string,
     query: GetHistoryDto,
-  ): Promise<HistoryListResult> {
+  ): Promise<HistoryGroupListResult> {
     let before: Date | undefined;
     if (query.before !== undefined) {
       before = new Date(query.before);
-      // 不正な日付文字列の場合は NaN になる
       if (isNaN(before.getTime())) {
         throw new BadRequestException({
-          message:
-            '不正なカーソル値です。ISO8601 形式の日付文字列を指定してください',
+          message: '不正なカーソル値です。ISO8601 形式の日付文字列を指定してください',
           code: 'INVALID_CURSOR',
         });
       }
     }
 
     const judgment = query.judgment ?? 'all';
+    this.logger.log(`グループ履歴取得: userId=${userId}, judgment=${judgment}`);
 
-    this.logger.log(`履歴取得: userId=${userId}, judgment=${judgment}`);
-
-    const rawRecords = await this.scanHistoryRepository.findByUser(userId, {
+    // limit*3 件フェッチして in-memory フィルタ後に limit 件返す
+    const FETCH_LIMIT = HISTORY_PAGE_LIMIT * 3;
+    const rawGroups = await this.scanHistoryRepository.findGroupsByUser(userId, {
       before,
-      judgment,
-      limit: HISTORY_PAGE_LIMIT,
+      limit: FETCH_LIMIT,
       q: query.q,
       store: query.store,
     });
@@ -138,23 +158,37 @@ export class HistoryService {
     const user = await this.usersRepository.findById(userId);
     const allergies: UserAllergies = user?.allergies ?? {};
 
-    // Step 1: products.allergens × 現在の設定で judgment / detected を再導出する
-    // （みんなのスキャンと同じ deriveProductJudgment を使用。OFF にしたアレルギーが消え、ON にしたアレルギーが現れる）
-    const derivedRecords = await this.deriveFromProducts(rawRecords, allergies);
+    // 各グループの allergens から judgment を re-derive する
+    const derivedGroups: HistoryGroupItem[] = rawGroups.map((group: HistoryGroupRecord) => {
+      const { judgment: derivedJudgment, detected } = deriveProductJudgment(
+        group.allergens,
+        allergies,
+      );
+      return {
+        product: {
+          id: group.productId,
+          name: group.productName,
+          allergens: group.allergens,
+          thumbnailUrl: group.thumbnailUrl,
+          itemUrl: group.itemUrl,
+        },
+        judgment: derivedJudgment,
+        detected,
+        scans: group.scans,
+        latestScanAt: group.latestScanAt.toISOString(),
+      };
+    });
 
-    // Step 2: rawText 照合の安全網（旧形式データや products.allergens の取りこぼしを NG に升格する）
-    const records = await this.reevaluateWithCurrentAllergens(
-      allergies,
-      derivedRecords,
-    );
+    // in-memory で judgment フィルタ
+    const filtered =
+      judgment === 'all'
+        ? derivedGroups
+        : derivedGroups.filter((g) => g.judgment === judgment);
 
-    // limit+1 件取得しているため、超過分があれば次ページが存在する
-    const hasNextPage = records.length > HISTORY_PAGE_LIMIT;
-    const items = hasNextPage ? records.slice(0, HISTORY_PAGE_LIMIT) : records;
+    const hasNextPage = filtered.length > HISTORY_PAGE_LIMIT;
+    const items = hasNextPage ? filtered.slice(0, HISTORY_PAGE_LIMIT) : filtered;
     const next_before =
-      hasNextPage && items.length > 0
-        ? items[items.length - 1].scannedAt.toISOString()
-        : null;
+      hasNextPage && items.length > 0 ? items[items.length - 1].latestScanAt : null;
 
     return { items, next_before };
   }

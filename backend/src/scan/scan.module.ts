@@ -9,17 +9,13 @@ import { ProductsModule } from '../products/products.module';
 import { AllergensModule } from '../allergens/allergens.module';
 import { HistoryModule } from '../history/history.module';
 import { UsersModule } from '../users/users.module';
-import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
-import { S3Client } from '../shared/s3.client';
-import { GeminiClient } from '../shared/gemini.client';
-import { GooglePlacesClient } from '../shared/google-places.client';
-import { OverpassPlacesClient } from '../shared/overpass-places.client';
-import { HybridPlacesClient } from '../shared/hybrid-places.client';
-import { GsiGeocoderClient } from '../shared/gsi-geocoder.client';
-import {
-  PLACES_PROVIDER_TOKEN,
-  type StoreCandidateProvider,
-} from '../shared/places.interface';
+import { S3Client } from '../shared/clients/s3.client';
+import { GeminiClient } from '../shared/clients/gemini.client';
+import { GsiGeocoderClient } from '../shared/clients/gsi-geocoder.client';
+import { StoreCacheService } from '../shared/store-cache.service';
+import { StoreCacheRepository } from '../shared/store-cache.repository';
+import { YahooLocalSearchClient } from '../shared/clients/yahoo-local-search.client';
+import { CacheJobController } from './cache-job.controller';
 import { CACHE_TTL_MEMORY_SEC } from './scan.constants';
 
 @Module({
@@ -32,32 +28,17 @@ import { CACHE_TTL_MEMORY_SEC } from './scan.constants';
       ttl: CACHE_TTL_MEMORY_SEC * 1000,
     }),
   ],
-  controllers: [ScanController, PlacesController],
+  controllers: [ScanController, PlacesController, CacheJobController],
   providers: [
     ScanService,
     PlacesService,
     DailyScanLimitGuard,
-    OpenFoodFactsClient,
     S3Client,
     GeminiClient,
-    GooglePlacesClient,
-    OverpassPlacesClient,
-    HybridPlacesClient,
     GsiGeocoderClient,
-    {
-      provide: PLACES_PROVIDER_TOKEN,
-      useFactory: (
-        google: GooglePlacesClient,
-        overpass: OverpassPlacesClient,
-        hybrid: HybridPlacesClient,
-      ): StoreCandidateProvider => {
-        const provider = process.env.PLACES_PROVIDER;
-        if (provider === 'google') return google;
-        if (provider === 'overpass') return overpass;
-        return hybrid; // デフォルト: hybrid
-      },
-      inject: [GooglePlacesClient, OverpassPlacesClient, HybridPlacesClient],
-    },
+    StoreCacheService,
+    StoreCacheRepository,
+    YahooLocalSearchClient,
   ],
 })
 export class ScanModule {}

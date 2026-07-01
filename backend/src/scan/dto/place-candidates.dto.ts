@@ -1,4 +1,4 @@
-import { IsNumber, Max, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -18,4 +18,8 @@ export class PlaceCandidatesDto {
   @Min(-180)
   @Max(180)
   lng!: number;
+
+  @IsOptional()
+  @IsString()
+  q?: string;
 }

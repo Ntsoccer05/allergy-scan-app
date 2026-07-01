@@ -41,9 +41,7 @@ export type UpsertProductData = {
 };
 
 /** label_hash ベースの UPSERT に必要な追加データ。 */
-export type UpsertHashProductData = UpsertProductData & {
-  storeName?: string | null;
-};
+export type UpsertHashProductData = UpsertProductData;
 
 /** products テーブルのレコード（ScanService が使う最低限のフィールド）。 */
 export type ProductRecord = {
@@ -56,6 +54,8 @@ export type ProductRecord = {
   confidence: string | null;
   /** 原材料テキスト（OCR 由来 JAN キャッシュの検証表示用）。 */
   rawText: string | null;
+  /** 楽天アフィリエイト URL（楽天 DB 由来の場合のみ）。 */
+  itemUrl: string | null;
 };
 
 @Injectable()
@@ -78,6 +78,7 @@ export class ProductRepository {
         expiresAt: true,
         confidence: true,
         rawText: true,
+        itemUrl: true,
       },
     });
     if (!product) return null;
@@ -92,6 +93,7 @@ export class ProductRepository {
       expiresAt: product.expiresAt,
       confidence: product.confidence,
       rawText: product.rawText,
+      itemUrl: product.itemUrl,
     };
   }
 
@@ -143,6 +145,7 @@ export class ProductRepository {
         expiresAt: true,
         confidence: true,
         rawText: true,
+        itemUrl: true,
       },
     });
 
@@ -154,6 +157,7 @@ export class ProductRepository {
       expiresAt: product.expiresAt,
       confidence: product.confidence,
       rawText: product.rawText,
+      itemUrl: product.itemUrl,
     };
   }
 
@@ -316,7 +320,6 @@ export class ProductRepository {
         idType: 'hash',
         idValue,
         productName: data.productName,
-        storeName: data.storeName,
         allergens: data.allergens,
         rawText: data.rawText,
         confidence: data.confidence,
@@ -325,7 +328,6 @@ export class ProductRepository {
       },
       update: {
         productName: data.productName,
-        storeName: data.storeName,
         allergens: data.allergens,
         rawText: data.rawText,
         confidence: data.confidence,
@@ -340,6 +342,7 @@ export class ProductRepository {
         expiresAt: true,
         confidence: true,
         rawText: true,
+        itemUrl: true,
       },
     });
 
@@ -351,6 +354,7 @@ export class ProductRepository {
       expiresAt: product.expiresAt,
       confidence: product.confidence,
       rawText: product.rawText,
+      itemUrl: product.itemUrl,
     };
   }
 }

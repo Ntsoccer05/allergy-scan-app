@@ -2,7 +2,8 @@
   "title": "スキャン履歴",
   "tabs": {
     "mine": "自分のスキャン",
-    "others": "みんなのスキャン"
+    "others": "みんなのスキャン",
+    "system": "システム"
   },
   "filter": {
     "all": "すべて",
@@ -60,7 +61,19 @@
     "newItems": "新しいスキャンがあります",
     "refresh": "更新する"
   },
+  "system": {
+    "searchPlaceholder": "商品名で検索",
+    "empty": "商品データがありません"
+  },
   "unnamed": "商品名なし",
+  "location": {
+    "unknown": "場所不明"
+  },
+  "group": {
+    "latestScan": "最終スキャン",
+    "scanCount": "{count}件のスキャン",
+    "rakutenLink": "楽天で見る →"
+  },
   "detail": {
     "close": "閉じる",
     "edit": "編集",
@@ -73,6 +86,18 @@
     "rawTextCollapse": "原材料を閉じる ▲",
     "ariaLabel": "詳細を見る",
     "editAriaLabel": "編集する",
-    "deleteAriaLabel": "削除する"
+    "deleteAriaLabel": "削除する",
+    "title": "スキャン詳細",
+    "productName": "商品名",
+    "storeName": "店舗名",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "editMode": "✏️ 編集する",
+    "caution": "購入前にラベルの実物も必ずご確認ください",
+    "judgment": {
+      "ng": "NG",
+      "partial": "一部含む",
+      "ok": "問題なし"
+    }
   }
 }

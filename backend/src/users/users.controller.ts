@@ -22,7 +22,7 @@ import {
   THROTTLE_BACKUP_CODE_LIMIT,
   THROTTLE_RESTORE_TTL,
   THROTTLE_RESTORE_LIMIT,
-} from '../shared/throttler.constants'
+} from '../shared/throttler/throttler.constants'
 
 class UpdateUserDto {
   @IsOptional()

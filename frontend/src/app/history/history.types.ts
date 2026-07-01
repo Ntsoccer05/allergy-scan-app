@@ -13,7 +13,7 @@ export type HistoryItem = {
   rawText: string | null
   scannedAt: string
   // lat/lng はみんなのスキャン由来のアイテムでは取得できないため省略可
-  location?: { store_name: string; lat?: number; lng?: number } | null
+  location?: { store_name: string; address?: string; lat?: number; lng?: number } | null
 }
 
 /** GET /history のレスポンス型。 */
@@ -78,4 +78,58 @@ export type OthersSearchParams = {
 export type OthersProductListResponse = {
   items: OthersProductItem[]
   next_cursor: string | null
+}
+
+/** GET /admin/products の1件レコード型（シードデータ JAN 商品）。 */
+export type SystemProductItem = {
+  id: string
+  jan_code: string
+  product_name: string | null
+  allergens_contains: string[]
+  allergens_partial: string[]
+  scan_count: number
+  updated_at: string
+  judgment: 'ng' | 'partial' | 'ok'
+  thumbnail_url: string | null
+}
+
+/** GET /admin/products のレスポンス型。 */
+export type SystemProductListResponse = {
+  items: SystemProductItem[]
+  next_cursor: string | null
+}
+
+/** 商品単位グループ内の1スキャン。 */
+export type ScanEntry = {
+  id: string
+  scannedAt: string
+  location: { store_name: string; lat: number; lng: number } | null
+  memo: string | null
+  thumbnailUrl: string | null
+  rawText: string | null
+}
+
+/** GET /history の新レスポンス型（商品単位グループ）。 */
+export type HistoryGroup = {
+  product: {
+    id: string | null
+    name: string | null
+    allergens: {
+      contains: string[]
+      partial: string[]
+      components: string[]
+    }
+    thumbnailUrl: string | null
+    itemUrl: string | null
+  }
+  judgment: 'ng' | 'partial' | 'ok'
+  detected: string[]
+  scans: ScanEntry[]
+  latestScanAt: string
+}
+
+/** GET /history の新レスポンス型。 */
+export type HistoryGroupListResponse = {
+  items: HistoryGroup[]
+  next_before: string | null
 }

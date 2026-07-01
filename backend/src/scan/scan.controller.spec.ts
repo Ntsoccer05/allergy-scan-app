@@ -13,13 +13,13 @@ import { ScanController } from './scan.controller';
 import { ScanService } from './scan.service';
 import { DailyScanLimitGuard } from './daily-scan-limit.guard';
 import { UserDailyScansService } from '../users/user-daily-scans.service';
-import { ThrottlerExceptionFilter } from '../shared/throttler-exception.filter';
+import { ThrottlerExceptionFilter } from '../shared/throttler/throttler-exception.filter';
 import {
   THROTTLE_OCR_TTL,
   THROTTLE_OCR_LIMIT,
   THROTTLE_BARCODE_TTL,
   THROTTLE_BARCODE_LIMIT,
-} from '../shared/throttler.constants';
+} from '../shared/throttler/throttler.constants';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
 
 const validOcrResponse: GeminiOcrResponse = {

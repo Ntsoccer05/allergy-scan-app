@@ -61,6 +61,14 @@
     "refresh": "Refresh"
   },
   "unnamed": "Unnamed product",
+  "location": {
+    "unknown": "Unknown location"
+  },
+  "group": {
+    "latestScan": "Latest scan",
+    "scanCount": "{count} scan(s)",
+    "rakutenLink": "View on Rakuten →"
+  },
   "detail": {
     "close": "Close",
     "edit": "Edit",
@@ -73,6 +81,18 @@
     "rawTextCollapse": "Hide ingredients ▲",
     "ariaLabel": "View details",
     "editAriaLabel": "Edit",
-    "deleteAriaLabel": "Delete"
+    "deleteAriaLabel": "Delete",
+    "title": "Scan Detail",
+    "productName": "Product name",
+    "storeName": "Store",
+    "save": "Save",
+    "cancel": "Cancel",
+    "editMode": "✏️ Edit",
+    "caution": "Always check the actual label before purchasing",
+    "judgment": {
+      "ng": "NG",
+      "partial": "Partial",
+      "ok": "OK"
+    }
   }
 }

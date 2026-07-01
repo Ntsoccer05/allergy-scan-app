@@ -130,7 +130,7 @@
 | `idle` | 「バーコードまたは原材料欄にかざしてください」 |
 | `detecting` | 「読み取り中...」 |
 | `error, dark` | 「明るい場所に移動してください」 |
-| `error, incomplete` | 「ラベル全体が映るように離してください」 |
+| `error, incomplete` | 「原材料またはバーコード全体が映るように撮影してください。」 |
 | `error, api_error` | 「通信エラーが発生しました。再度お試しください」 |
 
 ---
@@ -250,12 +250,12 @@ pnpm --filter frontend dev   # フロントエンド開発サーバー起動
 
 **状況:**
 - `docs/design/patterns.md` パターン2: 「incomplete: true → 即 400 返却」とバックエンド側での制御を前提としている
-- バックエンドが 400 を返せば `catch` → `api_error` → `idle` に遷移するが、ガイドメッセージは「通信エラー」となり、`incomplete` 向けの「ラベル全体が映るように離してください」は表示されない
+- バックエンドが 400 を返せば `catch` → `api_error` → `idle` に遷移するが、ガイドメッセージは「通信エラー」となり、`incomplete` 向けの「原材料またはバーコード全体が映るように撮影してください。」は表示されない
 - `anti_patterns.md #2` および `ocr.md` 安全設計ルール5に抵触する可能性
 
 **期待される修正案（次タスク繰越し可）:**
 - `frontend/src/hooks/useScan.ts` の `runOcrFlow` 内 L115-117 付近で `ocrResult.incomplete === true` のとき `dispatch({ type: 'ERROR', error: 'incomplete' })` に遷移させる
-- バックエンドが `incomplete` で 400 を返す場合でも、フロントエンドで明示的にハンドリングすることで `incomplete` ガイドメッセージ（「ラベル全体が映るように離してください」）が表示される
+- バックエンドが `incomplete` で 400 を返す場合でも、フロントエンドで明示的にハンドリングすることで `incomplete` ガイドメッセージ（「原材料またはバーコード全体が映るように撮影してください。」）が表示される
 
 #### 【Safety / 安全設計】confidence: low 時に再スキャン誘導メッセージが出ない
 **状況:**

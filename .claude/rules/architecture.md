@@ -123,6 +123,7 @@ POST /scan/ocr               OCR + アレルギー判定（日次スキャン上
 POST /scan/ocr-stream        OCR の SSE ストリーミング版
 GET  /scan/usage             今日のスキャン使用量（used / limit / remaining）
 GET  /places/candidates      現在地の住所（国土地理院）+ 施設候補（Google Places）。場所登録操作時のみ呼ぶ
+GET  /route                  経路取得（from_lat/from_lng/to_lat/to_lng/mode）。mode=driving/walking/cycling。ROUTING_PROVIDER env で OSRM（本番）/ ORS（ローカル）切替。transit は Google Maps ディープリンクでフロント側委譲
 GET  /history                履歴一覧（カーソルページネーション・q / store 検索・現在設定で judgment 再導出）
 GET  /history/locations      マップ用ピン一覧（自分の全ピン + 公開ピン）
 POST /history                履歴保存

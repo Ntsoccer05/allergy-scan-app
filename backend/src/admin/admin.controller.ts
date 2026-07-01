@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common'
 import { AdminGuard } from '../auth/admin.guard'
 import { AdminService } from './admin.service'
+import type { SystemProductListResult } from './admin.service'
 import { ADMIN_USERS_DEFAULT_LIMIT } from './admin.constants'
 import type { Request } from 'express'
 import { IsString } from 'class-validator'
@@ -46,5 +47,17 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async updateUserPlan(@Param('id') userId: string, @Body() dto: UpdatePlanDto) {
     await this.adminService.updateUserPlan(userId, dto)
+  }
+
+  /** GET /admin/products: シードデータ（JAN商品）一覧（カーソルページネーション・商品名検索・判定フィルタ）。 */
+  @Get('products')
+  async getSystemProducts(
+    @Query() query: { cursor?: string; q?: string; judgment?: 'all' | 'ng' | 'partial' | 'ok' },
+  ): Promise<SystemProductListResult> {
+    return this.adminService.getSystemProducts({
+      cursor: query.cursor,
+      q: query.q,
+      judgment: query.judgment,
+    })
   }
 }

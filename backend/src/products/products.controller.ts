@@ -13,7 +13,7 @@ import { GetOthersDto } from './dto/get-others.dto';
 import {
   THROTTLE_HISTORY_TTL,
   THROTTLE_HISTORY_LIMIT,
-} from '../shared/throttler.constants';
+} from '../shared/throttler/throttler.constants';
 
 type AuthRequest = Request & { user: SupabaseJwtPayload };
 

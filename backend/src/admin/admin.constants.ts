@@ -1,1 +1,2 @@
 export const ADMIN_USERS_DEFAULT_LIMIT = 20
+export const SYSTEM_PRODUCTS_PAGE_LIMIT = 50

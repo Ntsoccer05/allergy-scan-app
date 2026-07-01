@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
 type AdminUserRow = {
@@ -14,6 +15,18 @@ type StatsResult = {
   total_scans: number
   scans_today: number
   active_premium: number
+}
+
+export type SystemProductRow = {
+  id: string
+  jan_code: string
+  product_name: string | null
+  allergens_contains: string[]
+  allergens_partial: string[]
+  scan_count: number
+  updated_at: Date
+  judgment: 'ng' | 'partial' | 'ok'
+  thumbnail_url: string | null
 }
 
 @Injectable()
@@ -76,6 +89,72 @@ export class AdminRepository {
     await this.prisma.userSubscription.updateMany({
       where: { userId, status: 'active' },
       data: { planId: plan.id },
+    })
+  }
+
+  async findAllJanProducts(options: {
+    cursor?: Date
+    q?: string
+    judgment?: 'all' | 'ng' | 'partial' | 'ok'
+    limit: number
+  }): Promise<SystemProductRow[]> {
+    const { cursor, q, judgment = 'all', limit } = options
+
+    const cursorFrag = cursor
+      ? Prisma.sql`AND updated_at < ${cursor}::timestamptz`
+      : Prisma.empty
+    const qFrag = q
+      ? Prisma.sql`AND product_name ILIKE ${'%' + q + '%'}`
+      : Prisma.empty
+    const judgmentFrag =
+      judgment === 'ng'
+        ? Prisma.sql`AND jsonb_array_length(allergens->'contains') > 0`
+        : judgment === 'partial'
+          ? Prisma.sql`AND jsonb_array_length(allergens->'contains') = 0
+                        AND jsonb_array_length(allergens->'partial') > 0`
+          : judgment === 'ok'
+            ? Prisma.sql`AND jsonb_array_length(allergens->'contains') = 0
+                          AND jsonb_array_length(allergens->'partial') = 0`
+            : Prisma.empty
+
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: string
+        id_value: string
+        product_name: string | null
+        allergens: unknown
+        scan_count: number
+        updated_at: Date
+        thumbnail_url: string | null
+      }[]
+    >(Prisma.sql`
+      SELECT id, id_value, product_name, allergens, scan_count, updated_at, thumbnail_url
+      FROM products
+      WHERE id_type = 'jan'
+      ${judgmentFrag}
+      ${qFrag}
+      ${cursorFrag}
+      ORDER BY updated_at DESC
+      LIMIT ${limit + 1}
+    `)
+
+    return rows.map((row) => {
+      const al = row.allergens as { contains?: string[]; partial?: string[] }
+      const contains = al.contains ?? []
+      const partial = al.partial ?? []
+      const judgment: 'ng' | 'partial' | 'ok' =
+        contains.length > 0 ? 'ng' : partial.length > 0 ? 'partial' : 'ok'
+      return {
+        id: row.id,
+        jan_code: row.id_value.replace(/^jan#/, ''),
+        product_name: row.product_name,
+        allergens_contains: contains,
+        allergens_partial: partial,
+        scan_count: row.scan_count,
+        updated_at: row.updated_at,
+        judgment,
+        thumbnail_url: row.thumbnail_url,
+      }
     })
   }
 }

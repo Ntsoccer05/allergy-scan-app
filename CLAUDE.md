@@ -100,6 +100,7 @@ Claude Code の `Skill` ツールで呼び出す。セッション開始時に `
 | `requesting-code-review` | タスク完了後やマージ前のコードレビュー依頼 |
 | `receiving-code-review` | コードレビューフィードバックを受け取ったとき |
 | `writing-skills` | 新しいスキルの作成・既存スキルの編集 |
+| `chrome-check` | UI・API・認証・i18n 変更後の Chrome 実機チェック（mcp__chrome-devtools__* 使用） |
 
 ## 詳細設計ドキュメント（人間向け参照）
 

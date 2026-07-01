@@ -240,7 +240,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
-                message: ラベル全体が映るように離してください
+                message: 原材料またはバーコード全体が映るように撮影してください。
                 code: INCOMPLETE_IMAGE
         "401":
           $ref: "#/components/responses/Unauthorized"

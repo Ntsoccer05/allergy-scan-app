@@ -75,7 +75,7 @@ export const GUIDE_MESSAGES = {
   manual: 'タップして読み取る',
   error: {
     quality_check_failed: '⚠️ 画質を確認してください',
-    incomplete: '⚠️ ラベル全体が映るように離してください',
+    incomplete: '⚠️ 原材料またはバーコード全体が映るように撮影してください。',
     confidence_low: '⚠️ もう少し近づけて再スキャンしてください',
     api_error: '通信エラーが発生しました。再度お試しください',
     daily_limit_exceeded: '本日の利用上限に達しました。明日またお試しください',

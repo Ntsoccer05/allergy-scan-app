@@ -10,19 +10,17 @@
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { randomUUID } from 'crypto'; // presigned URL の s3_key 生成にのみ使用
 import type { ProductAllergens } from '../shared/types/db.types';
-import type { OpenFoodFactsProductFields } from '../shared/types/open-food-facts.types';
 import type { GeminiOcrResponse } from '../shared/types/gemini.types';
 import { ProductRepository } from '../products/product.repository';
 import type { ProductRecord } from '../products/product.repository';
 import { AllergenComponentRepository } from '../allergens/allergen-component.repository';
 import { ScanHistoryRepository } from '../history/scan-history.repository';
-import { OpenFoodFactsClient } from '../shared/open-food-facts.client';
-import { S3Client } from '../shared/s3.client';
-import { GeminiClient } from '../shared/gemini.client';
+import { S3Client } from '../shared/clients/s3.client';
+import { GeminiClient } from '../shared/clients/gemini.client';
 import { UsersRepository } from '../users/users.repository';
 import { UserDailyScansService } from '../users/user-daily-scans.service';
+import { StoreCacheRepository } from '../shared/store-cache.repository';
 import { buildGeminiPrompt } from './gemini-prompt.builder';
-import { normalizeOffTags } from './off-allergen-map';
 import { buildLabelHash } from '../products/label-hash.util';
 import {
   CACHE_TTL_MEMORY_SEC,
@@ -65,6 +63,8 @@ export type BarcodeScanResult = {
   from_cache: boolean;
   /** 商品の原材料テキスト（OCR 由来 JAN キャッシュ・OFF の ingredients。検証表示用） */
   raw_text?: string | null;
+  /** 楽天アフィリエイト URL（楽天 DB 由来の場合のみ） */
+  item_url?: string | null;
 };
 
 /** GET /scan/presigned-url のレスポンス型（openapi.yaml PresignedUrlResponse 準拠）。 */
@@ -93,21 +93,20 @@ export class ScanService {
   constructor(
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly productRepository: ProductRepository,
-    private readonly offClient: OpenFoodFactsClient,
     private readonly allergenComponentRepository: AllergenComponentRepository,
     private readonly scanHistoryRepository: ScanHistoryRepository,
     private readonly s3Client: S3Client,
     private readonly geminiClient: GeminiClient,
     private readonly usersRepository: UsersRepository,
     private readonly userDailyScansService: UserDailyScansService,
+    private readonly storeCacheRepository: StoreCacheRepository,
   ) {}
 
   /**
    * バーコードスキャンフロー（patterns.md パターン1）:
    * 1. NestJS メモリキャッシュ確認（TTL: CACHE_TTL_MEMORY_SEC）
-   * 2. DB の expires_at 確認
-   * 3. Open Food Facts API 照合
-   * 4. 全ミス → { found: false }
+   * 2. DB の expires_at 確認（シード済み商品は confidence='high' で即返却）
+   * 3. 全ミス → { found: false }（OCR フォールバック）
    */
   async scanBarcode(janCode: string, userId?: string): Promise<BarcodeScanResult> {
     if (userId) this.checkCooldown(userId);
@@ -121,8 +120,8 @@ export class ScanService {
     }
 
     // Step 2: DB の expires_at 確認
-    // ⚠️ 安全設計: アレルゲン情報が空の jan 商品（OFF 未入力由来）はヒット扱いにしない。
-    // OCR 由来の JAN キャッシュ（confidence あり）は high のみ配信する —
+    // ⚠️ 安全設計: アレルゲン情報が空の jan 商品はヒット扱いにしない。
+    // OCR 由来・楽天由来の JAN キャッシュは confidence: high のみ配信する —
     // 共有キャッシュであり1人の不確実な読み取りが全ユーザーの判定に影響するため
     const dbProduct = await this.productRepository.findByJan(janCode);
     if (
@@ -136,6 +135,7 @@ export class ScanService {
         dbProduct.allergens,
         false,
         dbProduct.rawText,
+        dbProduct.itemUrl,
       );
       await this.cacheManager.set(
         cacheKey,
@@ -146,41 +146,7 @@ export class ScanService {
       return result;
     }
 
-    // Step 3: Open Food Facts API 照合
-    const offProduct = await this.offClient.fetchByJanCode(janCode);
-    if (offProduct) {
-      this.logger.log(`Open Food Facts hit for JAN: ${janCode}`);
-      const allergens = this.buildAllergensFromOff(offProduct);
-      // ⚠️ 安全設計: OFF はアレルゲン欄未入力の商品が多い（特に日本商品）。
-      // 「未入力」を「アレルゲンなし」と解釈すると誤った ✅なし 表示になるため、
-      // 情報が1件もない場合は found: false を返して OCR にフォールバックさせる
-      if (this.hasNoAllergenInfo(allergens)) {
-        this.logger.log(
-          `OFF hit but no allergen info for JAN: ${janCode} → OCR フォールバック`,
-        );
-        return { found: false, from_cache: false };
-      }
-      await this.productRepository.upsertByJan(janCode, {
-        productName: this.extractProductName(offProduct),
-        allergens,
-        rawText: offProduct.ingredients_text_ja ?? offProduct.ingredients_text,
-      });
-      const result = this.buildResultFromDb(
-        this.extractProductName(offProduct),
-        allergens,
-        false,
-        offProduct.ingredients_text_ja ?? offProduct.ingredients_text ?? null,
-      );
-      await this.cacheManager.set(
-        cacheKey,
-        result,
-        CACHE_TTL_MEMORY_SEC * 1000,
-      );
-      if (userId) await this.userDailyScansService.incrementScanCount(userId);
-      return result;
-    }
-
-    // Step 4: 全ミス（found:false は OCR フォールバックへ。OCR 側でカウントする）
+    // Step 3: 全ミス（found:false は OCR フォールバックへ。OCR 側でカウントする）
     this.logger.log(`No result found for JAN: ${janCode}`);
     return { found: false, from_cache: false };
   }
@@ -212,8 +178,8 @@ export class ScanService {
   async processOcr(
     s3Key: string,
     userId: string | undefined,
-    _lat?: number,
-    _lng?: number,
+    lat?: number,
+    lng?: number,
     allowLowConfidence?: boolean,
     janCode?: string,
   ): Promise<OcrScanResult> {
@@ -265,7 +231,7 @@ export class ScanService {
     // Step 5: incomplete: true → 400（anti_patterns.md #2）
     if (geminiResult.incomplete) {
       throw new BadRequestException({
-        message: 'ラベル全体が映るように離してください',
+        message: '原材料またはバーコード全体が映るように撮影してください。',
         code: 'INCOMPLETE_IMAGE',
       });
     }
@@ -330,6 +296,13 @@ export class ScanService {
       `OCR 処理完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`,
     );
 
+    // バックグラウンドで店舗キャッシュをウォームアップする（非同期・失敗しても無視）
+    if (lat !== undefined && lng !== undefined) {
+      void this.storeCacheRepository.enqueueJob(lat, lng).catch((err) => {
+        this.logger.warn('cache_job 投入失敗', err instanceof Error ? err.message : String(err));
+      });
+    }
+
     return { ...geminiResult, history_id: historyId };
   }
 
@@ -340,8 +313,8 @@ export class ScanService {
   async *processOcrStream(
     s3Key: string,
     userId: string | undefined,
-    _lat?: number,
-    _lng?: number,
+    lat?: number,
+    lng?: number,
     allowLowConfidence?: boolean,
     janCode?: string,
   ): AsyncGenerator<OcrStreamEvent> {
@@ -389,7 +362,7 @@ export class ScanService {
     }
 
     if (geminiResult.incomplete) {
-      yield { type: 'error', code: 'INCOMPLETE_IMAGE', message: 'ラベル全体が映るように離してください' };
+      yield { type: 'error', code: 'INCOMPLETE_IMAGE', message: '原材料またはバーコード全体が映るように撮影してください。' };
       return;
     }
 
@@ -444,6 +417,13 @@ export class ScanService {
     }
 
     this.logger.log(`OCR stream 完了: s3Key=${s3Key}, resultCount=${geminiResult.results.length}`);
+
+    // バックグラウンドで店舗キャッシュをウォームアップする（非同期・失敗しても無視）
+    if (lat !== undefined && lng !== undefined) {
+      void this.storeCacheRepository.enqueueJob(lat, lng).catch((err) => {
+        this.logger.warn('cache_job 投入失敗', err instanceof Error ? err.message : String(err));
+      });
+    }
 
     yield { type: 'result', data: { ...geminiResult, history_id: historyId } };
   }
@@ -568,6 +548,7 @@ export class ScanService {
     allergens: ProductAllergens,
     fromCache: boolean,
     rawText: string | null = null,
+    itemUrl: string | null = null,
   ): BarcodeScanResult {
     const detected = [...allergens.components];
     let judgment: string | null = null;
@@ -598,24 +579,8 @@ export class ScanService {
       from_cache: fromCache,
       // ⚠️ 安全設計: 他ユーザーの OCR 結果（JAN キャッシュ）を本人が検証できるよう raw_text を返す
       raw_text: rawText,
+      item_url: itemUrl,
     };
   }
 
-  /**
-   * Open Food Facts のアレルギータグから ProductAllergens を生成する。
-   * タグは日本語アレルゲン名に正規化する（名前一致での判定導出に必要）。
-   */
-  private buildAllergensFromOff(
-    product: OpenFoodFactsProductFields,
-  ): ProductAllergens {
-    const contains = normalizeOffTags(product.allergens_tags ?? []);
-    const partial = normalizeOffTags(product.traces_tags ?? []);
-    return { contains, partial, components: [] };
-  }
-
-  private extractProductName(
-    product: OpenFoodFactsProductFields,
-  ): string | null {
-    return product.product_name_ja ?? product.product_name ?? null;
-  }
 }
