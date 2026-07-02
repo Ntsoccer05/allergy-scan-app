@@ -9,7 +9,9 @@
   "card": {
     "close": "閉じる",
     "unnamed": "商品名なし",
-    "publicBadge": "みんなのスキャン"
+    "publicBadge": "みんなのスキャン",
+    "items": "{count}件",
+    "backToList": "一覧に戻る"
   },
   "route": {
     "driving": "車 ↗",

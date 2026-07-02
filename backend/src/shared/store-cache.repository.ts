@@ -4,7 +4,7 @@ import { StoreCandidate } from './places/places.interface';
 import { STORE_CACHE_EXPIRE_DAYS } from './places/places.constants';
 
 /** Haversine 距離計算（km） */
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -74,6 +74,8 @@ export class StoreCacheRepository {
         placeId: s.uid,
         address: s.address ?? undefined,
         distanceKm: s.distanceKm,
+        lat: s.lat,
+        lng: s.lng,
       }));
   }
 
@@ -192,6 +194,16 @@ export class StoreCacheRepository {
         }),
       ),
     );
+  }
+
+  /** store_cache_areas にエリアカバー記録を追加する（次回はキャッシュヒットさせる） */
+  async recordArea(gridKey: string, radiusKm: number, tier: 'metro' | 'regional'): Promise<void> {
+    const expiresAt = addDays(new Date(), getStoreExpireDays(tier));
+    await this.prisma.storeCacheArea.upsert({
+      where: { gridKey },
+      create: { gridKey, radiusKm, tier, expiresAt },
+      update: { radiusKm, tier, fetchedAt: new Date(), expiresAt },
+    });
   }
 
   /** cache_jobs にジョブを追加する（OCR 完了後のバックグラウンドキャッシュ用） */

@@ -63,6 +63,7 @@ export type MapPin = {
   product_name: string | null;
   judgment: 'ng' | 'partial' | 'ok';
   detected: string[];
+  allergens: { contains: string[]; partial: string[] } | null;
   thumbnail_url: string | null;
   store_name: string | null;
   lat: number;
@@ -73,9 +74,9 @@ export type MapPin = {
 
 /**
  * マップ用ピン1件のレスポンス型（公開履歴）。
- * ⚠️ プライバシー: raw_text・detected・user_id・memo を含めない。
+ * ⚠️ プライバシー: raw_text・detected・allergens・user_id・memo を含めない（ok 判定のみのため allergens 不要）。
  */
-export type PublicMapPin = Omit<MapPin, 'detected' | 'raw_text'>;
+export type PublicMapPin = Omit<MapPin, 'detected' | 'raw_text' | 'allergens'>;
 
 /** GET /history/locations のレスポンス型。 */
 export type MapLocationsResult = {
@@ -94,6 +95,9 @@ const toMapPin = (record: LocationPinRecord): MapPin => ({
   product_name: record.productName,
   judgment: record.judgment as MapPin['judgment'],
   detected: record.detected,
+  allergens: record.allergens
+    ? { contains: record.allergens.contains, partial: record.allergens.partial }
+    : null,
   thumbnail_url: record.thumbnailUrl,
   store_name: record.storeName,
   lat: record.lat,
@@ -179,11 +183,16 @@ export class HistoryService {
       };
     });
 
+    // ⚠️ 安全設計: アレルギー設定変更後や product_id なしのスキャンを raw_text で再評価する
+    // （スキャン時に有効でなかったアレルギーが後から追加された場合、
+    //   deriveProductJudgment だけでは検出できないため raw_text ベースで上書きする）
+    const reevaluatedGroups = await this.reevaluateGroupsWithRawText(derivedGroups, allergies);
+
     // in-memory で judgment フィルタ
     const filtered =
       judgment === 'all'
-        ? derivedGroups
-        : derivedGroups.filter((g) => g.judgment === judgment);
+        ? reevaluatedGroups
+        : reevaluatedGroups.filter((g) => g.judgment === judgment);
 
     const hasNextPage = filtered.length > HISTORY_PAGE_LIMIT;
     const items = hasNextPage ? filtered.slice(0, HISTORY_PAGE_LIMIT) : filtered;
@@ -272,6 +281,7 @@ export class HistoryService {
       memo: data.memo,
       isPublic: data.is_public,
       thumbnailUrl: data.thumbnail_url,
+      ocrImageUrl: data.ocr_image_url,
     });
 
     // location フィールドが指定された場合は location も更新する（後方互換）
@@ -337,6 +347,107 @@ export class HistoryService {
     if (dto.ids.length === 0) return;
     this.logger.log(`一括削除: userId=${userId}, count=${dto.ids.length}`);
     await this.scanHistoryRepository.deleteManyByIds(userId, dto.ids);
+  }
+
+  /**
+   * ⚠️ 安全設計: スキャン時に有効でなかったアレルギーが後から設定に追加された場合、
+   * deriveProductJudgment だけでは不十分なため raw_text でグループを再評価して 'ng' に上書きする。
+   * raw_text の取得優先順位: scan_histories.raw_text → products.raw_text（productId で取得）。
+   * DB は更新しない（レスポンス時のみ適用）。
+   */
+  private async reevaluateGroupsWithRawText(
+    groups: HistoryGroupItem[],
+    allergies: UserAllergies,
+  ): Promise<HistoryGroupItem[]> {
+    const enabledAllergens = Object.entries(allergies)
+      .filter(([, v]) => v.enabled)
+      .map(([name]) => name);
+
+    if (enabledAllergens.length === 0) return groups;
+
+    const allComponents =
+      await this.allergenComponentRepository.findByAllergens(enabledAllergens);
+
+    // exclude 型は誤検出防止リストのため再評価の検出対象に含めない（anti_patterns.md #3）
+    const detectionComponents = allComponents.filter(
+      (c) => c.componentType !== 'exclude',
+    );
+
+    if (detectionComponents.length === 0) return groups;
+
+    // scan_histories.raw_text がないグループのうち productId があるものを一括取得
+    const productIdsWithoutScanRawText = [
+      ...new Set(
+        groups
+          .filter(
+            (g) =>
+              g.judgment !== 'ng' &&
+              g.scans.every((s) => !s.rawText) &&
+              g.product.id,
+          )
+          .map((g) => g.product.id!),
+      ),
+    ];
+    const productRawTexts =
+      await this.productRepository.findRawTextsByIds(productIdsWithoutScanRawText);
+
+    return groups.map((group) => {
+      if (group.judgment === 'ng') return group;
+
+      // scan_histories.raw_text を優先、なければ products.raw_text にフォールバック
+      const scanRawTexts = group.scans
+        .map((s) => s.rawText)
+        .filter((t): t is string => !!t);
+      const productRawText = group.product.id
+        ? (productRawTexts.get(group.product.id) ?? null)
+        : null;
+      const combinedText =
+        scanRawTexts.length > 0
+          ? scanRawTexts.join('\n').toLowerCase()
+          : (productRawText?.toLowerCase() ?? null);
+
+      if (!combinedText) return group;
+
+      const detectedLower = group.detected.map((d) => d.toLowerCase());
+      let shouldUpgradeToNg = false;
+      const newlyMatchedAllergens: string[] = [];
+
+      for (const allergen of enabledAllergens) {
+        const components = detectionComponents.filter(
+          (c) => c.allergenName === allergen,
+        );
+        const foundInText = components.some((c) => {
+          if (combinedText.includes(c.canonicalName.toLowerCase())) return true;
+          return c.aliases.some(
+            (alias) => alias && combinedText.includes(alias.toLowerCase()),
+          );
+        });
+
+        if (!foundInText) continue;
+        shouldUpgradeToNg = true;
+
+        const alreadyInDetected = components.some((c) => {
+          if (detectedLower.some((d) => d.includes(c.canonicalName.toLowerCase())))
+            return true;
+          return c.aliases.some(
+            (alias) =>
+              alias && detectedLower.some((d) => d.includes(alias.toLowerCase())),
+          );
+        });
+
+        if (!alreadyInDetected) {
+          newlyMatchedAllergens.push(allergen);
+        }
+      }
+
+      if (!shouldUpgradeToNg) return group;
+
+      return {
+        ...group,
+        judgment: 'ng',
+        detected: [...group.detected, ...newlyMatchedAllergens],
+      };
+    });
   }
 
   /**
@@ -489,6 +600,7 @@ export class HistoryService {
       detected: body.detected,
       location: body.location ?? null,
       thumbnailUrl: body.thumbnail_url ?? null,
+      ocrImageUrl: body.ocr_image_url ?? null,
       rawText: body.raw_text ?? null,
     });
   }

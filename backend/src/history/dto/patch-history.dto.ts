@@ -61,6 +61,11 @@ export class PatchHistoryDto {
   thumbnail_url?: string | null;
 
   @IsOptional()
+  @ValidateIf((o: PatchHistoryDto) => o.ocr_image_url !== null)
+  @IsUrl({ require_tld: false })
+  ocr_image_url?: string | null;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => PatchLocationDto)
   location?: PatchLocationDto;

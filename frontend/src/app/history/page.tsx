@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { HistoryCard } from '@/components/organisms/HistoryCard'
-import { HistoryDetailModal } from '@/components/organisms/HistoryDetailModal'
+import { HistoryProductCard } from '@/components/organisms/HistoryProductCard'
 import { HistoryDetailPanel } from '@/components/organisms/HistoryDetailPanel'
 import { ThumbnailCameraModal } from '@/components/organisms/ThumbnailCameraModal'
 import { ConfirmDialog } from '@/components/atoms/ConfirmDialog'
+import { ImageLightbox } from '@/components/atoms/ImageLightbox'
 import { LoadingSpinner } from '@/components/atoms/LoadingSpinner'
 import { useHistory } from '@/hooks/useHistory'
 import { useOthersScanned } from '@/hooks/useOthersScanned'
@@ -14,7 +14,7 @@ import { useSystemProducts } from '@/hooks/useSystemProducts'
 import { useAuthContext } from '@/providers/AuthProvider'
 import { haversineDistanceKm } from '@/lib/geo.utils'
 import { HISTORY_TAB_STORAGE_KEY, GEO_SORT_TIMEOUT_MS } from './history.constants'
-import type { HistoryGroup, HistoryItem, HistoryFilter, PatchHistoryBody } from './history.types'
+import type { HistoryGroup, HistoryFilter, PatchHistoryBody, OthersProductItem, SystemProductItem } from './history.types'
 
 /** 履歴ページのタブ識別子。 */
 type HistoryTab = 'mine' | 'others' | 'system'
@@ -162,8 +162,8 @@ export default function HistoryPage() {
     )
   }
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
-  // 'others'/'system' タブの HistoryCard 用（HistoryItem を直接受け取る）
-  const [legacyDetailItem, setLegacyDetailItem] = useState<HistoryItem | null>(null)
+  const [othersDetailGroup, setOthersDetailGroup] = useState<HistoryGroup | null>(null)
+  const [systemDetailGroup, setSystemDetailGroup] = useState<HistoryGroup | null>(null)
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const [editForm, setEditForm] = useState<EditFormData>(INITIAL_EDIT_FORM)
   const [showThumbnailCamera, setShowThumbnailCamera] = useState(false)
@@ -178,6 +178,8 @@ export default function HistoryPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   /** 一括削除の確認ダイアログを表示するか。 */
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  /** ライトボックスで拡大表示するサムネイル URL。null のとき非表示。 */
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   const {
     items: myItems,
@@ -235,9 +237,53 @@ export default function HistoryPage() {
     setDetailTarget({ group, scan })
   const handleDetailClose = () => setDetailTarget(null)
 
-  // 'others'/'system' タブの HistoryCard から呼ばれるハンドラ（HistoryItem を直接受け取る）
-  const handleLegacyDetailOpen = (item: HistoryItem) => setLegacyDetailItem(item)
-  const handleLegacyDetailClose = () => setLegacyDetailItem(null)
+  const othersItemToGroup = (item: OthersProductItem): HistoryGroup => ({
+    product: {
+      id: item.id,
+      name: item.product_name,
+      allergens: item.allergens,
+      thumbnailUrl: item.thumbnail_url,
+      itemUrl: null,
+    },
+    judgment: item.judgment,
+    detected: item.detected,
+    scans: [{
+      id: item.id,
+      scannedAt: item.updated_at,
+      location: item.store_name ? { store_name: item.store_name, lat: 0, lng: 0 } : null,
+      memo: null,
+      thumbnailUrl: item.thumbnail_url,
+      ocrImageUrl: null,
+      rawText: item.raw_text,
+    }],
+    latestScanAt: item.updated_at,
+  })
+
+  const systemItemToGroup = (item: SystemProductItem): HistoryGroup => ({
+    product: {
+      id: item.id,
+      name: item.product_name,
+      allergens: {
+        contains: item.allergens_contains,
+        partial: item.allergens_partial,
+        components: [],
+      },
+      thumbnailUrl: item.thumbnail_url,
+      itemUrl: null,
+    },
+    judgment: item.judgment,
+    detected: [...item.allergens_contains, ...item.allergens_partial],
+    scans: [{
+      id: item.id,
+      scannedAt: item.updated_at,
+      location: null,
+      memo: `JANコード： ${item.jan_code}`,
+      thumbnailUrl: item.thumbnail_url,
+      ocrImageUrl: null,
+      rawText: null,
+    }],
+    latestScanAt: item.updated_at,
+  })
 
   const handleDetailPatch = async (
     scanId: string,
@@ -469,133 +515,37 @@ export default function HistoryPage() {
                   {displayedMyItems.map((group) => {
                     const firstScan = group.scans[0]
                     if (!firstScan) return null
-                    const emoji = group.judgment === 'ng' ? '🔴' : group.judgment === 'partial' ? '🟡' : '✅'
                     const firstScanId = firstScan.id
                     const isSelected = selectedGroupKeys.has(firstScanId)
+                    const displayThumbnail = firstScan.thumbnailUrl ?? group.product.thumbnailUrl
+                    const lightboxSrc = firstScan.ocrImageUrl ?? displayThumbnail
 
                     return (
-                      <li
+                      <HistoryProductCard
                         key={`${group.product.id ?? 'no-id'}-${group.latestScanAt}`}
-                        className={`bg-white rounded-xl shadow-sm border overflow-hidden transition-colors ${
-                          isSelectMode && isSelected ? 'border-blue-400 bg-blue-50' : 'border-gray-100'
-                        }`}
-                      >
-                        {/* 選択モードのチェックボックス */}
-                        {isSelectMode && (
-                          <div
-                            className="flex items-center gap-3 px-3 pt-3"
-                            onClick={() => handleToggleSelect(firstScanId)}
-                          >
-                            <input
-                              type="checkbox"
-                              readOnly
-                              checked={isSelected}
-                              className="h-4 w-4 rounded border-gray-300 text-blue-600 pointer-events-none"
-                            />
-                            <span className="text-sm text-gray-600">
-                              {group.product.name ?? t('unnamed')}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* 商品ヘッダー（通常モードのみ） */}
-                        {!isSelectMode && (() => {
-                          const firstScan = group.scans[0]
-                          if (!firstScan) return null
-                          const displayThumbnail = firstScan.thumbnailUrl ?? group.product.thumbnailUrl
-                          return (
-                            <div
-                              className="flex items-start gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                              onClick={() => handleDetailOpen(group, firstScan)}
-                            >
-                              {displayThumbnail ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={displayThumbnail}
-                                  alt=""
-                                  className="h-14 w-14 rounded-lg object-cover shrink-0"
-                                />
-                              ) : (
-                                <div className="h-14 w-14 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center text-2xl">
-                                  🍱
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm text-gray-900 truncate">
-                                  {group.product.name ?? t('unnamed')}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  {emoji}{' '}
-                                  {group.detected.length > 0 ? group.detected.join(' · ') : t('filter.ok')}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-0.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDetailOpen(group, firstScan)
-                                  }}
-                                  aria-label={t('detail.editAriaLabel')}
-                                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDeleteConfirmId(firstScan.id)
-                                  }}
-                                  aria-label={t('detail.deleteAriaLabel')}
-                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        })()}
-
-                        {/* 店舗リスト（通常モードのみ） */}
-                        {!isSelectMode && (
-                          <div className="border-t border-gray-50">
-                            {group.scans.map((scan) => (
-                              <button
-                                key={scan.id}
-                                type="button"
-                                onClick={() => handleDetailOpen(group, scan)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
-                              >
-                                <span className="text-gray-400">📍</span>
-                                <span className="flex-1 truncate">
-                                  {scan.location?.store_name ?? t('location.unknown')}
-                                </span>
-                                <time className="text-gray-400 shrink-0">
-                                  {new Date(scan.scannedAt).toLocaleDateString('ja-JP', {
-                                    month: 'numeric',
-                                    day: 'numeric',
-                                  })}
-                                </time>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* フッター: 楽天リンク（通常モードのみ） */}
-                        {!isSelectMode && group.product.itemUrl && (
-                          <div className="px-3 py-2 bg-gray-50">
-                            <a
-                              href={group.product.itemUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-red-600 font-medium hover:underline"
-                            >
-                              {t('group.rakutenLink')}
-                            </a>
-                          </div>
-                        )}
-                      </li>
+                        productName={group.product.name}
+                        judgment={group.judgment}
+                        allergens={group.product.allergens}
+                        detected={group.detected}
+                        thumbnailUrl={displayThumbnail}
+                        lightboxSrc={lightboxSrc}
+                        scans={group.scans.map((s) => ({
+                          id: s.id,
+                          storeName: s.location?.store_name ?? null,
+                          scannedAt: s.scannedAt,
+                        }))}
+                        onDetailClick={(scanId) => {
+                          const scan = group.scans.find((s) => s.id === scanId) ?? firstScan
+                          handleDetailOpen(group, scan)
+                        }}
+                        onLightboxOpen={(url) => setLightboxUrl(url)}
+                        onEdit={!isSelectMode ? () => handleEditOpen(group) : undefined}
+                        onDelete={!isSelectMode ? (scanId) => setDeleteConfirmId(scanId) : undefined}
+                        isSelectMode={isSelectMode}
+                        isSelected={isSelected}
+                        onSelect={() => handleToggleSelect(firstScanId)}
+                        itemUrl={group.product.itemUrl}
+                      />
                     )
                   })}
                 </ul>
@@ -667,33 +617,23 @@ export default function HistoryPage() {
               ) : (
                 <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   {othersItems.map((item) => (
-                    <li key={item.id}>
-                      {item.is_expired && (
-                        <p className="text-xs text-amber-600 mb-1">
-                          {t('expiredTag')}
-                        </p>
-                      )}
-                      <HistoryCard
-                        item={{
-                          id: item.id,
-                          userId: '',
-                          productId: item.id,
-                          productName: item.product_name,
-                          judgment: item.judgment,
-                          detected: item.detected,
-                          thumbnailUrl: item.thumbnail_url,
-                          ocrImageUrl: null,
-                          isPublic: true,
-                          memo: null,
-                          rawText: item.raw_text,
-                          scannedAt: item.updated_at,
-                          location: item.store_name
-                            ? { store_name: item.store_name }
-                            : null,
-                        }}
-                        onOpenDetail={handleLegacyDetailOpen}
-                      />
-                    </li>
+                    <HistoryProductCard
+                      key={item.id}
+                      productName={item.product_name}
+                      judgment={item.judgment}
+                      allergens={{ contains: item.allergens.contains, partial: item.allergens.partial }}
+                      detected={item.detected}
+                      thumbnailUrl={item.thumbnail_url}
+                      lightboxSrc={item.thumbnail_url}
+                      scans={[{
+                        id: item.id,
+                        storeName: item.store_name,
+                        scannedAt: item.updated_at,
+                      }]}
+                      onDetailClick={() => setOthersDetailGroup(othersItemToGroup(item))}
+                      onLightboxOpen={(url) => setLightboxUrl(url)}
+                      isExpired={item.is_expired}
+                    />
                   ))}
                 </ul>
               )}
@@ -754,28 +694,25 @@ export default function HistoryPage() {
               ) : (
                 <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   {systemItems.map((item) => (
-                    <li key={item.id}>
-                      <HistoryCard
-                        item={{
-                          id: item.id,
-                          userId: '',
-                          productId: item.id,
-                          productName: item.product_name,
-                          judgment: item.judgment,
-                          detected: item.allergens_contains.length > 0
-                            ? item.allergens_contains
-                            : item.allergens_partial,
-                          thumbnailUrl: item.thumbnail_url,
-                          ocrImageUrl: null,
-                          isPublic: false,
-                          memo: `JAN: ${item.jan_code}`,
-                          rawText: null,
-                          scannedAt: item.updated_at,
-                          location: null,
-                        }}
-                        onOpenDetail={handleLegacyDetailOpen}
-                      />
-                    </li>
+                    <HistoryProductCard
+                      key={item.id}
+                      productName={item.product_name}
+                      judgment={item.judgment}
+                      allergens={{
+                        contains: item.allergens_contains,
+                        partial: item.allergens_partial,
+                      }}
+                      detected={[...item.allergens_contains, ...item.allergens_partial]}
+                      thumbnailUrl={item.thumbnail_url}
+                      lightboxSrc={item.thumbnail_url}
+                      scans={[{
+                        id: item.id,
+                        storeName: null,
+                        scannedAt: item.updated_at,
+                      }]}
+                      onDetailClick={() => setSystemDetailGroup(systemItemToGroup(item))}
+                      onLightboxOpen={(url) => setLightboxUrl(url)}
+                    />
                   ))}
                 </ul>
               )}
@@ -811,19 +748,25 @@ export default function HistoryPage() {
         />
       )}
 
-      {/* 詳細モーダル（others / system タブ用） */}
-      {legacyDetailItem && (
-        <HistoryDetailModal
-          item={legacyDetailItem}
-          isOwner={legacyDetailItem.userId === userId}
-          onClose={handleLegacyDetailClose}
-          onEdit={() => {
-            handleLegacyDetailClose()
-          }}
-          onDelete={async (id) => {
-            await handleDelete(id)
-            handleLegacyDetailClose()
-          }}
+      {/* 詳細パネル（みんなのスキャン用・readonly） */}
+      {othersDetailGroup && (
+        <HistoryDetailPanel
+          group={othersDetailGroup}
+          selectedScan={othersDetailGroup.scans[0]!}
+          isOpen={true}
+          onClose={() => setOthersDetailGroup(null)}
+          readonly
+        />
+      )}
+
+      {/* 詳細パネル（システム用・readonly） */}
+      {systemDetailGroup && (
+        <HistoryDetailPanel
+          group={systemDetailGroup}
+          selectedScan={systemDetailGroup.scans[0]!}
+          isOpen={true}
+          onClose={() => setSystemDetailGroup(null)}
+          readonly
         />
       )}
 
@@ -1011,6 +954,15 @@ export default function HistoryPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* サムネイル拡大ライトボックス */}
+      {lightboxUrl && (
+        <ImageLightbox
+          src={lightboxUrl}
+          closeAriaLabel={t('detail.close')}
+          onClose={() => setLightboxUrl(null)}
+        />
       )}
     </main>
   )

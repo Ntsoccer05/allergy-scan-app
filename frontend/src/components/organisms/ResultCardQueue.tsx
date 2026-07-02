@@ -21,7 +21,7 @@ type Props = {
   onDismiss: (id: string) => void
   geolocation: { lat: number; lng: number } | null
   onFetchPlaceCandidates?: (query?: string) => Promise<PlaceCandidatesResponse | null>
-  onRegisterLocation?: (storeName: string, placeId?: string, address?: string) => void
+  onRegisterLocation?: (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number) => void
   onPatchHistory?: (data: PatchHistoryData) => void
 }
 
@@ -35,7 +35,7 @@ export const ResultCardQueue = ({
   onPatchHistory,
 }: Props) => {
   const t = useTranslations('scan')
-  const { patchLocation } = useScanApi()
+  const { patchLocation, patchHistoryFields } = useScanApi()
   const [activeTabId, setActiveTabId] = useState<string | null>(
     doneJobs.length > 0 ? (doneJobs[doneJobs.length - 1]?.id ?? null) : null,
   )
@@ -54,19 +54,21 @@ export const ResultCardQueue = ({
 
   /** キューパスの場所登録: activeJob.result.history_id を使い直接 API 呼び出し + localStorage 更新 */
   const handleRegisterLocation = useCallback(
-    (storeName: string, placeId?: string, address?: string): void => {
+    (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number): void => {
       if (!activeJob) return
       const historyId = activeJob.result?.history_id
-      if (historyId && geolocation) {
+      const lat = storeLat ?? geolocation?.lat
+      const lng = storeLng ?? geolocation?.lng
+      if (historyId && lat !== undefined && lng !== undefined) {
         void patchLocation(historyId, {
           store_name: storeName,
-          lat: geolocation.lat,
-          lng: geolocation.lng,
+          lat,
+          lng,
           ...(address !== undefined ? { address } : {}),
           ...(placeId !== undefined ? { place_id: placeId } : {}),
         })
       } else {
-        onRegisterLocation?.(storeName, placeId, address)
+        onRegisterLocation?.(storeName, placeId, address, storeLat, storeLng)
       }
       updateTodayScanItem(activeJob.id, {
         storeName: storeName || null,
@@ -76,11 +78,17 @@ export const ResultCardQueue = ({
     [activeJob, geolocation, patchLocation, onRegisterLocation],
   )
 
-  /** キューパスの履歴パッチ: onPatchHistory を委譲しつつ localStorage も更新 */
+  /** キューパスの履歴パッチ: history_id を直接使って API を呼び + localStorage も更新 */
   const handlePatchHistory = useCallback(
     (data: PatchHistoryData): void => {
-      onPatchHistory?.(data)
       if (!activeJob) return
+      const historyId = activeJob.result?.history_id
+      if (historyId) {
+        void patchHistoryFields(historyId, data)
+      } else {
+        // history_id がない場合は親の onPatchHistory にフォールバック
+        onPatchHistory?.(data)
+      }
       const updates: Parameters<typeof updateTodayScanItem>[1] = {}
       if (data.store_name !== undefined) updates.storeName = data.store_name
       if (data.thumbnail_url !== undefined) updates.thumbnailUrl = data.thumbnail_url
@@ -89,7 +97,7 @@ export const ResultCardQueue = ({
         updateTodayScanItem(activeJob.id, updates)
       }
     },
-    [activeJob, onPatchHistory],
+    [activeJob, onPatchHistory, patchHistoryFields],
   )
 
   // タブバー: 複数ジョブがあるときのみ ResultCard 内に注入する

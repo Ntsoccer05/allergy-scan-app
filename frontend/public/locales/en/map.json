@@ -9,7 +9,9 @@
   "card": {
     "close": "Close",
     "unnamed": "Unnamed product",
-    "publicBadge": "Everyone's scan"
+    "publicBadge": "Everyone's scan",
+    "items": "{count} items",
+    "backToList": "Back to list"
   },
   "route": {
     "driving": "Drive ↗",

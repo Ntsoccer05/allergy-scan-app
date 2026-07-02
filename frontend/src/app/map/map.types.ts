@@ -6,6 +6,7 @@ export type MapPin = {
   product_name: string | null
   judgment: JudgmentShort
   detected: string[]
+  allergens: { contains: string[]; partial: string[] } | null
   thumbnail_url: string | null
   store_name: string | null
   lat: number

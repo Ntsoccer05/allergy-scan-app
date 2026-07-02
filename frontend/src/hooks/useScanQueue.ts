@@ -6,7 +6,7 @@ import { getPresignedUrl, postOcrStream, uploadToS3 } from '@/lib/api/scan.api'
 import { patchHistory } from '@/lib/api/history.api'
 import { generateThumbnail } from '@/lib/thumbnail'
 import { getPublicUrlFromPresigned } from '@/lib/s3.utils'
-import { OCR_MAX_DIMENSION, OCR_JPEG_QUALITY } from '@/app/scan/scan.constants'
+import { OCR_MAX_DIMENSION, OCR_JPEG_QUALITY, USE_OCR_AS_THUMBNAIL, getDeviceType } from '@/app/scan/scan.constants'
 
 const SCAN_TODAY_KEY = 'scan:today:v1'
 
@@ -205,20 +205,23 @@ export const useScanQueue = () => {
           blob = imageSource
         }
 
-        // サムネイルの S3 アップロード（OCR と並列実行。失敗は無視）
-        const thumbnailS3UrlPromise: Promise<string | null> = (async () => {
-          try {
-            const thumbBlob = await generateThumbnail(capturedImageUrl)
-            const { url: thumbPresigned } = await getPresignedUrl()
-            await uploadToS3(thumbPresigned, thumbBlob)
-            return getPublicUrlFromPresigned(thumbPresigned)
-          } catch {
-            return null
-          }
-        })()
+        // サムネイルの S3 アップロード（USE_OCR_AS_THUMBNAIL=true のときはスキップ）
+        const thumbnailS3UrlPromise: Promise<string | null> = USE_OCR_AS_THUMBNAIL
+          ? Promise.resolve(null)
+          : (async () => {
+              try {
+                const thumbBlob = await generateThumbnail(capturedImageUrl)
+                const { url: thumbPresigned } = await getPresignedUrl()
+                await uploadToS3(thumbPresigned, thumbBlob)
+                return getPublicUrlFromPresigned(thumbPresigned)
+              } catch {
+                return null
+              }
+            })()
 
         // Step 1: Presigned URL 取得
         const { url, s3_key } = await getPresignedUrl()
+        const ocrPublicUrl = getPublicUrlFromPresigned(url)
 
         // Step 2: XHR で S3 アップロード（進捗取得のため fetch ではなく XHR を使う）
         await new Promise<void>((resolve, reject) => {
@@ -248,7 +251,7 @@ export const useScanQueue = () => {
         let result: OcrApiResponse | null = null
         let analyzeProgress = 50
 
-        for await (const event of postOcrStream({ s3Key: s3_key })) {
+        for await (const event of postOcrStream({ s3Key: s3_key, allowLowConfidence: getDeviceType() === 'pc' })) {
           if (abortController.signal.aborted) break
           if (event.type === 'raw_text') {
             analyzeProgress = Math.min(90, analyzeProgress + 10)
@@ -270,13 +273,14 @@ export const useScanQueue = () => {
         updateJob(jobId, { state: 'done', result, progress: 100 })
         persistTodayScan(job, result, thumbnailDataUrl)
 
-        // history_id があればサムネイル S3 URL を DB に保存
+        // history_id があればサムネイル S3 URL と OCR 画像 URL を DB に保存
         const historyId = result.history_id
         if (historyId) {
           const thumbnailS3Url = await thumbnailS3UrlPromise
-          if (thumbnailS3Url) {
-            void patchHistory(historyId, { thumbnail_url: thumbnailS3Url })
-          }
+          void patchHistory(historyId, {
+            thumbnail_url: USE_OCR_AS_THUMBNAIL ? ocrPublicUrl : (thumbnailS3Url ?? undefined),
+            ocr_image_url: ocrPublicUrl,
+          })
         }
       } catch (err) {
         if (abortController.signal.aborted) return

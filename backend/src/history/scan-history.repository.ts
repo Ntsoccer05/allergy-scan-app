@@ -11,6 +11,7 @@ export type UpdateScanHistoryData = {
   memo?: string | null;
   isPublic?: boolean;
   thumbnailUrl?: string | null;
+  ocrImageUrl?: string | null;
 };
 
 /** scan_histories テーブルへの INSERT データ型。 */
@@ -22,6 +23,7 @@ export type CreateScanHistoryData = {
   detected: string[];
   location: ScanHistoryLocation | null;
   thumbnailUrl: string | null;
+  ocrImageUrl?: string | null;
   rawText?: string | null;
 };
 
@@ -60,6 +62,7 @@ export type LocationPinRecord = {
   productName: string | null;
   judgment: string;
   detected: string[];
+  allergens: ProductAllergens | null;
   thumbnailUrl: string | null;
   storeName: string | null;
   lat: number;
@@ -70,11 +73,11 @@ export type LocationPinRecord = {
 
 /**
  * マップ用ピン（公開履歴）。
- * ⚠️ プライバシー: userId・detected・rawText・memo を含まない。
+ * ⚠️ プライバシー: userId・detected・rawText・memo・allergens を含まない（ok 判定のみのため不要）。
  */
 export type PublicLocationPinRecord = Omit<
   LocationPinRecord,
-  'detected' | 'rawText'
+  'detected' | 'rawText' | 'allergens'
 >;
 
 /** $queryRaw が返すマップピン行の型（snake_case カラム名）。 */
@@ -83,6 +86,7 @@ type LocationPinRow = {
   product_name: string | null;
   judgment: string;
   detected: unknown;
+  allergens: unknown;
   thumbnail_url: string | null;
   store_name: string | null;
   lat: number;
@@ -98,6 +102,7 @@ export type ScanRecord = {
   location: ScanHistoryLocation | null;
   memo: string | null;
   thumbnailUrl: string | null;
+  ocrImageUrl: string | null;
   rawText: string | null;
 };
 
@@ -244,6 +249,7 @@ export class ScanHistoryRepository {
         detected: data.detected,
         location: data.location ?? undefined,
         thumbnailUrl: data.thumbnailUrl,
+        ocrImageUrl: data.ocrImageUrl ?? undefined,
         rawText: data.rawText ?? undefined,
       },
       select: {
@@ -309,6 +315,10 @@ export class ScanHistoryRepository {
 
     if (data.thumbnailUrl !== undefined) {
       updateData.thumbnailUrl = data.thumbnailUrl;
+    }
+
+    if (data.ocrImageUrl !== undefined) {
+      updateData.ocrImageUrl = data.ocrImageUrl;
     }
 
     await this.prisma.scanHistory.update({
@@ -389,21 +399,23 @@ export class ScanHistoryRepository {
   ): Promise<LocationPinRecord[]> {
     const rows = await this.prisma.$queryRaw<LocationPinRow[]>(Prisma.sql`
       SELECT
-        id,
-        product_name,
-        judgment,
-        detected,
-        thumbnail_url,
-        location->>'store_name' AS store_name,
-        (location->>'lat')::float8 AS lat,
-        (location->>'lng')::float8 AS lng,
-        scanned_at,
-        raw_text
-      FROM scan_histories
-      WHERE user_id = ${userId}
-        AND jsonb_typeof(location->'lat') = 'number'
-        AND jsonb_typeof(location->'lng') = 'number'
-      ORDER BY scanned_at DESC
+        sh.id,
+        sh.product_name,
+        sh.judgment,
+        sh.detected,
+        p.allergens,
+        sh.thumbnail_url,
+        sh.location->>'store_name' AS store_name,
+        (sh.location->>'lat')::float8 AS lat,
+        (sh.location->>'lng')::float8 AS lng,
+        sh.scanned_at,
+        sh.raw_text
+      FROM scan_histories sh
+      LEFT JOIN products p ON sh.product_id = p.id
+      WHERE sh.user_id = ${userId}
+        AND jsonb_typeof(sh.location->'lat') = 'number'
+        AND jsonb_typeof(sh.location->'lng') = 'number'
+      ORDER BY sh.scanned_at DESC
       LIMIT ${limit}
     `);
     return rows.map((row) => ({
@@ -412,6 +424,9 @@ export class ScanHistoryRepository {
       judgment: row.judgment,
       // JSONB フィールドを string[] として解釈する（db.types.ts 準拠）
       detected: (row.detected as string[]) ?? [],
+      allergens: row.allergens
+        ? (row.allergens as ProductAllergens)
+        : null,
       thumbnailUrl: row.thumbnail_url,
       storeName: row.store_name,
       lat: row.lat,
@@ -536,6 +551,7 @@ export class ScanHistoryRepository {
             'location', sh.location,
             'memo', sh.memo,
             'thumbnailUrl', sh.thumbnail_url,
+            'ocrImageUrl', sh.ocr_image_url,
             'rawText', sh.raw_text
           ) ORDER BY sh.scanned_at DESC
         ) AS scans

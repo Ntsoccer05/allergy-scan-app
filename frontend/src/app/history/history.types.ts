@@ -29,6 +29,7 @@ export type CreateHistoryBody = {
   judgment: 'ng' | 'partial' | 'ok'
   detected: string[]
   thumbnail_url?: string
+  ocr_image_url?: string
   raw_text?: string
   location?: { store_name: string; lat: number; lng: number }
 }
@@ -40,6 +41,7 @@ export type PatchHistoryBody = {
   memo?: string | null
   is_public?: boolean
   thumbnail_url?: string | null
+  ocr_image_url?: string | null
 }
 
 /** 履歴フィルター型。 */
@@ -106,6 +108,7 @@ export type ScanEntry = {
   location: { store_name: string; lat: number; lng: number } | null
   memo: string | null
   thumbnailUrl: string | null
+  ocrImageUrl: string | null
   rawText: string | null
 }
 

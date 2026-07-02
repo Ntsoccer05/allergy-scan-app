@@ -25,8 +25,8 @@ type ResultCardProps = {
   geolocation?: { lat: number; lng: number } | null
   /** 現在地の住所・施設候補を取得する（「場所を登録」ボタンタップ時のみ呼ぶ — 00320） */
   onFetchPlaceCandidates?: (query?: string) => Promise<PlaceCandidatesResponse | null>
-  /** 選択した場所を履歴の location に登録する（place_id は施設選択時のみ、address は逆ジオコーディング住所） */
-  onRegisterLocation?: (storeName: string, placeId?: string, address?: string) => void
+  /** 選択した場所を履歴の location に登録する（place_id は施設選択時のみ、address は逆ジオコーディング住所、storeLat/storeLng は店舗座標） */
+  onRegisterLocation?: (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number) => void
   onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
   onRetakeThumbnail?: () => void
   thumbnailUrl?: string | null
@@ -331,13 +331,13 @@ export const ResultCard = ({
   }
 
   /** 場所選択時: 店舗名・住所を編集フィールドに反映し、履歴の location を更新する */
-  const handleSelectLocation = (storeName: string, placeId?: string, address?: string): void => {
+  const handleSelectLocation = (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number): void => {
     setEditStoreName(storeName)
     if (address) setEditAddress(address)
     setLocationUiState('idle')
     setShowDropdown(false)
     setSearchQuery('')
-    onRegisterLocation?.(storeName, placeId, address || editAddress || undefined)
+    onRegisterLocation?.(storeName, placeId, address || editAddress || undefined, storeLat, storeLng)
     showSaved()
   }
 
@@ -665,7 +665,7 @@ export const ResultCard = ({
                                   key={candidate.placeId}
                                   type="button"
                                   onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => handleSelectLocation(candidate.name, candidate.placeId, candidate.address)}
+                                  onClick={() => handleSelectLocation(candidate.name, candidate.placeId, candidate.address, candidate.lat, candidate.lng)}
                                   className="w-full border-b border-gray-100 px-3 py-2.5 text-left last:border-0 hover:bg-blue-50 active:bg-blue-100"
                                 >
                                   <span className="block text-sm text-gray-800">{candidate.name}</span>

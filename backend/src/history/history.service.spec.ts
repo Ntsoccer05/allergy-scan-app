@@ -47,6 +47,7 @@ const makeGroupRecord = (
       location: null,
       memo: null,
       thumbnailUrl: null,
+      ocrImageUrl: null,
       rawText: null,
     } satisfies ScanRecord,
   ],
@@ -60,6 +61,7 @@ const makeLocationPin = (
   productName: 'テスト商品',
   judgment: 'ng',
   detected: ['卵'],
+  allergens: { contains: ['卵'], partial: [], components: [] },
   thumbnailUrl: 'https://example.com/thumb.jpg',
   storeName: 'セブンイレブン渋谷店',
   lat: 35.6762,
@@ -351,6 +353,7 @@ describe('HistoryService', () => {
           product_name: 'テスト商品',
           judgment: 'ng',
           detected: ['卵'],
+          allergens: { contains: ['卵'], partial: [] },
           thumbnail_url: 'https://example.com/thumb.jpg',
           store_name: 'セブンイレブン渋谷店',
           lat: 35.6762,
@@ -431,6 +434,7 @@ describe('HistoryService', () => {
         detected: [],
         location: { store_name: 'セブン', lat: 35.6, lng: 139.7 },
         thumbnailUrl: 'https://example.com/thumb.jpg',
+        ocrImageUrl: null,
         rawText: null,
       });
     });
