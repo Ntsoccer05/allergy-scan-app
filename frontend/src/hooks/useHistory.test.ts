@@ -19,7 +19,7 @@ const makeGroup = (id: string, scannedAt = '2026-05-18T00:00:00.000Z') => ({
   },
   judgment: 'ok' as const,
   detected: [],
-  scans: [{ id: `scan-${id}`, scannedAt, location: null, memo: null, thumbnailUrl: null, rawText: null }],
+  scans: [{ id: `scan-${id}`, scannedAt, location: null, memo: null, thumbnailUrl: null, ocrImageUrl: null, rawText: null }],
   latestScanAt: scannedAt,
 })
 

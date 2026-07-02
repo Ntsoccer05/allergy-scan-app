@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { ImageLightbox } from '@/components/atoms/ImageLightbox'
 import type { HistoryGroup } from '@/app/history/history.types'
 
 /** HistoryDetailPanel が受け取る ScanEntry の型 */
@@ -11,6 +12,7 @@ type ScanEntryLike = {
   location: { store_name: string; lat: number; lng: number } | null
   memo: string | null
   thumbnailUrl?: string | null
+  ocrImageUrl?: string | null
   rawText?: string | null
 }
 
@@ -25,8 +27,9 @@ type Props = {
   selectedScan: ScanEntryLike
   isOpen: boolean
   onClose: () => void
-  onPatch: (scanId: string, data: PatchData) => Promise<void>
-  onDelete: (scanId: string) => void
+  readonly?: boolean
+  onPatch?: (scanId: string, data: PatchData) => Promise<void>
+  onDelete?: (scanId: string) => void
 }
 
 /** rawText 内のアレルゲン名をグループ別色でハイライトする */
@@ -85,6 +88,7 @@ export const HistoryDetailPanel = ({
   selectedScan,
   isOpen,
   onClose,
+  readonly = false,
   onPatch,
   onDelete,
 }: Props) => {
@@ -95,6 +99,7 @@ export const HistoryDetailPanel = ({
   const [storeName, setStoreName] = useState(selectedScan.location?.store_name ?? '')
   const [memo, setMemo] = useState(selectedScan.memo ?? '')
   const [isSaving, setIsSaving] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   if (!isOpen) return null
 
@@ -118,6 +123,7 @@ export const HistoryDetailPanel = ({
   )
 
   const handleSave = async (): Promise<void> => {
+    if (!onPatch) return
     setIsSaving(true)
     try {
       await onPatch(selectedScan.id, {
@@ -132,6 +138,7 @@ export const HistoryDetailPanel = ({
   }
 
   const handleDeleteClick = (): void => {
+    if (!onDelete) return
     const confirmed = window.confirm(t('deleteConfirm'))
     if (!confirmed) return
     onDelete(selectedScan.id)
@@ -139,7 +146,15 @@ export const HistoryDetailPanel = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col">
+    <>
+      {lightboxOpen && displayThumbnail && (
+        <ImageLightbox
+          src={selectedScan.ocrImageUrl ?? displayThumbnail}
+          closeAriaLabel={t('detail.close')}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+      <div className="fixed inset-0 z-50 flex flex-col">
       {/* オーバーレイ */}
       <div
         className="flex-1 bg-black/40"
@@ -165,19 +180,20 @@ export const HistoryDetailPanel = ({
         <div className="px-4 py-4 space-y-4 pb-8">
           {/* サムネイル */}
           {displayThumbnail && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={displayThumbnail}
-              alt=""
-              className="h-24 w-24 object-cover rounded-xl shrink-0"
-            />
+            <button
+              type="button"
+              aria-label={t('detail.thumbnailAriaLabel')}
+              onClick={() => setLightboxOpen(true)}
+              className="block"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={displayThumbnail}
+                alt=""
+                className="h-24 w-24 object-cover rounded-xl shrink-0 cursor-pointer"
+              />
+            </button>
           )}
-
-          {/* 判定 */}
-          <div className="flex items-center gap-2 text-2xl font-bold py-2">
-            <span>{judgmentEmoji}</span>
-            <span>{judgmentLabel}</span>
-          </div>
 
           {/* 検出アレルゲン（分類別グループ表示） */}
           {group.detected.length > 0 && (
@@ -185,7 +201,7 @@ export const HistoryDetailPanel = ({
               {/* 🔴 含む */}
               {containsGroup.length > 0 && (
                 <div>
-                  <p className="text-sm font-bold text-red-700 mb-1.5">🔴 含む</p>
+                  <p className="text-sm font-bold text-red-700 mb-1.5">{t('detail.containsLabel')}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {containsGroup.map((allergen) => (
                       <span
@@ -201,7 +217,7 @@ export const HistoryDetailPanel = ({
               {/* 🟡 一部含む */}
               {partialGroup.length > 0 && (
                 <div>
-                  <p className="text-sm font-bold text-amber-700 mb-1.5">🟡 一部含む</p>
+                  <p className="text-sm font-bold text-amber-700 mb-1.5">{t('detail.partialLabel')}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {partialGroup.map((allergen) => (
                       <span
@@ -217,7 +233,7 @@ export const HistoryDetailPanel = ({
               {/* その他（components 由来など） */}
               {otherGroup.length > 0 && (
                 <div>
-                  <p className="text-sm font-bold text-gray-600 mb-1.5">⚠️ その他</p>
+                  <p className="text-sm font-bold text-gray-600 mb-1.5">{t('detail.otherLabel')}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {otherGroup.map((allergen) => (
                       <span
@@ -234,7 +250,7 @@ export const HistoryDetailPanel = ({
           )}
 
           {/* 編集モード */}
-          {isEditing ? (
+          {isEditing && !readonly ? (
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">
@@ -332,8 +348,8 @@ export const HistoryDetailPanel = ({
             ⚠️ {t('detail.caution')}
           </p>
 
-          {/* 編集・削除ボタン（表示モード時のみ） */}
-          {!isEditing && (
+          {/* 編集・削除ボタン（表示モード時のみ・readonlyでは非表示） */}
+          {!isEditing && !readonly && (
             <div className="flex gap-3 pt-1">
               <button
                 type="button"
@@ -354,5 +370,6 @@ export const HistoryDetailPanel = ({
         </div>
       </div>
     </div>
+    </>
   )
 }

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { StoreCacheRepository, toGridKey, StoreCacheInput } from './store-cache.repository';
+import { StoreCacheRepository, toGridKey, StoreCacheInput, haversineKm } from './store-cache.repository';
 import { YahooLocalSearchClient, YahooStoreRaw } from './clients/yahoo-local-search.client';
 import { StoreCandidate } from './places/places.interface';
 
@@ -36,24 +36,41 @@ export class StoreCacheService {
       }
     }
 
-    // 2. リアルタイム取得（Yahoo API 1ページ/ジャンル・都市部では不完全）
+    // 2. リアルタイム取得（0205のみ全ページ並列取得・全件カバー）
     this.logger.log(`cache miss gridKey=${gridKey} → realtime fetch`);
     const raw = await this.yahooClient.fetchNearby(lat, lng, 20);
+
+    // DB保存・ジョブ投入は fire-and-forget（レスポンスをブロックしない）
+    void this.saveAndEnqueue(raw, lat, lng, gridKey);
+
+    // 生データを直接 StoreCandidate に変換して即返却（DB roundtrip なし）
+    const candidates = rawToSortedCandidates(raw, lat, lng);
+    return { candidates, cacheLoading: false };
+  }
+
+  /** DB保存とジョブ投入を非同期で行う（レスポンスをブロックしない） */
+  private async saveAndEnqueue(
+    raw: YahooStoreRaw[],
+    lat: number,
+    lng: number,
+    gridKey: string,
+  ): Promise<void> {
     const stores: StoreCacheInput[] = raw.map(toStoreCacheInput('realtime'));
-
-    if (stores.length > 0) {
-      await this.storeCacheRepository.upsertRealtime(stores, 'regional');
+    try {
+      if (stores.length > 0) {
+        await this.storeCacheRepository.upsertRealtime(stores, 'regional');
+        // エリアカバー記録（次回はキャッシュヒットさせる）
+        await this.storeCacheRepository.recordArea(gridKey, 20, 'regional');
+      }
+    } catch (err) {
+      this.logger.warn('store cache save 失敗', err instanceof Error ? err.message : String(err));
     }
-
-    // 3. バックグラウンドジョブを常に投入（全ジャンル全ページ取得 → 次回はフルキャッシュ）
-    void this.storeCacheRepository.enqueueJob(lat, lng).catch((err) => {
+    try {
+      await this.storeCacheRepository.enqueueJob(lat, lng);
+      this.logger.log(`job enqueued lat=${lat} lng=${lng}`);
+    } catch (err) {
       this.logger.warn('cache_job 投入失敗', err instanceof Error ? err.message : String(err));
-    });
-    this.logger.log(`job enqueued lat=${lat} lng=${lng}`);
-
-    // リアルタイム取得結果を返す（都市部では不完全なため cacheLoading: true）
-    const candidates = await this.storeCacheRepository.findNearby(lat, lng);
-    return { candidates, cacheLoading: true };
+    }
   }
 
   /**
@@ -95,4 +112,18 @@ function toStoreCacheInput(source: 'batch' | 'realtime') {
     lng: raw.lng,
     source,
   });
+}
+
+/** Yahoo 生データを距離順 StoreCandidate[] に変換する（DB roundtrip なし） */
+function rawToSortedCandidates(raw: YahooStoreRaw[], lat: number, lng: number): StoreCandidate[] {
+  return raw
+    .map((s) => ({
+      name: s.name,
+      placeId: s.uid,
+      address: s.address,
+      lat: s.lat,
+      lng: s.lng,
+      distanceKm: haversineKm(lat, lng, s.lat, s.lng),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm);
 }

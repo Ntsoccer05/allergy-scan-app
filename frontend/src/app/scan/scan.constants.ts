@@ -64,6 +64,13 @@ export const OCR_JPEG_QUALITY = 0.92
 export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 
 /**
+ * OCR 用にアップロードした画像（最大 OCR_MAX_DIMENSION px）を thumbnail_url としても共用するか。
+ * true: サムネイル専用の S3 アップロードをスキップ（S3 PUT 1回に削減）。
+ * false: 従来の2アップロード方式（サムネイル 300px + OCR 画像 3072px）に戻す。
+ */
+export const USE_OCR_AS_THUMBNAIL = true
+
+/**
  * スキャン状態・エラー種別に対応するガイドメッセージ。
  * ScanGuide コンポーネントはここから取得する（コンポーネント内ハードコード禁止）。
  */

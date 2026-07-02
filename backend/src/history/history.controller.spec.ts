@@ -83,7 +83,7 @@ describe('HistoryController', () => {
           },
           judgment: 'ok',
           detected: [],
-          scans: [{ id: rec.id, scannedAt: rec.scannedAt, location: null, memo: null, thumbnailUrl: null, rawText: null }],
+          scans: [{ id: rec.id, scannedAt: rec.scannedAt, location: null, memo: null, thumbnailUrl: null, ocrImageUrl: null, rawText: null }],
           latestScanAt: rec.scannedAt.toISOString(),
         },
       ],

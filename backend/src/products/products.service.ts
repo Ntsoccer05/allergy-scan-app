@@ -58,20 +58,24 @@ export const deriveProductJudgment = (
     .filter(([, v]) => v.enabled)
     .map(([name]) => name);
 
-  const ngDetected = allergens.contains.filter((name) =>
-    enabledNames.includes(name),
-  );
-  if (ngDetected.length > 0) {
-    return { judgment: 'ng', detected: ngDetected };
-  }
-
   const partialAlertNames = Object.entries(allergies)
     .filter(([, v]) => v.enabled && v.partialAlert)
     .map(([name]) => name);
 
+  const ngDetected = allergens.contains.filter((name) =>
+    enabledNames.includes(name),
+  );
   const partialDetected = allergens.partial.filter((name) =>
     partialAlertNames.includes(name),
   );
+
+  if (ngDetected.length > 0) {
+    // ng + partial の両方を detected に含める（HistoryDetailPanel の 🔴/🟡 分類に必要）
+    return {
+      judgment: 'ng',
+      detected: [...new Set([...ngDetected, ...partialDetected])],
+    };
+  }
   if (partialDetected.length > 0) {
     return { judgment: 'partial', detected: partialDetected };
   }

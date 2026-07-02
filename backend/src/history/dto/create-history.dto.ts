@@ -50,6 +50,10 @@ export class CreateHistoryDto {
   thumbnail_url?: string;
 
   @IsOptional()
+  @IsUrl({ require_tld: false })
+  ocr_image_url?: string;
+
+  @IsOptional()
   @IsString()
   raw_text?: string;
 }

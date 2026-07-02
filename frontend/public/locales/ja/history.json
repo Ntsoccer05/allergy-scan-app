@@ -93,7 +93,11 @@
     "save": "保存",
     "cancel": "キャンセル",
     "editMode": "✏️ 編集する",
+    "containsLabel": "🔴 含む",
+    "partialLabel": "🟡 一部含む",
+    "otherLabel": "⚠️ その他",
     "caution": "購入前にラベルの実物も必ずご確認ください",
+    "thumbnailAriaLabel": "画像を拡大表示",
     "judgment": {
       "ng": "NG",
       "partial": "一部含む",

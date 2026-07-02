@@ -9,6 +9,7 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   OCR_MAX_DIMENSION,
   OCR_JPEG_QUALITY,
+  USE_OCR_AS_THUMBNAIL,
 } from '@/app/scan/scan.constants'
 import type { OcrApiResponse, OcrStreamEvent } from '@/lib/api/scan.api'
 import type { PlaceCandidatesResponse } from '@/lib/api/places.api'
@@ -110,8 +111,8 @@ type UseScanReturn = {
   toggleFacingMode: () => void
   /** 現在地の住所・施設候補を取得する（「場所を登録」ボタン用。GPS 未取得・失敗時は null） */
   fetchPlaceCandidates: (query?: string) => Promise<PlaceCandidatesResponse | null>
-  /** 選択した場所をスキャン履歴の location に登録する（place_id は施設選択時のみ、address は逆ジオコーディング住所） */
-  registerLocation: (storeName: string, placeId?: string, address?: string) => void
+  /** 選択した場所をスキャン履歴の location に登録する（place_id は施設選択時のみ、address は逆ジオコーディング住所、storeLat/storeLng は店舗座標） */
+  registerLocation: (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number) => void
   /**
    * 商品名未入力でキャンセルする際にスキャン履歴を削除してリセットする。
    * バックエンドが自動保存した履歴エントリを破棄する。
@@ -127,9 +128,11 @@ const buildHistoryBody = (result: ScanResult): CreateHistoryBody | null => {
     const { data } = result
     if (!data.found || !data.judgment) return null
     return {
+      product_id: data.product_id ?? undefined,
       product_name: data.product_name ?? undefined,
       judgment: data.judgment,
       detected: data.detected ?? [],
+      raw_text: data.raw_text ?? undefined,
     }
   }
 
@@ -223,18 +226,20 @@ export const useScan = (): UseScanReturn => {
         // ⚠️ RESULT dispatch 前にセットして結果画面に即表示させる
         dispatch({ type: 'SET_THUMBNAIL_URL', url: originalColorDataUrl })
 
-        // Branch B: サムネイルアップロード（OCR と並列実行。失敗は無視して thumbnail_url=null とする）
-        // originalColorDataUrl を使用してOCR前処理（グレースケール化等）が適用されないようにする
-        const thumbnailUrlPromise: Promise<string | null> = (async () => {
-          try {
-            const thumbBlob = await generateThumbnail(originalColorDataUrl)
-            const { url: thumbPresigned } = await fetchPresignedUrl()
-            await putS3(thumbPresigned, thumbBlob)
-            return getPublicUrlFromPresigned(thumbPresigned)
-          } catch {
-            return null
-          }
-        })()
+        // Branch B: サムネイルアップロード（USE_OCR_AS_THUMBNAIL=true のときはスキップ）
+        // USE_OCR_AS_THUMBNAIL=false に戻せば 300px サムネイル専用アップロードに戻る
+        const thumbnailUrlPromise: Promise<string | null> = USE_OCR_AS_THUMBNAIL
+          ? Promise.resolve(null)
+          : (async () => {
+              try {
+                const thumbBlob = await generateThumbnail(originalColorDataUrl)
+                const { url: thumbPresigned } = await fetchPresignedUrl()
+                await putS3(thumbPresigned, thumbBlob)
+                return getPublicUrlFromPresigned(thumbPresigned)
+              } catch {
+                return null
+              }
+            })()
 
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob((b) => {
@@ -250,6 +255,7 @@ export const useScan = (): UseScanReturn => {
 
         const { url, s3_key } = await fetchPresignedUrl()
         await putS3(url, blob)
+        const ocrPublicUrl = getPublicUrlFromPresigned(url)
 
         const geo = geolocationRef.current
         const stream = scanOcrStream({
@@ -308,11 +314,12 @@ export const useScan = (): UseScanReturn => {
         const historyIdFromBackend = ocrResult.history_id
         if (historyIdFromBackend) {
           scanHistoryIdRef.current = historyIdFromBackend
-          // S3 アップロード完了後に thumbnail_url をパッチ（失敗は無視）
+          // S3 アップロード完了後に thumbnail_url / ocr_image_url をパッチ（失敗は無視）
           const thumbnailUrl = await thumbnailUrlPromise
-          if (thumbnailUrl) {
-            void patchHistoryFields(historyIdFromBackend, { thumbnail_url: thumbnailUrl })
-          }
+          void patchHistoryFields(historyIdFromBackend, {
+            thumbnail_url: USE_OCR_AS_THUMBNAIL ? ocrPublicUrl : (thumbnailUrl ?? undefined),
+            ocr_image_url: ocrPublicUrl,
+          })
         } else {
           // 未認証ユーザー: フォールバックとして POST /history で保存
           const historyBody = buildHistoryBody(scanResult)
@@ -320,7 +327,8 @@ export const useScan = (): UseScanReturn => {
             const thumbnailUrl = await thumbnailUrlPromise
             const saved = await saveHistory({
               ...historyBody,
-              thumbnail_url: thumbnailUrl ?? undefined,
+              thumbnail_url: USE_OCR_AS_THUMBNAIL ? ocrPublicUrl : (thumbnailUrl ?? undefined),
+              ocr_image_url: ocrPublicUrl,
             })
             if (saved) {
               scanHistoryIdRef.current = saved.id
@@ -545,16 +553,19 @@ export const useScan = (): UseScanReturn => {
     [fetchPlaceCandidatesApi],
   )
 
-  /** 選択した場所を履歴の location に登録する。place_id は将来の店舗キー統一用（00320）、address は逆ジオコーディング住所 */
+  /** 選択した場所を履歴の location に登録する。storeLat/storeLng が渡された場合は店舗座標を使用し、なければユーザーの現在地にフォールバックする。 */
   const registerLocation = useCallback(
-    (storeName: string, placeId?: string, address?: string): void => {
+    (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number): void => {
       const historyId = scanHistoryIdRef.current
       const geo = geolocationRef.current
-      if (!historyId || !geo) return
+      if (!historyId) return
+      const lat = storeLat ?? geo?.lat
+      const lng = storeLng ?? geo?.lng
+      if (lat === undefined || lng === undefined) return
       void patchLocation(historyId, {
         store_name: storeName,
-        lat: geo.lat,
-        lng: geo.lng,
+        lat,
+        lng,
         ...(address !== undefined ? { address } : {}),
         ...(placeId !== undefined ? { place_id: placeId } : {}),
       })

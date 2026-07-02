@@ -55,6 +55,7 @@ const lastScanTimestamps = new Map<string, number>();
 /** POST /scan/barcode のレスポンス型（openapi.yaml BarcodeScanResponse 準拠）。 */
 export type BarcodeScanResult = {
   found: boolean;
+  product_id?: string | null;
   product_name?: string | null;
   allergens?: ProductAllergens | null;
   judgment?: string | null;
@@ -131,6 +132,7 @@ export class ScanService {
     ) {
       this.logger.log(`DB hit for JAN: ${janCode}`);
       const result = this.buildResultFromDb(
+        dbProduct.id,
         dbProduct.productName,
         dbProduct.allergens,
         false,
@@ -544,6 +546,7 @@ export class ScanService {
   }
 
   private buildResultFromDb(
+    productId: string | null,
     productName: string | null,
     allergens: ProductAllergens,
     fromCache: boolean,
@@ -571,6 +574,7 @@ export class ScanService {
 
     return {
       found: true,
+      product_id: productId,
       product_name: productName,
       allergens,
       judgment,
