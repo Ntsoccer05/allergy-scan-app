@@ -118,7 +118,7 @@ type UseScanReturn = {
    * バックエンドが自動保存した履歴エントリを破棄する。
    */
   discardResult: () => void
-  onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
+  onPatchHistory: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null; is_public?: boolean }) => void
   scanQueue: ReturnType<typeof useScanQueue>
 }
 
@@ -591,7 +591,7 @@ export const useScan = (): UseScanReturn => {
   }, [deleteHistoryEntry, stopScan])
 
   const onPatchHistory = useCallback(
-    (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }): void => {
+    (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null; is_public?: boolean }): void => {
       const historyId = scanHistoryIdRef.current
       if (!historyId) return
       void patchHistoryFields(historyId, data)

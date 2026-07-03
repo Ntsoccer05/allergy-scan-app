@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { AllergenResult, HighlightItem } from '@/app/scan/scan.types'
 import type { OcrApiResponse } from '@/lib/api/scan.api'
 import { getPresignedUrl, postOcrStream, uploadToS3 } from '@/lib/api/scan.api'
 import { patchHistory } from '@/lib/api/history.api'
@@ -18,9 +19,15 @@ export type TodayScanItem = {
   productName: string | null
   detected: string[]
   rawText: string | null
+  /** アレルゲンごとの判定結果（警告色・ハイライト表示用）。旧データとの互換のため optional。 */
+  results?: AllergenResult[]
+  /** 原材料テキストハイライト用。旧データとの互換のため optional。 */
+  highlights?: HighlightItem[]
   storeName?: string | null   // 場所登録後に updateTodayScanItem で更新
   address?: string | null     // 同上
   thumbnailUrl?: string | null // onPatchHistory で更新
+  historyId?: string | null   // PATCH /history/:id で is_public を更新するために必要
+  isPublic?: boolean          // 公開/非公開フラグ（デフォルト false = 非公開）
 }
 
 type TodayScanCache = {
@@ -31,7 +38,7 @@ type TodayScanCache = {
 /** localStorage の今日のスキャン1件を後から更新する（場所登録・サムネイル設定後）。 */
 export const updateTodayScanItem = (
   id: string,
-  updates: Partial<Pick<TodayScanItem, 'storeName' | 'address' | 'thumbnailUrl' | 'productName'>>,
+  updates: Partial<Pick<TodayScanItem, 'storeName' | 'address' | 'thumbnailUrl' | 'productName' | 'isPublic'>>,
 ): void => {
   if (typeof window === 'undefined') return
   try {
@@ -112,7 +119,11 @@ const writeTodayScanItem = (
     productName: result.product_name ?? null,
     detected,
     rawText: result.raw_text,
+    results: result.results,
+    highlights: result.highlights,
     thumbnailUrl: thumbnailDataUrl ?? null,
+    historyId: result.history_id ?? null,
+    isPublic: false,
   })
   try {
     localStorage.setItem(SCAN_TODAY_KEY, JSON.stringify(cache))

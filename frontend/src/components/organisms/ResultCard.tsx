@@ -2,14 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import type { AllergenResult, DetectionType, HighlightItem, Judgment, ScanResult } from '@/app/scan/scan.types'
+import type { DetectionType, Judgment, ScanResult } from '@/app/scan/scan.types'
 import type { PlaceCandidatesResponse } from '@/lib/api/places.api'
-import {
-  deriveOcrJudgment,
-  DETECTION_DISPLAY,
-  HIGHLIGHT_CLASS,
-  splitByHighlights,
-} from '@/lib/allergen.utils'
+import { deriveOcrJudgment } from '@/lib/allergen.utils'
+import { ScanResultBody, HighlightedText, formatRawText } from './ScanResultBody'
 import { VIBRATE_SHARE_MS } from '@/app/scan/scan.constants'
 import { VIBRATION_STORAGE_KEY } from '@/app/settings/page'
 
@@ -27,7 +23,7 @@ type ResultCardProps = {
   onFetchPlaceCandidates?: (query?: string) => Promise<PlaceCandidatesResponse | null>
   /** 選択した場所を履歴の location に登録する（place_id は施設選択時のみ、address は逆ジオコーディング住所、storeLat/storeLng は店舗座標） */
   onRegisterLocation?: (storeName: string, placeId?: string, address?: string, storeLat?: number, storeLng?: number) => void
-  onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null }) => void
+  onPatchHistory?: (data: { product_name?: string | null; store_name?: string | null; memo?: string | null; thumbnail_url?: string | null; is_public?: boolean }) => void
   onRetakeThumbnail?: () => void
   thumbnailUrl?: string | null
   /** 複数スキャン時のタブ切り替えバー（ResultCardQueue から注入） */
@@ -82,140 +78,6 @@ const isNgJudgment = (judgment: Judgment | null): boolean =>
 const supportsWebShare = (): boolean =>
   typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
-/** 食品ラベルの定型セクション見出し前に改行を挿入して読みやすくする */
-const LABEL_SECTION_KEYWORDS = [
-  '原材料名', 'アレルギー物質', '栄養成分', '保存方法',
-  '賞味期限', '製造者', '販売者', '内容量', '名称', '原産国',
-]
-const formatRawText = (text: string): string => {
-  let result = text
-  for (const kw of LABEL_SECTION_KEYWORDS) {
-    result = result.replace(new RegExp(`([^\n])(${kw})`, 'g'), '$1\n$2')
-  }
-  return result
-}
-
-/** highlights[] を使って raw_text をハイライト表示するコンポーネント（XSS 防止: React コンポーネント配列で安全に実装） */
-const HighlightedText = ({
-  rawText,
-  highlights,
-}: {
-  rawText: string
-  highlights: HighlightItem[]
-}) => {
-  const parts = splitByHighlights(formatRawText(rawText), highlights)
-  return (
-    <p className="mt-2 text-sm lg:text-base text-gray-600 bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">
-      {parts.map((part, i) =>
-        part.highlight ? (
-          <mark key={i} className={HIGHLIGHT_CLASS[part.judgment]}>
-            {part.text}
-          </mark>
-        ) : (
-          <span key={i}>{part.text}</span>
-        ),
-      )}
-    </p>
-  )
-}
-
-/**
- * 1アレルギーの判定行コンポーネント。
- * detection_type: 'contains' → 🔴 NG、'partial' → 🟡 注意、'may_contain' → 🟠 注意喚起
- * ⚠️ 安全設計: may_contain は製造ラインのコンタミ。contains（NG）と混同禁止
- */
-const AllergenRow = ({ item }: { item: AllergenResult }) => {
-  const displayLabel = DETECTION_DISPLAY[item.detection_type]
-  return (
-    <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2 space-y-1.5">
-      <div className="flex items-center gap-2 text-sm lg:text-base font-medium">
-        <span>{displayLabel}</span>
-        <span className="text-gray-800">{item.allergen}</span>
-      </div>
-      {item.detected.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {item.detected.map((d) => (
-            <span
-              key={d}
-              className="text-xs sm:text-sm bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700"
-            >
-              {d}
-            </span>
-          ))}
-        </div>
-      )}
-      {item.reason && (
-        <p className="text-xs sm:text-sm text-gray-500">{item.reason}</p>
-      )}
-    </div>
-  )
-}
-
-/**
- * 同一 detection_type の複数アレルギーをまとめて1カードで表示するコンポーネント。
- * contains（🔴）: アレルゲンごとに行を分けて検出成分を表示。
- * partial（🟡）/ may_contain（🟠）: アレルゲン名を連結し検出成分を統合表示。
- */
-const GroupedAllergenRow = ({
-  items,
-  detectionType,
-}: {
-  items: AllergenResult[]
-  detectionType: 'contains' | 'partial' | 'may_contain'
-}) => {
-  const displayLabel = DETECTION_DISPLAY[detectionType]
-
-  if (detectionType === 'contains') {
-    return (
-      <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2 space-y-2">
-        <div className="flex items-center gap-2 text-sm lg:text-base font-medium">
-          <span>{displayLabel}</span>
-        </div>
-        {items.map((item) => (
-          <div key={item.allergen}>
-            <span className="text-sm lg:text-base text-gray-800 font-medium">{item.allergen}</span>
-            {item.detected.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {item.detected.map((d) => (
-                  <span
-                    key={d}
-                    className="text-xs sm:text-sm bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700"
-                  >
-                    {d}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  const allergenNames = items.map((item) => item.allergen).join('・')
-  const allDetected = [...new Set(items.flatMap((item) => item.detected))]
-
-  return (
-    <div className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2 space-y-1.5">
-      <div className="flex items-center gap-2 text-sm lg:text-base font-medium flex-wrap">
-        <span>{displayLabel}</span>
-        <span className="text-gray-800">{allergenNames}</span>
-      </div>
-      {allDetected.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {allDetected.map((d) => (
-            <span
-              key={d}
-              className="text-xs sm:text-sm bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700"
-            >
-              {d}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export const ResultCard = ({
   result,
@@ -258,6 +120,9 @@ export const ResultCard = ({
   const [placeCandidates, setPlaceCandidates] = useState<PlaceCandidatesResponse | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+
+  // 公開設定（デフォルト: 自分のスキャン = 非公開）
+  const [isPublic, setIsPublic] = useState(false)
 
   // 保存フィードバック: フィールド保存後に「✓ 保存しました」を短時間表示する
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
@@ -407,7 +272,7 @@ export const ResultCard = ({
             </p>
           ) : null}
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-            <p className="text-sm lg:text-base text-amber-800 font-medium">{t('caution')}</p>
+            <p className="text-base lg:text-lg text-amber-800 font-medium">{t('caution')}</p>
           </div>
           <button
             type="button"
@@ -445,7 +310,7 @@ export const ResultCard = ({
           <p className="text-base lg:text-lg font-bold text-red-700">{t('unreadableTitle')}</p>
           <p className="text-sm lg:text-base text-gray-600">{t('unreadableMessage')}</p>
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-            <p className="text-sm lg:text-base text-amber-800 font-medium">{t('caution')}</p>
+            <p className="text-base lg:text-lg text-amber-800 font-medium">{t('caution')}</p>
           </div>
           <button
             type="button"
@@ -460,19 +325,15 @@ export const ResultCard = ({
   }
 
   const isNg = isNgJudgment(judgment)
+  const bodyJudgment: 'ng' | 'partial' | 'ok' =
+    judgment === '含む' ? 'ng' : judgment === '一部含む' ? 'partial' : 'ok'
   const canShare = judgment === 'なし'
   const supportsShare = supportsWebShare()
 
   // ⚠️ 安全設計: バーコード判定（JAN キャッシュ = 他ユーザーの OCR 結果や OFF データ）でも
   // raw_text があれば表示し、本人が読み取り内容を検証できるようにする
   const raw_text =
-    result.type === 'ocr'
-      ? result.data.raw_text
-      : result.type === 'barcode'
-        ? (result.data.raw_text ?? undefined)
-        : undefined
-  const highlights =
-    result.type === 'ocr' ? result.data.highlights : []
+    result.type === 'barcode' ? (result.data.raw_text ?? undefined) : undefined
 
   const barcodeDected =
     result.type === 'barcode' ? (result.data.detected ?? []) : []
@@ -519,43 +380,70 @@ export const ResultCard = ({
       {/* タブバー（複数スキャン時に ResultCardQueue から注入） */}
       {tabBar}
 
-      {/* 判定サマリ */}
-      {result.type === 'ocr' && result.data.results.length > 0 ? (
-        // OCR: アレルギーごとの個別判定をコンパクトに並べる（detection_type 基準で絵文字を決定）
-        <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-1 shrink-0">
-          {[...result.data.results]
-            .sort((a, b) => {
-              // contains(🔴) > partial(🟡) > may_contain(🟠) > 判定不能(⚠️) > なし(✅)
-              const detectionOrder: Record<DetectionType, number> = { contains: 0, partial: 1, may_contain: 2 }
-              const getOrder = (r: typeof a): number => {
-                if (r.judgment === 'なし') return 4
-                if (r.judgment === '判定不能') return 3
-                return detectionOrder[r.detection_type] ?? 2
-              }
-              return getOrder(a) - getOrder(b)
-            })
-            .map((r) => {
-              const emoji =
-                r.judgment === 'なし' ? '✅' :
-                r.judgment === '判定不能' ? '⚠️' :
-                r.detection_type === 'contains' ? '🔴' :
-                r.detection_type === 'partial' ? '🟡' :
-                '🟠'
-              return (
-                <span key={r.allergen} className="flex items-center gap-1 text-sm font-semibold">
-                  <span>{emoji}</span>
-                  <span className="text-gray-800">{r.allergen}</span>
-                </span>
-              )
-            })}
+      {/* 判定サマリ + 公開トグル（同一行） */}
+      <div className="px-4 pb-2 flex items-center gap-2 shrink-0">
+        <div className="flex-1 flex flex-wrap gap-x-4 gap-y-1">
+          {result.type === 'ocr' && result.data.results.length > 0 ? (
+            [...result.data.results]
+              .sort((a, b) => {
+                // contains(🔴) > partial(🟡) > may_contain(🟠) > 判定不能(⚠️) > なし(✅)
+                const detectionOrder: Record<DetectionType, number> = { contains: 0, partial: 1, may_contain: 2 }
+                const getOrder = (r: typeof a): number => {
+                  if (r.judgment === 'なし') return 4
+                  if (r.judgment === '判定不能') return 3
+                  return detectionOrder[r.detection_type] ?? 2
+                }
+                return getOrder(a) - getOrder(b)
+              })
+              .map((r) => {
+                const emoji =
+                  r.judgment === 'なし' ? '✅' :
+                  r.judgment === '判定不能' ? '⚠️' :
+                  r.detection_type === 'contains' ? '🔴' :
+                  r.detection_type === 'partial' ? '🟡' :
+                  '🟠'
+                return (
+                  <span key={r.allergen} className="flex items-center gap-1 text-sm font-semibold">
+                    <span>{emoji}</span>
+                    <span className="text-gray-800">{r.allergen}</span>
+                  </span>
+                )
+              })
+          ) : judgment !== null ? (
+            <span className="flex items-center gap-2 text-lg font-bold">
+              <span>{JUDGMENT_EMOJI[judgment]}</span>
+              <span>{judgmentLabel[judgment]}</span>
+            </span>
+          ) : null}
         </div>
-      ) : judgment !== null ? (
-        // バーコード: 全体判定を1行表示
-        <div className="px-4 pb-2 flex items-center gap-2 text-lg font-bold shrink-0">
-          <span>{JUDGMENT_EMOJI[judgment]}</span>
-          <span>{judgmentLabel[judgment]}</span>
-        </div>
-      ) : null}
+        {onPatchHistory && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`text-xs font-medium ${isPublic ? 'text-blue-600' : 'text-gray-400'}`}>
+              {isPublic ? t('visibility.public') : t('visibility.private')}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isPublic}
+              onClick={() => {
+                const next = !isPublic
+                setIsPublic(next)
+                onPatchHistory({ is_public: next })
+                showSaved()
+              }}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                isPublic ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                  isPublic ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* スクロール可能なコンテンツ（overflow-hidden により高さでクリップ） */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
@@ -751,71 +639,15 @@ export const ResultCard = ({
           </p>
         )}
 
-        {/* OCR: 全アレルギー判定結果（NG 個別 / 注意まとめ / 注意喚起まとめ に分割） */}
+        {/* OCR: アレルゲン判定結果 + 信頼度警告 + 原材料テキスト（ScanResultBody に委譲） */}
         {result.type === 'ocr' && (
-          <>
-            {result.data.results.length === 0 ? (
-              <p className="text-sm lg:text-base text-gray-500">{t('noAllergenSetting')}</p>
-            ) : (() => {
-              // contains（🔴 NG）: 個別表示
-              const containsItems = result.data.results.filter(
-                r => r.judgment !== 'なし' && r.detection_type === 'contains'
-              )
-              // partial（🟡 注意）: まとめて1行表示
-              const partialItems = result.data.results.filter(
-                r => r.judgment !== 'なし' && r.detection_type === 'partial'
-              )
-              // may_contain（🟠 注意喚起）: まとめて1行表示
-              const mayContainItems = result.data.results.filter(
-                r => r.judgment !== 'なし' && r.detection_type === 'may_contain'
-              )
-              const hasNgSection = containsItems.length > 0 || partialItems.length > 0
-              return (
-                <div className="space-y-4" aria-label={t('allergenListLabel')}>
-                  {judgment === 'なし' && (
-                    <p className="text-sm lg:text-base font-medium text-green-700">{t('overallOk')}</p>
-                  )}
-                  {hasNgSection && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-bold text-red-700 border-b border-red-100 pb-1">
-                        {t('sectionNg')}
-                      </p>
-                      {containsItems.length > 1 ? (
-                        <GroupedAllergenRow items={containsItems} detectionType="contains" />
-                      ) : (
-                        containsItems.map((item) => (
-                          <AllergenRow key={item.allergen} item={item} />
-                        ))
-                      )}
-                      {partialItems.length > 0 && (
-                        <GroupedAllergenRow items={partialItems} detectionType="partial" />
-                      )}
-                    </div>
-                  )}
-                  {mayContainItems.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-bold text-orange-600 border-b border-orange-100 pb-1">
-                        {t('sectionMayContain')}
-                      </p>
-                      <GroupedAllergenRow items={mayContainItems} detectionType="may_contain" />
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-
-            {/* 信頼度警告 */}
-            {result.data.confidence === 'low' && (
-              <p className="text-sm lg:text-base text-red-700 bg-red-50 rounded p-3 font-medium">
-                {t('confidenceLow')}
-              </p>
-            )}
-            {result.data.confidence === 'medium' && (
-              <p className="text-sm lg:text-base text-amber-600 bg-amber-50 rounded p-3">
-                {t('confidenceMedium')}
-              </p>
-            )}
-          </>
+          <ScanResultBody
+            results={result.data.results}
+            highlights={result.data.highlights}
+            rawText={result.data.raw_text}
+            judgment={bodyJudgment}
+            confidence={result.data.confidence}
+          />
         )}
 
         {/* バーコードスキャン: detected 一覧 */}
@@ -830,8 +662,8 @@ export const ResultCard = ({
           </div>
         )}
 
-        {/* raw_text 展開表示（implementation_rules.md §2: 省略禁止）*/}
-        {raw_text !== undefined && (
+        {/* バーコード: raw_text 展開表示（implementation_rules.md §2: 省略禁止。OCR は ScanResultBody が処理）*/}
+        {result.type === 'barcode' && raw_text !== undefined && (
           <div>
             <button
               type="button"
@@ -842,7 +674,7 @@ export const ResultCard = ({
               {rawTextOpen ? t('rawTextCollapse') : t('rawTextExpand')}
             </button>
             {rawTextOpen && (
-              <HighlightedText rawText={raw_text} highlights={highlights} />
+              <HighlightedText rawText={raw_text} highlights={[]} />
             )}
             {/* アクセシビリティ: 展開前でも DOM 内に存在させる（スクリーンリーダー対応） */}
             <span className="sr-only">{raw_text}</span>
@@ -861,6 +693,7 @@ export const ResultCard = ({
             className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400 resize-none"
           />
         </div>
+
 
         {/* サムネイル表示 + 再撮影ボタン */}
         {onRetakeThumbnail && (
@@ -943,7 +776,7 @@ export const ResultCard = ({
           </div>
         ) : (
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-            <p className="text-sm lg:text-base text-amber-800 font-medium">
+            <p className="text-base lg:text-lg text-amber-800 font-medium">
               {t('caution')}
             </p>
           </div>

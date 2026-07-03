@@ -14,6 +14,7 @@ type ScanEntryLike = {
   thumbnailUrl?: string | null
   ocrImageUrl?: string | null
   rawText?: string | null
+  isPublic?: boolean
 }
 
 type PatchData = {
@@ -30,6 +31,7 @@ type Props = {
   readonly?: boolean
   onPatch?: (scanId: string, data: PatchData) => Promise<void>
   onDelete?: (scanId: string) => void
+  onTogglePublic?: (scanId: string, isPublic: boolean) => void
 }
 
 /** rawText 内のアレルゲン名をグループ別色でハイライトする */
@@ -91,6 +93,7 @@ export const HistoryDetailPanel = ({
   readonly = false,
   onPatch,
   onDelete,
+  onTogglePublic,
 }: Props) => {
   const t = useTranslations('history')
   const [isEditing, setIsEditing] = useState(false)
@@ -100,6 +103,7 @@ export const HistoryDetailPanel = ({
   const [memo, setMemo] = useState(selectedScan.memo ?? '')
   const [isSaving, setIsSaving] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [localIsPublic, setLocalIsPublic] = useState(selectedScan.isPublic ?? false)
 
   if (!isOpen) return null
 
@@ -178,22 +182,53 @@ export const HistoryDetailPanel = ({
         </div>
 
         <div className="px-4 py-4 space-y-4 pb-8">
-          {/* サムネイル */}
-          {displayThumbnail && (
-            <button
-              type="button"
-              aria-label={t('detail.thumbnailAriaLabel')}
-              onClick={() => setLightboxOpen(true)}
-              className="block"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={displayThumbnail}
-                alt=""
-                className="h-24 w-24 object-cover rounded-xl shrink-0 cursor-pointer"
-              />
-            </button>
-          )}
+          {/* サムネイル行（トグルと同列） */}
+          <div className="flex items-start justify-between">
+            {displayThumbnail ? (
+              <button
+                type="button"
+                aria-label={t('detail.thumbnailAriaLabel')}
+                onClick={() => setLightboxOpen(true)}
+                className="block"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={displayThumbnail}
+                  alt=""
+                  className="h-24 w-24 object-cover rounded-xl shrink-0 cursor-pointer"
+                />
+              </button>
+            ) : (
+              <div />
+            )}
+            {!readonly && onTogglePublic && (
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${localIsPublic ? 'text-blue-600' : 'text-gray-400'}`}>
+                  {localIsPublic ? t('visibility.public') : t('visibility.private')}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={localIsPublic}
+                  aria-label={t('visibility.label')}
+                  onClick={() => {
+                    const next = !localIsPublic
+                    setLocalIsPublic(next)
+                    onTogglePublic(selectedScan.id, next)
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                    localIsPublic ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      localIsPublic ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* 検出アレルゲン（分類別グループ表示） */}
           {group.detected.length > 0 && (
@@ -344,7 +379,7 @@ export const HistoryDetailPanel = ({
           )}
 
           {/* ⚠️ 安全設計: 免責文省略禁止（implementation_rules.md §3） */}
-          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
+          <p className="text-sm md:text-base lg:text-base font-medium text-amber-700 bg-amber-50 rounded-lg px-3 py-2.5 border border-amber-200">
             ⚠️ {t('detail.caution')}
           </p>
 

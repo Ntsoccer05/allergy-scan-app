@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import type { TodayScanItem } from '@/hooks/useScanQueue'
+import { ScanResultBody } from './ScanResultBody'
 
 /** セッション内で blob URL を付与した表示用の型 */
 type DisplayItem = TodayScanItem & { capturedImageUrl?: string | null }
@@ -21,12 +22,13 @@ type Props = {
   items: DisplayItem[]
   isOpen: boolean
   onClose: () => void
+  /** is_public を変更するコールバック。itemId は localStorage キー、historyId は PATCH 対象の DB ID。 */
+  onTogglePublic?: (itemId: string, historyId: string, isPublic: boolean) => void
 }
 
-export const TodayScansSheet = ({ items, isOpen, onClose }: Props) => {
+export const TodayScansSheet = ({ items, isOpen, onClose, onTogglePublic }: Props) => {
   const t = useTranslations('scan')
   const [selected, setSelected] = useState<DisplayItem | null>(null)
-  const [rawTextOpen, setRawTextOpen] = useState(true)
   const [panelHeight, setPanelHeight] = useState<number | null>(null)
   const dragStartY = useRef(0)
   const dragStartHeight = useRef(0)
@@ -76,7 +78,6 @@ export const TodayScansSheet = ({ items, isOpen, onClose }: Props) => {
 
   const handleBack = (): void => {
     setSelected(null)
-    setRawTextOpen(true)
     setPanelHeight(null)
   }
 
@@ -120,11 +121,37 @@ export const TodayScansSheet = ({ items, isOpen, onClose }: Props) => {
             </button>
           </div>
 
-          {/* 商品名（戻るの下） */}
-          <div className="px-4 pb-2 shrink-0">
-            <h2 className="text-base font-bold text-gray-900 truncate">
+          {/* 商品名 + 公開トグル（同一行） */}
+          <div className="flex items-center gap-2 px-4 pb-2 shrink-0">
+            <h2 className="flex-1 text-base font-bold text-gray-900 truncate">
               {selected.productName ?? t('unnamed')}
             </h2>
+            {selected.historyId && onTogglePublic && (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-xs font-medium ${selected.isPublic ? 'text-blue-600' : 'text-gray-400'}`}>
+                  {selected.isPublic ? t('result.visibility.public') : t('result.visibility.private')}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!!selected.isPublic}
+                  onClick={() => {
+                    const next = !selected.isPublic
+                    setSelected({ ...selected, isPublic: next })
+                    onTogglePublic(selected.id, selected.historyId!, next)
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                    selected.isPublic ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      selected.isPublic ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* コンテンツ */}
@@ -162,42 +189,18 @@ export const TodayScansSheet = ({ items, isOpen, onClose }: Props) => {
               </div>
             )}
 
-            {/* 検出アレルゲンチップ */}
-            {selected.detected.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selected.detected.map((allergen) => (
-                  <span
-                    key={allergen}
-                    className="text-xs bg-red-50 border border-red-200 text-red-700 rounded px-2 py-0.5"
-                  >
-                    🔴 {allergen}
-                  </span>
-                ))}
-              </div>
-            )}
 
-            {/* rawText アコーディオン（デフォルト展開） */}
-            {selected.rawText != null && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setRawTextOpen((v) => !v)}
-                  className="text-sm text-blue-600 underline text-left"
-                  aria-expanded={rawTextOpen}
-                >
-                  {rawTextOpen ? t('result.rawTextCollapse') : t('result.rawTextExpand')}
-                </button>
-                {rawTextOpen && (
-                  <p className="mt-2 text-sm text-gray-600 bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">
-                    {selected.rawText}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* アレルゲン判定 + 原材料テキスト（ResultCard と同一形式） */}
+            <ScanResultBody
+              results={selected.results ?? []}
+              highlights={selected.highlights ?? []}
+              rawText={selected.rawText ?? null}
+              judgment={selected.judgment}
+            />
 
             {/* ⚠️ 安全設計: 免責表示は全判定で常時表示（省略禁止） */}
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-              <p className="text-sm text-amber-800 font-medium">{t('result.caution')}</p>
+              <p className="text-sm md:text-base lg:text-lg text-amber-800 font-medium">{t('result.caution')}</p>
             </div>
           </div>
         </div>
@@ -230,7 +233,7 @@ export const TodayScansSheet = ({ items, isOpen, onClose }: Props) => {
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={() => { setSelected(item); setRawTextOpen(true); setPanelHeight(null) }}
+                    onClick={() => { setSelected(item); setPanelHeight(null) }}
                     className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 text-left transition-colors"
                   >
                     <span className="text-xl shrink-0">{JUDGMENT_EMOJI[item.judgment]}</span>

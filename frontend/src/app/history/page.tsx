@@ -161,6 +161,23 @@ export default function HistoryPage() {
       { timeout: GEO_SORT_TIMEOUT_MS },
     )
   }
+
+  /** SP/tablet の <select> からの並び順変更ハンドラ。 */
+  const handleSortChange = (value: string): void => {
+    if (value === 'nearest') {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) return
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setSortOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+          setSortMode('nearest')
+        },
+        () => { setSortMode(null) },
+        { timeout: GEO_SORT_TIMEOUT_MS },
+      )
+      return
+    }
+    setSortMode(value === 'newest' ? 'newest' : null)
+  }
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
   const [othersDetailGroup, setOthersDetailGroup] = useState<HistoryGroup | null>(null)
   const [systemDetailGroup, setSystemDetailGroup] = useState<HistoryGroup | null>(null)
@@ -390,14 +407,14 @@ export default function HistoryPage() {
     <main className="flex flex-col min-h-screen px-4 pb-20 lg:pb-8 pt-6">
       <h1 className="text-xl font-bold text-gray-900 mb-4">{t('title')}</h1>
 
-      {/* みんな/自分/システム タブ */}
-      <div className="flex gap-2 mb-4 border-b border-gray-200">
+      {/* みんな/自分/システム タブ（whitespace-nowrap + flex-1 で折り返し防止） */}
+      <div className="flex mb-4 border-b border-gray-200">
         {(['mine', 'others'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => handleTabChange(tab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`flex-1 text-center whitespace-nowrap px-2 py-2 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500'
@@ -410,7 +427,7 @@ export default function HistoryPage() {
           <button
             type="button"
             onClick={() => handleTabChange('system')}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`flex-1 text-center whitespace-nowrap px-2 py-2 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'system'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500'
@@ -424,37 +441,59 @@ export default function HistoryPage() {
       {/* 自分のスキャンタブ */}
       {activeTab === 'mine' && (
         <>
-          {/* フィルタタブ */}
-          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
-            {/* 選択モードバー */}
-            {isSelectMode && (
-              <>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button type="button" onClick={handleCancelSelect} className="text-sm text-gray-600">
-                    ✕ {t('select.cancel')}
-                  </button>
-                  <button type="button" onClick={handleSelectAll} className="text-sm text-blue-600">
-                    {t('select.selectAll')}
-                  </button>
-                </div>
-                <span className="flex-1 text-right text-sm text-gray-700">
-                  {t('select.count', { count: selectedGroupKeys.size })}
-                </span>
-              </>
-            )}
+          {/* 選択モードバー（共通） */}
+          {isSelectMode && (
+            <div className="flex items-center gap-3 mb-4">
+              <button type="button" onClick={handleCancelSelect} className="text-sm text-gray-600">
+                ✕ {t('select.cancel')}
+              </button>
+              <button type="button" onClick={handleSelectAll} className="text-sm text-blue-600">
+                {t('select.selectAll')}
+              </button>
+              <span className="flex-1 text-right text-sm text-gray-700">
+                {t('select.count', { count: selectedGroupKeys.size })}
+              </span>
+            </div>
+          )}
 
-            {/* フィルタボタン群（通常モードのみ） */}
-            {!isSelectMode && (
-              <FilterChips
-                value={filter}
-                onChange={setFilter}
-                labels={(f) => t(`filter.${f}`)}
-              />
-            )}
+          {!isSelectMode && (
+            <>
+              {/* SP/tablet: セレクト式（横スクロールなし）*/}
+              <div className="flex gap-2 mb-4 items-center lg:hidden">
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as HistoryFilter)}
+                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+                >
+                  {FILTER_TAB_VALUES.map((f) => (
+                    <option key={f} value={f}>{t(`filter.${f}`)}</option>
+                  ))}
+                </select>
+                <select
+                  value={sortMode ?? ''}
+                  onChange={(e) => handleSortChange(e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+                >
+                  <option value="">{t('sort.default')}</option>
+                  <option value="newest">{t('sort.newest')}</option>
+                  <option value="nearest">{t('sort.nearest')}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setIsSelectMode(true)}
+                  className="shrink-0 text-sm text-blue-600 font-medium"
+                >
+                  {t('select.enter')}
+                </button>
+              </div>
 
-            {/* ソートボタン（通常モードのみ） */}
-            {!isSelectMode && (
-              <>
+              {/* PC: チップ式（lg+） */}
+              <div className="hidden lg:flex gap-2 mb-4 items-center">
+                <FilterChips
+                  value={filter}
+                  onChange={setFilter}
+                  labels={(f) => t(`filter.${f}`)}
+                />
                 <button
                   type="button"
                   onClick={handleSortNewest}
@@ -473,20 +512,16 @@ export default function HistoryPage() {
                 >
                   {t('sort.nearest')}
                 </button>
-              </>
-            )}
-
-            {/* 選択ボタン（通常モードのみ右端に表示） */}
-            {!isSelectMode && (
-              <button
-                type="button"
-                onClick={() => setIsSelectMode(true)}
-                className="ml-auto shrink-0 text-sm text-blue-600 font-medium"
-              >
-                {t('select.enter')}
-              </button>
-            )}
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSelectMode(true)}
+                  className="ml-auto shrink-0 text-sm text-blue-600 font-medium"
+                >
+                  {t('select.enter')}
+                </button>
+              </div>
+            </>
+          )}
 
           {/* 商品名検索 + 店舗名フィルタ（選択モード中は非表示） */}
           {!isSelectMode && (
@@ -587,8 +622,21 @@ export default function HistoryPage() {
       {/* みんなのスキャンタブ */}
       {activeTab === 'others' && (
         <>
-          {/* 判定フィルタ + 検索（自分のスキャンと同等） */}
-          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
+          {/* 判定フィルタ */}
+          {/* SP/tablet: セレクト式 */}
+          <div className="flex gap-2 mb-4 lg:hidden">
+            <select
+              value={othersFilter}
+              onChange={(e) => setOthersFilter(e.target.value as HistoryFilter)}
+              className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+            >
+              {FILTER_TAB_VALUES.map((f) => (
+                <option key={f} value={f}>{t(`filter.${f}`)}</option>
+              ))}
+            </select>
+          </div>
+          {/* PC: チップ式 */}
+          <div className="hidden lg:flex gap-2 mb-4 items-center">
             <FilterChips
               value={othersFilter}
               onChange={setOthersFilter}
@@ -657,8 +705,20 @@ export default function HistoryPage() {
       {/* システムタブ（admin のみ） */}
       {activeTab === 'system' && isAdmin && (
         <>
-          {/* フィルタチップ */}
-          <div className="flex gap-2 mb-4 overflow-x-auto items-center">
+          {/* フィルタ: SP/tablet はセレクト式 */}
+          <div className="flex gap-2 mb-4 lg:hidden">
+            <select
+              value={systemFilter}
+              onChange={(e) => setSystemFilter(e.target.value as HistoryFilter)}
+              className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+            >
+              {FILTER_TAB_VALUES.map((f) => (
+                <option key={f} value={f}>{t(`filter.${f}`)}</option>
+              ))}
+            </select>
+          </div>
+          {/* PC: チップ式 */}
+          <div className="hidden lg:flex gap-2 mb-4 items-center">
             <FilterChips
               value={systemFilter}
               onChange={setSystemFilter}
@@ -744,6 +804,9 @@ export default function HistoryPage() {
           onDelete={(scanId) => {
             void handleDelete(scanId)
             handleDetailClose()
+          }}
+          onTogglePublic={(scanId, isPublic) => {
+            updateHistoryMutation.mutate({ id: scanId, is_public: isPublic })
           }}
         />
       )}
