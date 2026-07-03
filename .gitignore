@@ -13,3 +13,6 @@ coverage/
 # Garage ローカルストレージデータ
 docker/garage/meta/
 docker/garage/data/
+
+# テスト用画像・アセット（個人情報含む可能性）
+docs/assets/

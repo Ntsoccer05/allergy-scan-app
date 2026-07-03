@@ -70,8 +70,11 @@ export const useHistory = (): UseHistoryReturn => {
 
   const updateHistoryMutation = useMutation<void, Error, { id: string } & PatchHistoryBody>({
     mutationFn: ({ id, ...data }) => patchHistory(id, data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['history'] })
+      if (variables.is_public !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: ['products-others'] })
+      }
     },
   })
 

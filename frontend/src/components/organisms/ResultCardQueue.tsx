@@ -13,6 +13,7 @@ type PatchHistoryData = {
   store_name?: string | null
   memo?: string | null
   thumbnail_url?: string | null
+  is_public?: boolean
 }
 
 type Props = {
@@ -93,6 +94,7 @@ export const ResultCardQueue = ({
       if (data.store_name !== undefined) updates.storeName = data.store_name
       if (data.thumbnail_url !== undefined) updates.thumbnailUrl = data.thumbnail_url
       if (data.product_name !== undefined) updates.productName = data.product_name
+      if (data.is_public !== undefined) updates.isPublic = data.is_public
       if (Object.keys(updates).length > 0) {
         updateTodayScanItem(activeJob.id, updates)
       }

@@ -95,6 +95,10 @@
       "discardConfirm": "No product name entered. This scan result will not be saved to history.",
       "discardAndReturn": "Return without saving",
       "enterProductName": "Enter product name"
+    },
+    "visibility": {
+      "private": "Private",
+      "public": "Public"
     }
   },
   "camera": {

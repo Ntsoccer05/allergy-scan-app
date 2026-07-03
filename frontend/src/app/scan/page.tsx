@@ -13,7 +13,8 @@ import { useScanUsage } from '@/hooks/useScanUsage'
 import { ScanJobChip } from '@/components/molecules/ScanJobChip'
 import { ResultCardQueue } from '@/components/organisms/ResultCardQueue'
 import { TodayScansSheet } from '@/components/organisms/TodayScansSheet'
-import { useTodayScans } from '@/hooks/useScanQueue'
+import { useTodayScans, updateTodayScanItem } from '@/hooks/useScanQueue'
+import { patchHistory } from '@/lib/api/history.api'
 
 export default function ScanPage() {
   useOnboardingGuard()
@@ -341,7 +342,7 @@ export default function ScanPage() {
           {/* 下部: 注意文 + 撮影ボタン + アップロードボタン */}
           <div className="flex flex-col items-center gap-3 pb-4">
             {/* ⚠️ 安全設計: オーバーレイ内に配置して常時視認可能にする（省略禁止） */}
-            <p className="rounded-lg bg-black/50 px-3 py-1.5 text-center text-xs text-white backdrop-blur-sm">
+            <p className="rounded-lg bg-black/50 px-3 py-1.5 text-center text-sm md:text-base text-white backdrop-blur-sm font-medium">
               {t('caution')}
             </p>
             <div className="flex items-center gap-6">
@@ -406,6 +407,10 @@ export default function ScanPage() {
         items={todayScansWithImages}
         isOpen={showTodaySheet}
         onClose={() => setShowTodaySheet(false)}
+        onTogglePublic={(itemId, historyId, isPublic) => {
+          void patchHistory(historyId, { is_public: isPublic })
+          updateTodayScanItem(itemId, { isPublic })
+        }}
       />
     </>
   )

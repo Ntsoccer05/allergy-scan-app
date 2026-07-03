@@ -18,7 +18,8 @@
   },
   "sort": {
     "newest": "新しい順",
-    "nearest": "📍 近い順"
+    "nearest": "近い順",
+    "default": "並び順"
   },
   "othersEmpty": "まだスキャンされた商品がありません",
   "loadMore": "もっと見る",
@@ -73,6 +74,11 @@
     "latestScan": "最終スキャン",
     "scanCount": "{count}件のスキャン",
     "rakutenLink": "楽天で見る →"
+  },
+  "visibility": {
+    "label": "みんなのスキャンに公開",
+    "private": "非公開",
+    "public": "公開"
   },
   "detail": {
     "close": "閉じる",

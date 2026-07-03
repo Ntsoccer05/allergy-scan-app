@@ -411,6 +411,8 @@ export class HistoryService {
       const detectedLower = group.detected.map((d) => d.toLowerCase());
       let shouldUpgradeToNg = false;
       const newlyMatchedAllergens: string[] = [];
+      // raw_text で検出されたアレルゲン（既に detected にあるものも含む）
+      const allergensTriggeringNg: string[] = [];
 
       for (const allergen of enabledAllergens) {
         const components = detectionComponents.filter(
@@ -425,6 +427,7 @@ export class HistoryService {
 
         if (!foundInText) continue;
         shouldUpgradeToNg = true;
+        allergensTriggeringNg.push(allergen);
 
         const alreadyInDetected = components.some((c) => {
           if (detectedLower.some((d) => d.includes(c.canonicalName.toLowerCase())))
@@ -442,10 +445,27 @@ export class HistoryService {
 
       if (!shouldUpgradeToNg) return group;
 
+      // raw_text で検出したアレルゲンを contains[] に昇格させてフロントの表示を一致させる
+      // （DB は更新しない。API レスポンスのみ）
+      const upgradedContains = [
+        ...new Set([...group.product.allergens.contains, ...allergensTriggeringNg]),
+      ];
+      const upgradedPartial = group.product.allergens.partial.filter(
+        (p) => !allergensTriggeringNg.includes(p),
+      );
+
       return {
         ...group,
         judgment: 'ng',
         detected: [...group.detected, ...newlyMatchedAllergens],
+        product: {
+          ...group.product,
+          allergens: {
+            ...group.product.allergens,
+            contains: upgradedContains,
+            partial: upgradedPartial,
+          },
+        },
       };
     });
   }

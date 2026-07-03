@@ -95,6 +95,10 @@
       "discardConfirm": "商品名が入力されていません。このスキャン結果は履歴に保存されません。",
       "discardAndReturn": "保存せず戻る",
       "enterProductName": "商品名を入力する"
+    },
+    "visibility": {
+      "private": "非公開",
+      "public": "公開"
     }
   },
   "camera": {

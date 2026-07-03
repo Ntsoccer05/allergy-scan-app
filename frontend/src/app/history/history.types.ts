@@ -110,6 +110,7 @@ export type ScanEntry = {
   thumbnailUrl: string | null
   ocrImageUrl: string | null
   rawText: string | null
+  isPublic?: boolean
 }
 
 /** GET /history の新レスポンス型（商品単位グループ）。 */

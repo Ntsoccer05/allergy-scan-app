@@ -48,6 +48,7 @@ export const HistoryProductCard = ({
   const t = useTranslations('history')
   const locale = useLocale()
   const firstScan = scans[0]
+
   if (!firstScan) return null
 
   const emoji = judgment === 'ng' ? '🔴' : judgment === 'partial' ? '🟡' : '✅'
@@ -61,7 +62,7 @@ export const HistoryProductCard = ({
       ? [
           ngItems.length > 0 ? `🔴 ${ngItems.join(' · ')}` : null,
           partialItems.length > 0 ? `🟡 ${partialItems.join(' · ')}` : null,
-          otherItems.length > 0 ? `${emoji} ${otherItems.join(' · ')}` : null,
+          otherItems.length > 0 ? `⚠️ ${otherItems.join(' · ')}` : null,
         ]
           .filter(Boolean)
           .join('  ')
